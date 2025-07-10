@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"log"
 	"sync"
 
@@ -53,9 +54,9 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 			if err != nil {
 				panic(err)
 			}
-			// log.Println("tun<-conn:", n)
+			fmt.Println("tun<-conn:", len(buff))
 			// write into local tun interface channel.
-			wCh <- buff[:len(buff)]
+			wCh <- buff
 		}
 	}()
 	// read from local tun interface channel, and write into remote udp channel.
@@ -65,9 +66,9 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 		for {
 			select {
 			case data := <-rCh:
+				fmt.Println("conn<=tun:", len(data))
 				if err := c.Write(&data); err != nil {
 					panic(err)
-					// }
 				}
 
 			}
@@ -85,6 +86,7 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 			panic(err)
 		}
 		rCh <- buff[:n]
+		fmt.Printf("Read %d bytes from tun\n", n)
 	}()
 	// write data into tun from wCh channel.
 	wg.Add(1)
@@ -94,6 +96,7 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 		if _, err := tun.Write(buff); err != nil {
 			panic(err)
 		}
+		fmt.Printf("Write %d bytes to tun\n", len(buff))
 	}()
 	wg.Wait()
 }
