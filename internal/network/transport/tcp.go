@@ -1,4 +1,4 @@
-package network
+package transport
 
 import (
 	"errors"
@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/songgao/water"
 )
 
 type TcpTransport struct {
@@ -35,7 +36,8 @@ func (tcp *TcpTransport) Init(c *configs.Config) error {
 	return nil
 }
 
-func (tcp *TcpTransport) WaitConnection(c *configs.Config, callback func(Transport, net.Conn)) error {
+func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
+	callback func(Transport, net.Conn, *water.Interface)) error {
 	fmt.Println("Listen for connection")
 	listen, err := net.Listen("tcp", c.LocalAddr+":"+c.LocalPort)
 	if err != nil {
@@ -46,8 +48,9 @@ func (tcp *TcpTransport) WaitConnection(c *configs.Config, callback func(Transpo
 	if err != nil {
 		return err
 	}
+
 	tcpconn := conn.(*net.TCPConn)
-	callback(tcp, tcpconn)
+	callback(tcp, tcpconn, tun)
 	err = listen.Close()
 	if err != nil {
 		fmt.Println(err)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/network"
+	"github.com/sem-hub/snake-net/internal/network/transport"
 	"github.com/sem-hub/snake-net/internal/protocol"
 )
 
@@ -71,19 +72,20 @@ func main() {
 		cfg.LocalPort = port
 	}
 
-	if err := network.SetUpTUN(cfg); err != nil {
+	tun, err := network.SetUpTUN(cfg)
+	if err != nil {
 		fmt.Printf("Error creating tun interface: %s\n", err)
 		os.Exit(1)
 	}
 
-	var t network.Transport = nil
+	var t transport.Transport = nil
 	switch cfg.Protocol {
 	case "udp":
 		fmt.Println("Using UDP Transport.")
-		t = network.NewUdpTransport(cfg)
+		t = transport.NewUdpTransport(cfg)
 	case "tcp":
 		fmt.Println("Using TCP Transport.")
-		t = network.NewTcpTransport(cfg)
+		t = transport.NewTcpTransport(cfg)
 	default:
 		fmt.Printf("Unknown Protocol: %s\n", cfg.Protocol)
 		os.Exit(1)
@@ -91,7 +93,7 @@ func main() {
 	t.Init(cfg)
 	if isServer {
 		for {
-			err = t.WaitConnection(cfg, protocol.ProcessClient)
+			err = t.WaitConnection(cfg, tun, protocol.ProcessClient)
 			if err != nil {
 				fmt.Println(err)
 				break
@@ -99,7 +101,7 @@ func main() {
 			t.Close()
 		}
 	} else {
-		protocol.ProcessServer(t, t.GetClientConn())
+		protocol.ProcessServer(t, t.GetClientConn(), tun)
 	}
 	t.Close()
 }
