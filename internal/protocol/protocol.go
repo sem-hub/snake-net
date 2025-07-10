@@ -8,7 +8,7 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/aioread"
 	"github.com/sem-hub/snake-net/internal/crypt"
-	"github.com/sem-hub/snake-net/internal/transport"
+	"github.com/sem-hub/snake-net/internal/network"
 )
 
 func IdentifyClient(c *crypt.Secrets) bool {
@@ -45,7 +45,7 @@ func Identification(c *crypt.Secrets) error {
 	return nil
 }
 
-func ProcessClient(t transport.Transport, conn net.Conn) {
+func ProcessClient(t network.Transport, conn net.Conn) {
 	aio := aioread.NewAioRead(t, conn)
 	c := crypt.NewSecrets(aio)
 
@@ -59,10 +59,16 @@ func ProcessClient(t transport.Transport, conn net.Conn) {
 	if err := c.ECDH(); err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("Session public key: ", c.GetPublicKey())
+	//fmt.Println("Session public key: ", c.GetPublicKey())
+	buf, err := c.Read()
+	if err != nil {
+		return
+	}
+	fmt.Printf("Got from client: %s\n", buf)
+
 }
 
-func ProcessServer(t transport.Transport, conn net.Conn) {
+func ProcessServer(t network.Transport, conn net.Conn) {
 	aio := aioread.NewAioRead(t, conn)
 	c := crypt.NewSecrets(aio)
 	if err := Identification(c); err != nil {
@@ -75,5 +81,8 @@ func ProcessServer(t transport.Transport, conn net.Conn) {
 	if err := c.ECDH(); err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("Session public key: ", c.GetPublicKey())
+	//fmt.Println("Session public key: ", c.GetPublicKey())
+	msg := []byte("First message from client")
+	c.Write(&msg)
+	fmt.Printf("Sent: %s\n", msg)
 }

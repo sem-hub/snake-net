@@ -3,17 +3,17 @@ package aioread
 import (
 	"net"
 
+	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/queue"
-	"github.com/sem-hub/snake-net/internal/transport"
 )
 
 type AioRead struct {
 	q    *queue.Queue
-	t    transport.Transport
+	t    network.Transport
 	conn net.Conn
 }
 
-func NewAioRead(t transport.Transport, conn net.Conn) *AioRead {
+func NewAioRead(t network.Transport, conn net.Conn) *AioRead {
 	aio := &AioRead{}
 	aio.t = t
 	aio.conn = conn
@@ -32,7 +32,7 @@ func NewAioRead(t transport.Transport, conn net.Conn) *AioRead {
 	return aio
 }
 
-func (aio *AioRead) GetTransport() transport.Transport {
+func (aio *AioRead) GetTransport() network.Transport {
 	return aio.t
 }
 
