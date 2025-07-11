@@ -8,6 +8,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/songgao/water"
+	"github.com/songgao/water/waterutil"
 	"github.com/vishvananda/netlink"
 )
 
@@ -33,6 +34,10 @@ func SetUpTUN(c *configs.Config) (*water.Interface, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = netlink.LinkSetMTU(link, 1436)
+	if err != nil {
+		return nil, err
+	}
 	err = netlink.LinkSetUp(link)
 	if err != nil {
 		return nil, err
@@ -44,8 +49,8 @@ func SetUpTUN(c *configs.Config) (*water.Interface, error) {
 func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 	wg := sync.WaitGroup{}
 	// local tun interface read and write channel.
-	rCh := make(chan []byte, 1500)
-	wCh := make(chan []byte, 1500)
+	rCh := make(chan []byte)
+	wCh := make(chan []byte)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -54,7 +59,8 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println("tun<-conn:", len(buff))
+			fmt.Println("Read from net:", len(buff))
+			//fmt.Printf("%x\n", buff)
 			// write into local tun interface channel.
 			wCh <- buff
 		}
@@ -64,13 +70,11 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 	go func() {
 		wg.Done()
 		for {
-			select {
-			case data := <-rCh:
-				fmt.Println("conn<=tun:", len(data))
-				if err := c.Write(&data); err != nil {
-					panic(err)
-				}
-
+			data := <-rCh
+			fmt.Println("Write to net:", len(data))
+			//fmt.Printf("%x\n", data)
+			if err := c.Write(&data); err != nil {
+				panic(err)
 			}
 		}
 	}()
@@ -79,24 +83,34 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 	wg.Add(1)
 	go func() {
 		wg.Done()
-		buff := make([]byte, 1500)
-		var n int
-		var err error
-		if n, err = tun.Read(buff); err != nil {
-			panic(err)
+		for {
+			buff := make([]byte, 1522)
+			var n int
+			var err error
+
+			if n, err = tun.Read(buff); err != nil {
+				panic(err)
+			}
+			// Ignore not IPv4 packet for now
+			if !waterutil.IsIPv4(buff) {
+				continue
+			}
+			buff = buff[:n]
+			fmt.Printf("Read %d bytes from tun\n", n)
+			rCh <- buff
 		}
-		rCh <- buff[:n]
-		fmt.Printf("Read %d bytes from tun\n", n)
 	}()
 	// write data into tun from wCh channel.
 	wg.Add(1)
 	go func() {
 		wg.Done()
-		buff := <-wCh
-		if _, err := tun.Write(buff); err != nil {
-			panic(err)
+		for {
+			buff := <-wCh
+			if _, err := tun.Write(buff); err != nil {
+				panic(err)
+			}
+			fmt.Printf("Write %d bytes to tun\n", len(buff))
 		}
-		fmt.Printf("Write %d bytes to tun\n", len(buff))
 	}()
 	wg.Wait()
 }

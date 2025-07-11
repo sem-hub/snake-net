@@ -76,7 +76,7 @@ func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	fmt.Printf("Got data from %v\n", addr)
+	fmt.Printf("Got data (%d) from %v\n", l, addr)
 	return &b, l, nil
 }
 

@@ -25,7 +25,7 @@ func NewAioRead(t transport.Transport, conn net.Conn) *AioRead {
 				return
 			}
 			var msg = make([]byte, length)
-			copy(msg, *msgPtr)
+			copy(msg, (*msgPtr)[:length])
 			aio.q.Push(msg)
 		}
 	}()
