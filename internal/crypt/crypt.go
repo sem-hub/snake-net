@@ -36,10 +36,14 @@ func (s *Secrets) Read() ([]byte, error) {
 	if len(buf) < sign_length+1 {
 		return nil, errors.New("too short message")
 	}
-	if !s.Verify(buf[:len(buf)-sign_length], buf[len(buf)-sign_length:]) {
+	dataLength := len(buf) - sign_length
+	if !s.Verify(buf[:dataLength], buf[dataLength:]) {
+		//fmt.Printf("signature verify error for the packet (len %d): %v\n", dataLength, buf[:dataLength])
 		return nil, errors.New("signature verify error")
+	} else {
+		//fmt.Printf("signature good for the packet (len %d)\n", dataLength)
 	}
-	return buf[:len(buf)-sign_length], nil
+	return buf[:dataLength], nil
 }
 
 func (s *Secrets) Write(buf *[]byte) error {
@@ -61,11 +65,17 @@ func (s *Secrets) ECDH() error {
 		return errors.New("marshaling ecdh public key: " + err.Error())
 	}
 
-	s.aio.Write(&buf)
-	//fmt.Println("Write public key: ", buf)
-	buf = buf[:0]
-	buf = s.aio.BlockRead()
-	//fmt.Println("Read public key: ", buf)
+	//fmt.Println("Write public key (", len(buf), "): ", buf)
+	err = s.Write(&buf)
+	if err != nil {
+		return err
+	}
+	//buf = buf[:0]
+	//fmt.Println("Read public key: (", len(buf), "): ", buf)
+	buf, err = s.Read()
+	if err != nil {
+		return err
+	}
 
 	publicKey, err := x509.ParsePKIXPublicKey(buf)
 	if err != nil {
