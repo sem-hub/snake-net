@@ -8,7 +8,6 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/songgao/water"
-	"github.com/songgao/water/waterutil"
 	"github.com/vishvananda/netlink"
 )
 
@@ -34,7 +33,7 @@ func SetUpTUN(c *configs.Config) (*water.Interface, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = netlink.LinkSetMTU(link, 1436)
+	err = netlink.LinkSetMTU(link, 1376)
 	if err != nil {
 		return nil, err
 	}
@@ -55,14 +54,16 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 	go func() {
 		defer wg.Done()
 		for {
-			buff, err := c.Read()
+			buf, err := c.Read()
 			if err != nil {
-				panic(err)
+				fmt.Println("Read packet from net error: ", err)
+				// Ignore bad packet
+				continue
 			}
-			fmt.Println("Read from net:", len(buff))
-			//fmt.Printf("%x\n", buff)
+			fmt.Println("Read from net:", len(buf))
+			//fmt.Printf("%x\n", buf)
 			// write into local tun interface channel.
-			wCh <- buff
+			wCh <- buf
 		}
 	}()
 	// read from local tun interface channel, and write into remote udp channel.
@@ -84,20 +85,16 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 	go func() {
 		wg.Done()
 		for {
-			buff := make([]byte, 1522)
+			buf := make([]byte, 1522)
 			var n int
 			var err error
 
-			if n, err = tun.Read(buff); err != nil {
+			if n, err = tun.Read(buf); err != nil {
 				panic(err)
 			}
-			// Ignore not IPv4 packet for now
-			if !waterutil.IsIPv4(buff) {
-				continue
-			}
-			buff = buff[:n]
+			buf = buf[:n]
 			fmt.Printf("Read %d bytes from tun\n", n)
-			rCh <- buff
+			rCh <- buf
 		}
 	}()
 	// write data into tun from wCh channel.
@@ -105,11 +102,11 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 	go func() {
 		wg.Done()
 		for {
-			buff := <-wCh
-			if _, err := tun.Write(buff); err != nil {
+			buf := <-wCh
+			if _, err := tun.Write(buf); err != nil {
 				panic(err)
 			}
-			fmt.Printf("Write %d bytes to tun\n", len(buff))
+			fmt.Printf("Write %d bytes to tun\n", len(buf))
 		}
 	}()
 	wg.Wait()
