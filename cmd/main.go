@@ -15,15 +15,28 @@ import (
 )
 
 var (
-	cfg      *configs.Config
-	isServer bool
-	tunAddr  string
+	cfg        *configs.Config
+	configFile string
+	isServer   bool
+	tunAddr    string
 )
+
+var flagAlias = map[string]string{
+	"server": "s",
+	"config": "c",
+	"tun":    "t",
+}
 
 func init() {
 	cfg = configs.NewConfig()
+	flag.StringVar(&configFile, "config", "", "Path to config file.")
 	flag.BoolVar(&isServer, "server", false, "Run as server.")
 	flag.StringVar(&tunAddr, "tun", "", "Address for Tun interface.")
+
+	for from, to := range flagAlias {
+		flagSet := flag.Lookup(from)
+		flag.Var(flagSet.Value, to, fmt.Sprintf("alias to %s", flagSet.Name))
+	}
 }
 func main() {
 	flag.Parse()
@@ -34,7 +47,12 @@ func main() {
 
 	addr := strings.ToLower(flag.Arg(0))
 
-	re := regexp.MustCompile(`([a-z]+)://((?:[0-9]{1,3}[\.]){3}[0-9]{1,3}|\[(?:[0-9a-f]{0,4}:){1,7}[0-9a-f]{0,4}\]):([0-9]+)`)
+	proto_regex := `(tcp|udp)://`
+	ipv4_regex := `(?:[0-9]{1,3}[\.]){3}[0-9]{1,3}`
+	ipv6_regex := `\[(?:[0-9a-f]{0,4}:){1,7}[0-9a-f]{0,4}\]`
+	fqdn_regex := `(?:(?:(?:[a-z0-9][a-z0-9\-]*[a-z0-9])|[a-z0-9]+)\.)*(?:[a-z]+|xn\-\-[a-z0-9]+)\.?`
+	port_regex := `[0-9]{1,5}`
+	re := regexp.MustCompile(proto_regex + `((?:` + ipv4_regex + `)|(?:` + ipv6_regex + `)|(?:` + fqdn_regex + `)):(` + port_regex + `)`)
 	if !re.MatchString(addr) {
 		fmt.Printf("Invalid Address: %s. proto://host:port format expected\n", addr)
 		os.Exit(1)
@@ -60,6 +78,7 @@ func main() {
 	}
 
 	ip := ips[0]
+	fmt.Println("ip", ip)
 
 	if !isServer {
 		cfg.Mode = "client"
