@@ -3,11 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"regexp"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
@@ -43,6 +45,13 @@ func main() {
 	if flag.NArg() == 0 {
 		flag.Usage()
 		os.Exit(1)
+	}
+
+	if configFile != "" {
+		_, err := toml.DecodeFile(configFile, cfg)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	addr := strings.ToLower(flag.Arg(0))

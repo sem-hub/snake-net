@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	golang.org/x/sys v0.10.0 // indirect
 )
