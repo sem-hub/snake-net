@@ -75,7 +75,7 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 			fmt.Println("Write to net:", len(data))
 			//fmt.Printf("%x\n", data)
 			if err := c.Write(&data); err != nil {
-				fmt.Println("Read error: ", err)
+				fmt.Println("Write error: ", err)
 				break
 			}
 		}
