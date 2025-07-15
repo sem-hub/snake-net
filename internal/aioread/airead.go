@@ -64,3 +64,7 @@ func (aio *AioRead) Pop() []byte {
 func (aio *AioRead) IsEmpty() bool {
 	return aio.q.IsEmpty()
 }
+
+func (aio *AioRead) Close() error {
+	return aio.t.Close()
+}

@@ -116,3 +116,11 @@ func (s *Secrets) Verify(msg []byte, sig []byte) bool {
 func (s *Secrets) Sign(msg *[]byte) []byte {
 	return ed25519.Sign(s.sessionPrivateKey, *msg)
 }
+
+func (s *Secrets) Close() error {
+	if s.aio != nil {
+		return s.aio.Close()
+	} else {
+		return nil
+	}
+}

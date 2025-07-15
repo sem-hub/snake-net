@@ -11,8 +11,8 @@ import (
 
 type UdpTransport struct {
 	TransportData
-	conn     *net.UDPConn
-	readFrom net.Addr
+	clientConn *net.UDPConn
+	readFrom   net.Addr
 }
 
 func NewUdpTransport(c *configs.Config) *UdpTransport {
@@ -29,10 +29,10 @@ func (udp *UdpTransport) Init(c *configs.Config) error {
 
 	if c.Mode != "server" {
 		conn, err := net.ListenPacket("udp", ":0")
-		udp.conn = conn.(*net.UDPConn)
 		if err != nil {
 			return err
 		}
+		udp.clientConn = conn.(*net.UDPConn)
 	}
 
 	return nil
@@ -50,7 +50,7 @@ func (udp *UdpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 	if err != nil {
 		return err
 	}
-	udp.conn = conn
+	udp.clientConn = conn
 	callback(udp, conn, tun)
 	conn.Close()
 	return nil
@@ -81,16 +81,15 @@ func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, error) {
 }
 
 func (udp *UdpTransport) Close() error {
-	if udp.conn == nil {
-		return nil
-	}
-	err := udp.conn.Close()
-	if err != nil {
-		return err
+	if udp.clientConn != nil {
+		err := udp.clientConn.Close()
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (udp *UdpTransport) GetClientConn() net.Conn {
-	return udp.conn
+	return udp.clientConn
 }

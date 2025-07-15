@@ -14,8 +14,9 @@ const BUFSIZE = 4000
 
 type TcpTransport struct {
 	TransportData
-	listen net.Listener
-	conn   *net.TCPConn
+	listen     net.Listener
+	clientConn *net.TCPConn
+	//	serverConnPool []*net.TCPConn
 	packet []byte
 	buf    []byte
 	index  int
@@ -24,6 +25,7 @@ type TcpTransport struct {
 
 func NewTcpTransport(c *configs.Config) *TcpTransport {
 	var t = NewTransport(c)
+	//return &TcpTransport{*t, nil, nil, []*net.TCPConn{}, []byte{}, make([]byte, BUFSIZE), 0, 0}
 	return &TcpTransport{*t, nil, nil, []byte{}, make([]byte, BUFSIZE), 0, 0}
 }
 
@@ -37,7 +39,7 @@ func (tcp *TcpTransport) Init(c *configs.Config) error {
 		if err != nil {
 			return err
 		}
-		tcp.conn = conn
+		tcp.clientConn = conn
 	}
 
 	return nil
@@ -58,6 +60,7 @@ func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 
 	tcpconn := conn.(*net.TCPConn)
 	tcpconn.SetNoDelay(true)
+	tcpconn.SetLinger(0)
 	callback(tcp, tcpconn, tun)
 	err = listen.Close()
 	if err != nil {
@@ -98,7 +101,7 @@ func (tcp *TcpTransport) Receive(conn net.Conn) (*Message, int, error) {
 		}
 		if l != 2 {
 			if l == 0 {
-				return nil, 0, errors.New("TCP connection closed")
+				return nil, 0, errors.New("TCP connection closed (first read)")
 			} else {
 				return nil, 0, errors.New("TCP read less data")
 			}
@@ -124,6 +127,9 @@ func (tcp *TcpTransport) Receive(conn net.Conn) (*Message, int, error) {
 			if err != nil {
 				return nil, 0, err
 			}
+			if l1 == 0 {
+				return nil, 0, errors.New("TCP connection closed")
+			}
 			//fmt.Println("Read data len: ", l1)
 			l += l1
 		}
@@ -143,17 +149,16 @@ func (tcp *TcpTransport) Receive(conn net.Conn) (*Message, int, error) {
 }
 
 func (tcp *TcpTransport) Close() error {
-	if tcp.conn == nil {
-		return nil
-	}
-	err := tcp.conn.Close()
-	if err != nil {
-		return err
+	if tcp.clientConn != nil {
+		err := tcp.clientConn.Close()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 func (tcp *TcpTransport) GetClientConn() net.Conn {
-	return tcp.conn
+	return tcp.clientConn
 }
