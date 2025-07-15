@@ -1,7 +1,6 @@
 package network
 
 import (
-	"fmt"
 	"log"
 	"sync"
 
@@ -46,6 +45,7 @@ func SetUpTUN(c *configs.Config) (*water.Interface, error) {
 }
 
 func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
+	logger := configs.GetLogger()
 	wg := sync.WaitGroup{}
 	// local tun interface read and write channel.
 	rCh := make(chan []byte)
@@ -56,12 +56,11 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 		for {
 			buf, err := c.Read()
 			if err != nil {
-				fmt.Println("Read packet from net error: ", err)
+				logger.Error("Read packet from net", "error", err)
 				// Ignore bad packet
 				continue
 			}
-			fmt.Println("Read from net:", len(buf))
-			//fmt.Printf("%x\n", buf)
+			logger.Debug("Read from net", "len", len(buf))
 			// write into local tun interface channel.
 			wCh <- buf
 		}
@@ -72,16 +71,15 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 		wg.Done()
 		for {
 			data := <-rCh
-			fmt.Println("Write to net:", len(data))
-			//fmt.Printf("%x\n", data)
+			logger.Debug("Write to net", "len", len(data))
 			if err := c.Write(&data); err != nil {
-				fmt.Println("Write error: ", err)
+				logger.Error("Write to net", "error", err)
 				break
 			}
 		}
 		err := c.Close()
 		if err != nil {
-			fmt.Println("Close crypt error: ", err)
+			logger.Error("Close crypt", "error", err)
 		}
 	}()
 
@@ -98,7 +96,7 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 				panic(err)
 			}
 			buf = buf[:n]
-			fmt.Printf("Read %d bytes from tun\n", n)
+			logger.Debug("Read from tun", "len", n)
 			rCh <- buf
 		}
 	}()
@@ -111,7 +109,7 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 			if _, err := tun.Write(buf); err != nil {
 				panic(err)
 			}
-			fmt.Printf("Write %d bytes to tun\n", len(buf))
+			logger.Debug("Write into tun", "len", len(buf))
 		}
 	}()
 	wg.Wait()

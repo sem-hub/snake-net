@@ -2,7 +2,7 @@ package transport
 
 import (
 	"errors"
-	"fmt"
+	"log"
 	"net"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -40,12 +40,13 @@ func (udp *UdpTransport) Init(c *configs.Config) error {
 
 func (udp *UdpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 	callback func(Transport, net.Conn, *water.Interface)) error {
+	//logger := configs.GetLogger()
 	udpLocal, err := net.ResolveUDPAddr("udp", c.LocalAddr+":"+c.LocalPort)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Listen: %s\n", c.LocalAddr+":"+c.LocalPort)
+	log.Printf("Listen: %s\n", c.LocalAddr+":"+c.LocalPort)
 	conn, err := net.ListenUDP("udp", udpLocal)
 	if err != nil {
 		return err
@@ -69,6 +70,7 @@ func (udp *UdpTransport) Send(conn net.Conn, msg *Message) error {
 }
 
 func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, error) {
+	logger := configs.GetLogger()
 	udpconn := conn.(*net.UDPConn)
 	b := make([]byte, 1500)
 	l, addr, err := udpconn.ReadFrom(b)
@@ -76,7 +78,7 @@ func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	fmt.Printf("Got data (%d) from %v\n", l, addr)
+	logger.Debug("Got data", "len", l, "from", addr)
 	return &b, l, nil
 }
 

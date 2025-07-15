@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"os"
 	"regexp"
@@ -54,6 +55,9 @@ func main() {
 		}
 	}
 
+	configs.InitLogger(slog.LevelDebug)
+	logger := configs.GetLogger()
+
 	addr := strings.ToLower(flag.Arg(0))
 
 	proto_regex := `(tcp|udp)://`
@@ -63,8 +67,7 @@ func main() {
 	port_regex := `[0-9]{1,5}`
 	re := regexp.MustCompile(proto_regex + `((?:` + ipv4_regex + `)|(?:` + ipv6_regex + `)|(?:` + fqdn_regex + `)):(` + port_regex + `)`)
 	if !re.MatchString(addr) {
-		fmt.Printf("Invalid Address: %s. proto://host:port format expected\n", addr)
-		os.Exit(1)
+		log.Fatalf("Invalid Address: %s. proto://host:port format expected", addr)
 	}
 
 	m := re.FindStringSubmatch(addr)
@@ -73,21 +76,20 @@ func main() {
 	port := m[3]
 
 	if tunAddr == "" {
-		fmt.Println("Tun Address is mandatory")
-		os.Exit(1)
+		log.Fatal("Tun Address is mandatory")
 	}
 	cfg.TunAddr = tunAddr
 
-	fmt.Printf("Protocol: %s\n", cfg.Protocol)
-	fmt.Printf("Peer Addr: %s, port: %s\n", host, port)
+	logger.Debug("", "Protocol", cfg.Protocol)
+	logger.Debug("", "Peer", host, "port", port)
 	ips, err := net.LookupIP(host)
 	if err != nil {
-		fmt.Printf("Error resolving host: %s\n", err)
+		log.Fatalf("Error resolving host: %s", err)
 		os.Exit(1)
 	}
 
 	ip := ips[0]
-	fmt.Println("ip", ip)
+	logger.Debug("", "ip", ip)
 
 	if !isServer {
 		cfg.Mode = "client"
@@ -102,28 +104,26 @@ func main() {
 
 	tun, err := network.SetUpTUN(cfg)
 	if err != nil {
-		fmt.Printf("Error creating tun interface: %s\n", err)
-		os.Exit(1)
+		log.Fatalf("Error creating tun interface: %s", err)
 	}
 
 	var t transport.Transport = nil
 	switch cfg.Protocol {
 	case "udp":
-		fmt.Println("Using UDP Transport.")
+		logger.Debug("Using UDP Transport.")
 		t = transport.NewUdpTransport(cfg)
 	case "tcp":
-		fmt.Println("Using TCP Transport.")
+		logger.Debug("Using TCP Transport.")
 		t = transport.NewTcpTransport(cfg)
 	default:
-		fmt.Printf("Unknown Protocol: %s\n", cfg.Protocol)
-		os.Exit(1)
+		log.Fatalf("Unknown Protocol: %s", cfg.Protocol)
 	}
 	t.Init(cfg)
 	if isServer {
 		for {
 			err = t.WaitConnection(cfg, tun, protocol.ProcessClient)
 			if err != nil {
-				fmt.Println(err)
+				logger.Error("WaitConnection", "Error", err)
 				break
 			}
 			t.Close()

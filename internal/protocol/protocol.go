@@ -3,10 +3,10 @@ package protocol
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"net"
 
 	"github.com/sem-hub/snake-net/internal/aioread"
+	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
@@ -30,6 +30,7 @@ func IdentifyClient(c *crypt.Secrets) bool {
 }
 
 func Identification(c *crypt.Secrets) error {
+	logger := configs.GetLogger()
 	msg := []byte("Hello")
 	err := c.Write(&msg)
 	if err != nil {
@@ -43,40 +44,42 @@ func Identification(c *crypt.Secrets) error {
 	if !bytes.Equal(msg1, []byte("Error")) {
 		return errors.New("Identification error")
 	}
-	fmt.Println("Got:", msg1)
+	logger.Debug("ID", "msg", msg1)
 	return nil
 }
 
 func ProcessClient(t transport.Transport, conn net.Conn, tun *water.Interface) {
+	logger := configs.GetLogger()
 	aio := aioread.NewAioRead(t, conn)
 	c := crypt.NewSecrets(aio)
 
 	if IdentifyClient(c) {
-		fmt.Printf("Identification passed\n")
+		logger.Debug("Identification passed")
 	} else {
-		fmt.Printf("Identification failed\n")
+		logger.Debug("Identification failed")
 		return
 	}
 
 	if err := c.ECDH(); err != nil {
-		fmt.Println(err)
+		logger.Error("ECDH", "error", err)
 	}
 	//fmt.Println("Session public key: ", c.GetPublicKey())
 	network.ProcessTun(c, tun)
 }
 
 func ProcessServer(t transport.Transport, conn net.Conn, tun *water.Interface) {
+	logger := configs.GetLogger()
 	aio := aioread.NewAioRead(t, conn)
 	c := crypt.NewSecrets(aio)
 	if err := Identification(c); err != nil {
-		fmt.Printf("Identification Success\n")
+		logger.Debug("Identification Success")
 	} else {
-		fmt.Printf("Identification Fails\n")
+		logger.Debug("Identification Fails")
 		return
 	}
 
 	if err := c.ECDH(); err != nil {
-		fmt.Println(err)
+		logger.Error("ECDH", "error", err)
 	}
 	//fmt.Println("Session public key: ", c.GetPublicKey())
 	network.ProcessTun(c, tun)
