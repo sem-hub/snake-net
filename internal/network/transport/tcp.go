@@ -64,7 +64,7 @@ func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 	callback(tcp, tcpconn, tun)
 	err = listen.Close()
 	if err != nil {
-		logger.Error("listen", err)
+		logger.Error("listen", "error", err)
 	}
 	return nil
 }

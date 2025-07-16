@@ -22,19 +22,22 @@ var (
 	configFile string
 	isServer   bool
 	tunAddr    string
+	debug      bool
 )
 
 var flagAlias = map[string]string{
 	"server": "s",
 	"config": "c",
 	"tun":    "t",
+	"debug":  "d",
 }
 
 func init() {
 	cfg = configs.NewConfig()
 	flag.StringVar(&configFile, "config", "", "Path to config file.")
 	flag.BoolVar(&isServer, "server", false, "Run as server.")
-	flag.StringVar(&tunAddr, "tun", "", "Address for Tun interface.")
+	flag.StringVar(&tunAddr, "tun", "", "Address (CIDR) for Tun interface.")
+	flag.BoolVar(&debug, "debug", false, "Enable debug mode.")
 
 	for from, to := range flagAlias {
 		flagSet := flag.Lookup(from)
@@ -55,7 +58,11 @@ func main() {
 		}
 	}
 
-	configs.InitLogger(slog.LevelDebug)
+	var level slog.Level = slog.LevelInfo
+	if debug {
+		level = slog.LevelDebug
+	}
+	configs.InitLogger(level)
 	logger := configs.GetLogger()
 
 	addr := strings.ToLower(flag.Arg(0))
@@ -65,9 +72,9 @@ func main() {
 	ipv6_regex := `\[(?:[0-9a-f]{0,4}:){1,7}[0-9a-f]{0,4}\]`
 	fqdn_regex := `(?:(?:(?:[a-z0-9][a-z0-9\-]*[a-z0-9])|[a-z0-9]+)\.)*(?:[a-z]+|xn\-\-[a-z0-9]+)\.?`
 	port_regex := `[0-9]{1,5}`
-	re := regexp.MustCompile(proto_regex + `((?:` + ipv4_regex + `)|(?:` + ipv6_regex + `)|(?:` + fqdn_regex + `)):(` + port_regex + `)`)
+	re := regexp.MustCompile(proto_regex + `((?:` + ipv4_regex + `)|(?:` + ipv6_regex + `)|(?:` + fqdn_regex + `))*:(` + port_regex + `)`)
 	if !re.MatchString(addr) {
-		log.Fatalf("Invalid Address: %s. proto://host:port format expected", addr)
+		log.Fatalf("Invalid Address: %s. proto://host:port format expected.\nWhere protocols supported are: tcp, udp", addr)
 	}
 
 	m := re.FindStringSubmatch(addr)
@@ -75,13 +82,20 @@ func main() {
 	host := m[2]
 	port := m[3]
 
+	if host == "" {
+		if isServer {
+			host = "0.0.0.0"
+		} else {
+			log.Fatal("Remote Address is mandatory for client")
+		}
+	}
+	logger.Debug("URI", "Protocol", cfg.Protocol, "Peer", host, "port", port)
+
 	if tunAddr == "" {
 		log.Fatal("Tun Address is mandatory")
 	}
 	cfg.TunAddr = tunAddr
 
-	logger.Debug("", "Protocol", cfg.Protocol)
-	logger.Debug("", "Peer", host, "port", port)
 	ips, err := net.LookupIP(host)
 	if err != nil {
 		log.Fatalf("Error resolving host: %s", err)
