@@ -53,15 +53,17 @@ func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 		return err
 	}
 
-	conn, err := listen.Accept()
-	if err != nil {
-		return err
-	}
+	for {
+		conn, err := listen.Accept()
+		if err != nil {
+			break
+		}
 
-	tcpconn := conn.(*net.TCPConn)
-	tcpconn.SetNoDelay(true)
-	tcpconn.SetLinger(0)
-	callback(tcp, tcpconn, tun)
+		tcpconn := conn.(*net.TCPConn)
+		tcpconn.SetNoDelay(true)
+		tcpconn.SetLinger(0)
+		go callback(tcp, tcpconn, tun)
+	}
 	err = listen.Close()
 	if err != nil {
 		logger.Error("listen", "error", err)

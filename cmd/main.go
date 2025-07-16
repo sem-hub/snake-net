@@ -134,14 +134,11 @@ func main() {
 	}
 	t.Init(cfg)
 	if isServer {
-		for {
-			err = t.WaitConnection(cfg, tun, protocol.ProcessClient)
-			if err != nil {
-				logger.Error("WaitConnection", "Error", err)
-				break
-			}
-			t.Close()
+		err = t.WaitConnection(cfg, tun, protocol.ProcessClient)
+		if err != nil {
+			logger.Error("WaitConnection", "Error", err)
 		}
+		t.Close()
 	} else {
 		logger.Info("Connect to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
 		protocol.ProcessServer(t, t.GetClientConn(), tun)
