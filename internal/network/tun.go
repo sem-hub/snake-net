@@ -32,7 +32,7 @@ func SetUpTUN(c *configs.Config) (*water.Interface, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = netlink.LinkSetMTU(link, 1376)
+	err = netlink.LinkSetMTU(link, 1436)
 	if err != nil {
 		return nil, err
 	}

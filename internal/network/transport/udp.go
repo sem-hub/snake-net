@@ -58,7 +58,9 @@ func (udp *UdpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 }
 
 func (udp *UdpTransport) Send(conn net.Conn, msg *Message) error {
+	logger := configs.GetLogger()
 	udpconn := conn.(*net.UDPConn)
+	logger.Debug("Send data", "len", len(*msg))
 	l, err := udpconn.WriteTo([]byte(*msg), udp.readFrom)
 	if err != nil {
 		return err
@@ -72,7 +74,7 @@ func (udp *UdpTransport) Send(conn net.Conn, msg *Message) error {
 func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, error) {
 	logger := configs.GetLogger()
 	udpconn := conn.(*net.UDPConn)
-	b := make([]byte, 1500)
+	b := make([]byte, 4000)
 	l, addr, err := udpconn.ReadFrom(b)
 	udp.readFrom = addr
 	if err != nil {
