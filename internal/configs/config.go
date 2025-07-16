@@ -36,7 +36,7 @@ func InitLogger(level slog.Level) {
 			os.Stderr,
 			&slog.HandlerOptions{
 				ReplaceAttr: removeTime,
-				Level:       slog.LevelDebug,
+				Level:       level,
 			},
 		),
 	)
