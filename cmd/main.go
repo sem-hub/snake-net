@@ -143,6 +143,7 @@ func main() {
 			t.Close()
 		}
 	} else {
+		logger.Info("Connect to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
 		protocol.ProcessServer(t, t.GetClientConn(), tun)
 	}
 	t.Close()
