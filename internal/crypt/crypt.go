@@ -7,37 +7,64 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
+	"net"
+	"strconv"
 
 	"errors"
 
-	"github.com/sem-hub/snake-net/internal/aioread"
+	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
 const first_secret = "pu6apieV6chohghah2MooshepaethuCh"
 const sign_length = 64
 
 type Secrets struct {
+	clientAddr        net.Addr
+	t                 transport.Transport
+	conn              net.Conn
 	sharedSecret      []byte
 	sessionPrivateKey ed25519.PrivateKey
 	sessionPublicKey  ed25519.PublicKey
-	aio               *aioread.AioRead
 }
 
-func NewSecrets(aio *aioread.AioRead) *Secrets {
+func NewSecrets(addr net.Addr, t transport.Transport, conn net.Conn) *Secrets {
+	logger := configs.GetLogger()
 	s := Secrets{}
-	s.aio = aio
+
+	s.clientAddr = addr
+	s.t = t
+	s.conn = conn
 	s.sessionPublicKey, s.sessionPrivateKey, _ =
 		ed25519.GenerateKey(bytes.NewReader([]byte(first_secret)))
 
+	go func() {
+		for {
+			_, _, _, err := t.Receive(conn)
+			if err != nil {
+				logger.Debug("Main loop finished with", "error", err)
+				break
+			}
+		}
+	}()
+
 	return &s
 }
+
 func (s *Secrets) Read() ([]byte, error) {
-	buf := s.aio.BlockRead()
+	logging := configs.GetLogger()
+	logging.Debug("crypto read. wait for data", "from", s.clientAddr)
+
+	buf := s.t.GetFromBuf(s.clientAddr)
+	for buf == nil {
+		buf = s.t.GetFromBuf(s.clientAddr)
+	}
+
 	if len(buf) < sign_length+1 {
-		return nil, errors.New("too short message")
+		return nil, errors.New("too short message: " + strconv.Itoa(len(buf)))
 	}
 	dataLength := len(buf) - sign_length
-	if !s.Verify(buf[:dataLength], buf[dataLength:]) {
+	if !s.Verify((buf)[:dataLength], buf[dataLength:]) {
 		//fmt.Printf("signature verify error for the packet (len %d): %v\n", dataLength, buf[:dataLength])
 		return nil, errors.New("signature verify error")
 	} else {
@@ -47,13 +74,16 @@ func (s *Secrets) Read() ([]byte, error) {
 }
 
 func (s *Secrets) Write(buf *[]byte) error {
+	logger := configs.GetLogger()
 	signedBuf := *buf
 	signature := s.Sign(buf)
 	signedBuf = append(signedBuf, signature...)
-	return s.aio.Write(&signedBuf)
+	logger.Debug("Crypto write", "len", len(signedBuf), "addr", s.clientAddr)
+	return s.t.Send(s.clientAddr, s.conn, &signedBuf)
 }
 
 func (s *Secrets) ECDH() error {
+	logging := configs.GetLogger()
 	tempPrivateKey, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
 		return err
@@ -65,17 +95,16 @@ func (s *Secrets) ECDH() error {
 		return errors.New("marshaling ecdh public key: " + err.Error())
 	}
 
-	//fmt.Println("Write public key (", len(buf), "): ", buf)
+	logging.Debug("Write public key", "len", len(buf), "buf", buf)
 	err = s.Write(&buf)
 	if err != nil {
 		return err
 	}
-	//buf = buf[:0]
-	//fmt.Println("Read public key: (", len(buf), "): ", buf)
 	buf, err = s.Read()
 	if err != nil {
 		return err
 	}
+	logging.Debug("Read public key", "len", len(buf), "buf", buf)
 
 	publicKey, err := x509.ParsePKIXPublicKey(buf)
 	if err != nil {
@@ -118,8 +147,8 @@ func (s *Secrets) Sign(msg *[]byte) []byte {
 }
 
 func (s *Secrets) Close() error {
-	if s.aio != nil {
-		return s.aio.Close()
+	if s.t != nil {
+		return s.t.Close()
 	} else {
 		return nil
 	}

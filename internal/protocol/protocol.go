@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/sem-hub/snake-net/internal/aioread"
+	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/network"
@@ -48,10 +48,15 @@ func Identification(c *crypt.Secrets) error {
 	return nil
 }
 
-func ProcessClient(t transport.Transport, conn net.Conn, tun *water.Interface) {
+func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr, tun *water.Interface) {
 	logger := configs.GetLogger()
-	aio := aioread.NewAioRead(t, conn)
-	c := crypt.NewSecrets(aio)
+
+	addr := conn.RemoteAddr()
+	if addr == nil {
+		addr = gotAddr
+	}
+	clients.AddClient(conn, addr)
+	c := crypt.NewSecrets(addr, t, conn)
 
 	if IdentifyClient(c) {
 		logger.Debug("Identification passed")
@@ -60,17 +65,25 @@ func ProcessClient(t transport.Transport, conn net.Conn, tun *water.Interface) {
 		return
 	}
 
+	clients.SetClientState(addr, clients.Authenticated)
+
 	if err := c.ECDH(); err != nil {
 		logger.Error("ECDH", "error", err)
 	}
+
+	clients.SetClientState(addr, clients.Ready)
 	//fmt.Println("Session public key: ", c.GetPublicKey())
 	network.ProcessTun(c, tun)
 }
 
-func ProcessServer(t transport.Transport, conn net.Conn, tun *water.Interface) {
+func ProcessServer(t transport.Transport, conn net.Conn, addr net.Addr, tun *water.Interface) {
 	logger := configs.GetLogger()
-	aio := aioread.NewAioRead(t, conn)
-	c := crypt.NewSecrets(aio)
+	if conn == nil {
+		return
+	}
+	// Well, really it's server but we call it client here
+	clients.AddClient(conn, addr)
+	c := crypt.NewSecrets(addr, t, conn)
 	if err := Identification(c); err != nil {
 		logger.Debug("Identification Success")
 	} else {
@@ -78,9 +91,13 @@ func ProcessServer(t transport.Transport, conn net.Conn, tun *water.Interface) {
 		return
 	}
 
+	clients.SetClientState(addr, clients.Authenticated)
+
 	if err := c.ECDH(); err != nil {
 		logger.Error("ECDH", "error", err)
 	}
+	clients.SetClientState(addr, clients.Ready)
+
 	//fmt.Println("Session public key: ", c.GetPublicKey())
 	network.ProcessTun(c, tun)
 }

@@ -12,20 +12,17 @@ import (
 const BUFSIZE = 4000
 
 type TcpTransport struct {
-	TransportData
+	td         *TransportData
 	listen     net.Listener
 	clientConn *net.TCPConn
-	//	serverConnPool []*net.TCPConn
-	packet []byte
-	buf    []byte
-	index  int
-	len    int
+	conn       map[string]net.TCPConn
+	buf        map[string][]byte
+	len        map[string]int
 }
 
 func NewTcpTransport(c *configs.Config) *TcpTransport {
 	var t = NewTransport(c)
-	//return &TcpTransport{*t, nil, nil, []*net.TCPConn{}, []byte{}, make([]byte, BUFSIZE), 0, 0}
-	return &TcpTransport{*t, nil, nil, []byte{}, make([]byte, BUFSIZE), 0, 0}
+	return &TcpTransport{t, nil, nil, make(map[string]net.TCPConn), make(map[string][]byte), make(map[string]int)}
 }
 
 func (tcp *TcpTransport) Init(c *configs.Config) error {
@@ -45,7 +42,7 @@ func (tcp *TcpTransport) Init(c *configs.Config) error {
 }
 
 func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
-	callback func(Transport, net.Conn, *water.Interface)) error {
+	callback func(Transport, net.Conn, net.Addr, *water.Interface)) error {
 	logger := configs.GetLogger()
 	logger.Debug("Listen for connection")
 	listen, err := net.Listen("tcp", c.LocalAddr+":"+c.LocalPort)
@@ -62,7 +59,8 @@ func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 		tcpconn := conn.(*net.TCPConn)
 		tcpconn.SetNoDelay(true)
 		tcpconn.SetLinger(0)
-		go callback(tcp, tcpconn, tun)
+		tcp.conn[tcpconn.RemoteAddr().String()] = *tcpconn
+		go callback(tcp, tcpconn, tcpconn.RemoteAddr(), tun)
 	}
 	err = listen.Close()
 	if err != nil {
@@ -71,8 +69,8 @@ func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 	return nil
 }
 
-func (tcp *TcpTransport) Send(conn net.Conn, msg *Message) error {
-	//logger := configs.GetLogger()
+func (tcp *TcpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error {
+	logger := configs.GetLogger()
 	tcpconn := conn.(*net.TCPConn)
 
 	n := len(*msg)
@@ -80,7 +78,7 @@ func (tcp *TcpTransport) Send(conn net.Conn, msg *Message) error {
 	buf[0] = byte(n >> 8)
 	buf[1] = byte(n)
 	copy(buf[2:], *msg)
-	//logger.Debug("Send data (+2)", "len", n)
+	logger.Debug("Send data (+2)", "len", n)
 	l, err := tcpconn.Write(buf)
 	if err != nil {
 		return err
@@ -91,65 +89,78 @@ func (tcp *TcpTransport) Send(conn net.Conn, msg *Message) error {
 	return nil
 }
 
-func (tcp *TcpTransport) Receive(conn net.Conn) (*Message, int, error) {
+func (tcp *TcpTransport) Receive(conn net.Conn) (*Message, int, net.Addr, error) {
 	logger := configs.GetLogger()
 	tcpconn := conn.(*net.TCPConn)
-	tcp.packet = make([]byte, BUFSIZE)
+	addrStr := tcpconn.RemoteAddr().String()
+	if _, ok := tcp.buf[addrStr]; !ok {
+		tcp.buf[addrStr] = make([]byte, BUFSIZE)
+		tcp.len[addrStr] = 0
+	}
+
+	// Read length - first 2 bytes
 	b := make([]byte, 2)
 	l := 0
 	var err error
-	if tcp.len == 0 {
+	if tcp.len[addrStr] == 0 {
 		l, err = tcpconn.Read(b)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, err
 		}
 		if l != 2 {
 			if l == 0 {
-				return nil, 0, errors.New("TCP connection closed (first read)")
+				return nil, 0, nil, errors.New("TCP connection closed (first read)")
 			} else {
-				return nil, 0, errors.New("TCP read less data")
+				return nil, 0, nil, errors.New("TCP read less data")
 			}
 		}
 		//logger.Debug("Read data", "len", l)
 	} else {
-		b = tcp.buf[:2]
+		b = tcp.buf[addrStr][:2]
 	}
 	n := int(b[0])<<8 | int(b[1])
 	if n > BUFSIZE {
-		return nil, 0, errors.New("TCP message too long")
+		return nil, 0, nil, errors.New("TCP message too long")
 	}
 
 	l = 0
-	if tcp.len < n {
-		l, err = tcpconn.Read(tcp.buf[:n])
+	if tcp.len[addrStr] < n {
+		l, err = tcpconn.Read(tcp.buf[addrStr][:n])
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, err
 		}
 		//logger.Debug("Read data", "len", l)
 		for l < n {
-			l1, err := tcpconn.Read(tcp.buf[l:n])
+			l1, err := tcpconn.Read(tcp.buf[addrStr][l:n])
 			if err != nil {
-				return nil, 0, err
+				return nil, 0, nil, err
 			}
 			if l1 == 0 {
-				return nil, 0, errors.New("TCP connection closed")
+				return nil, 0, nil, errors.New("TCP connection closed")
 			}
 			//logger.Debug("Read data (continue)", "len", l1)
 			l += l1
 		}
-		tcp.len += l
+		tcp.len[addrStr] += l
 	}
-	copy(tcp.packet[:], tcp.buf[:n])
-	if tcp.len > n {
-		tcp.buf = tcp.buf[n : tcp.len-n]
-		tcp.len = tcp.len - n
-		logger.Debug("Buffer moved", "len", tcp.len)
+	data := make([]byte, n)
+	copy(data[:], tcp.buf[addrStr][:n])
+	if tcp.len[addrStr] > n {
+		tcp.buf[addrStr] = tcp.buf[addrStr][n : tcp.len[addrStr]-n]
+		tcp.len[addrStr] -= n
+		logger.Debug("Buffer moved", "len", tcp.len[addrStr])
 	} else {
-		tcp.len = 0
+		tcp.len[addrStr] = 0
 	}
-	logger.Debug("Got data", "len", n, "from", tcpconn.RemoteAddr())
-	msg := Message(tcp.buf[tcp.index:l])
-	return &msg, l, nil
+
+	logger.Debug("Got data", "len", n, "from", addrStr)
+	tcp.td.PutToBuf(conn.RemoteAddr(), data[:n])
+	msg := Message(data)[:n]
+	return &msg, l, conn.RemoteAddr(), nil
+}
+
+func (tcp *TcpTransport) GetFromBuf(addr net.Addr) []byte {
+	return tcp.td.GetFromBuf(addr)
 }
 
 func (tcp *TcpTransport) Close() error {

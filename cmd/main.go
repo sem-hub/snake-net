@@ -132,16 +132,29 @@ func main() {
 	default:
 		log.Fatalf("Unknown Protocol: %s", cfg.Protocol)
 	}
-	t.Init(cfg)
+	err = t.Init(cfg)
+	if err != nil {
+		log.Fatalf("Transport init error %s", err)
+	}
 	if isServer {
-		err = t.WaitConnection(cfg, tun, protocol.ProcessClient)
+		err = t.WaitConnection(cfg, tun, protocol.ProcessNewClient)
 		if err != nil {
 			logger.Error("WaitConnection", "Error", err)
 		}
 		t.Close()
 	} else {
 		logger.Info("Connect to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
-		protocol.ProcessServer(t, t.GetClientConn(), tun)
+		var addr net.Addr
+		var err error
+		if cfg.Protocol == "tcp" {
+			addr, err = net.ResolveTCPAddr("tcp", cfg.RemoteAddr+":"+cfg.RemotePort)
+		} else {
+			addr, err = net.ResolveUDPAddr("udp", cfg.RemoteAddr+":"+cfg.RemotePort)
+		}
+		if err != nil {
+			log.Fatalf("ResolveIPAddr error: %s", err)
+		}
+		protocol.ProcessServer(t, t.GetClientConn(), addr, tun)
 	}
 	t.Close()
 }
