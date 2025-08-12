@@ -56,9 +56,10 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr, tu
 		addr = gotAddr
 	}
 	clients.AddClient(conn, addr)
-	c := crypt.NewSecrets(addr, t, conn)
+	s := crypt.NewSecrets(addr, t, conn)
+	clients.AddSecretsToClient(addr, s)
 
-	if IdentifyClient(c) {
+	if IdentifyClient(s) {
 		logger.Debug("Identification passed")
 	} else {
 		logger.Debug("Identification failed")
@@ -67,13 +68,13 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr, tu
 
 	clients.SetClientState(addr, clients.Authenticated)
 
-	if err := c.ECDH(); err != nil {
+	if err := s.ECDH(); err != nil {
 		logger.Error("ECDH", "error", err)
 	}
 
 	clients.SetClientState(addr, clients.Ready)
 	//fmt.Println("Session public key: ", c.GetPublicKey())
-	network.ProcessTun(c, tun)
+	network.ProcessTun("server", s, tun)
 }
 
 func ProcessServer(t transport.Transport, conn net.Conn, addr net.Addr, tun *water.Interface) {
@@ -99,5 +100,5 @@ func ProcessServer(t transport.Transport, conn net.Conn, addr net.Addr, tun *wat
 	clients.SetClientState(addr, clients.Ready)
 
 	//fmt.Println("Session public key: ", c.GetPublicKey())
-	network.ProcessTun(c, tun)
+	network.ProcessTun("client", c, tun)
 }

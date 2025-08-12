@@ -20,6 +20,10 @@ func NewUdpTransport(c *configs.Config) *UdpTransport {
 	return &UdpTransport{t, nil, make(map[string]net.Addr)}
 }
 
+func (udp *UdpTransport) GetName() string {
+	return "udp"
+}
+
 func (udp *UdpTransport) Init(c *configs.Config) error {
 	/*udpServer, err := net.ResolveUDPAddr("udp", c.RemoteAddr+":"+c.RemotePort)
 	if err != nil {
@@ -68,9 +72,8 @@ func (udp *UdpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 }
 
 func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error {
-	logger := configs.GetLogger()
 	udpconn := conn.(*net.UDPConn)
-	logger.Debug("Send data", "len", len(*msg), "to", addr)
+	//configs.GetLogger().Debug("Send data", "len", len(*msg), "to", addr)
 	l, err := udpconn.WriteTo([]byte(*msg), addr)
 	if err != nil {
 		return err
@@ -82,7 +85,6 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 }
 
 func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, net.Addr, error) {
-	logger := configs.GetLogger()
 	udpconn := conn.(*net.UDPConn)
 
 	b := make([]byte, BUFSIZE)
@@ -93,7 +95,7 @@ func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, net.Addr, error)
 
 	udp.td.PutToBuf(fromAddr, b[:l])
 
-	logger.Debug("UDP  ReadFrom", "len", l, "fromAddr", fromAddr)
+	//logger.Debug("UDP  ReadFrom", "len", l, "fromAddr", fromAddr)
 	// if we first met this client
 	if _, ok := udp.clientAddr[fromAddr.String()]; !ok {
 		// WaitConnection() will call callback() for the new client
@@ -102,7 +104,7 @@ func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, net.Addr, error)
 	}
 	udp.clientAddr[fromAddr.String()] = fromAddr
 
-	logger.Debug("Got data", "len", l, "from", fromAddr)
+	//configs.GetLogger().Debug("Got data", "len", l, "from", fromAddr)
 	return &b, l, fromAddr, nil
 }
 

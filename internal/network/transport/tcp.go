@@ -25,6 +25,10 @@ func NewTcpTransport(c *configs.Config) *TcpTransport {
 	return &TcpTransport{t, nil, nil, make(map[string]net.TCPConn), make(map[string][]byte), make(map[string]int)}
 }
 
+func (tcp *TcpTransport) GetName() string {
+	return "tcp"
+}
+
 func (tcp *TcpTransport) Init(c *configs.Config) error {
 	if c.Mode != "server" {
 		tcpServer, err := net.ResolveTCPAddr("tcp", c.RemoteAddr+":"+c.RemotePort)
@@ -70,7 +74,6 @@ func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 }
 
 func (tcp *TcpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error {
-	logger := configs.GetLogger()
 	tcpconn := conn.(*net.TCPConn)
 
 	n := len(*msg)
@@ -78,7 +81,7 @@ func (tcp *TcpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 	buf[0] = byte(n >> 8)
 	buf[1] = byte(n)
 	copy(buf[2:], *msg)
-	logger.Debug("Send data (+2)", "len", n)
+	configs.GetLogger().Debug("Send data (+2)", "len", n)
 	l, err := tcpconn.Write(buf)
 	if err != nil {
 		return err
@@ -129,7 +132,7 @@ func (tcp *TcpTransport) Receive(conn net.Conn) (*Message, int, net.Addr, error)
 		if err != nil {
 			return nil, 0, nil, err
 		}
-		//logger.Debug("Read data", "len", l)
+		logger.Debug("Read data", "len", l)
 		for l < n {
 			l1, err := tcpconn.Read(tcp.buf[addrStr][l:n])
 			if err != nil {
@@ -138,7 +141,7 @@ func (tcp *TcpTransport) Receive(conn net.Conn) (*Message, int, net.Addr, error)
 			if l1 == 0 {
 				return nil, 0, nil, errors.New("TCP connection closed")
 			}
-			//logger.Debug("Read data (continue)", "len", l1)
+			logger.Debug("Read data (continue)", "len", l1)
 			l += l1
 		}
 		tcp.len[addrStr] += l

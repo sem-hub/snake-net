@@ -28,6 +28,8 @@ type Secrets struct {
 	sessionPublicKey  ed25519.PublicKey
 }
 
+var clientsCount int = 0
+
 func NewSecrets(addr net.Addr, t transport.Transport, conn net.Conn) *Secrets {
 	logger := configs.GetLogger()
 	s := Secrets{}
@@ -38,7 +40,13 @@ func NewSecrets(addr net.Addr, t transport.Transport, conn net.Conn) *Secrets {
 	s.sessionPublicKey, s.sessionPrivateKey, _ =
 		ed25519.GenerateKey(bytes.NewReader([]byte(first_secret)))
 
+	clientsCount++
+	if t.GetName() == "udp" && clientsCount > 1 {
+		return &s
+	}
+	// Receive loop. One for each client for TCP and only one for UDP
 	go func() {
+		logger.Debug("Start receive loop")
 		for {
 			_, _, _, err := t.Receive(conn)
 			if err != nil {
@@ -52,8 +60,7 @@ func NewSecrets(addr net.Addr, t transport.Transport, conn net.Conn) *Secrets {
 }
 
 func (s *Secrets) Read() ([]byte, error) {
-	logging := configs.GetLogger()
-	logging.Debug("crypto read. wait for data", "from", s.clientAddr)
+	configs.GetLogger().Debug("crypto read. wait for data", "from", s.clientAddr)
 
 	buf := s.t.GetFromBuf(s.clientAddr)
 	for buf == nil {
@@ -74,16 +81,14 @@ func (s *Secrets) Read() ([]byte, error) {
 }
 
 func (s *Secrets) Write(buf *[]byte) error {
-	logger := configs.GetLogger()
 	signedBuf := *buf
 	signature := s.Sign(buf)
 	signedBuf = append(signedBuf, signature...)
-	logger.Debug("Crypto write", "len", len(signedBuf), "addr", s.clientAddr)
+	configs.GetLogger().Debug("Crypto write", "len", len(signedBuf), "addr", s.clientAddr)
 	return s.t.Send(s.clientAddr, s.conn, &signedBuf)
 }
 
 func (s *Secrets) ECDH() error {
-	logging := configs.GetLogger()
 	tempPrivateKey, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
 		return err
@@ -95,7 +100,7 @@ func (s *Secrets) ECDH() error {
 		return errors.New("marshaling ecdh public key: " + err.Error())
 	}
 
-	logging.Debug("Write public key", "len", len(buf), "buf", buf)
+	//configs.GetLogger().Debug("Write public key", "len", len(buf), "buf", buf)
 	err = s.Write(&buf)
 	if err != nil {
 		return err
@@ -104,7 +109,7 @@ func (s *Secrets) ECDH() error {
 	if err != nil {
 		return err
 	}
-	logging.Debug("Read public key", "len", len(buf), "buf", buf)
+	//logging.Debug("Read public key", "len", len(buf), "buf", buf)
 
 	publicKey, err := x509.ParsePKIXPublicKey(buf)
 	if err != nil {
@@ -136,6 +141,18 @@ func (s *Secrets) GetPublicKey() *ed25519.PublicKey {
 
 func (s *Secrets) GetPrivateKey() *ed25519.PrivateKey {
 	return &s.sessionPrivateKey
+}
+
+func (s *Secrets) GetSharedSecret() []byte {
+	if s.sharedSecret != nil {
+		return s.sharedSecret
+	} else {
+		return nil
+	}
+}
+
+func (s *Secrets) GetClientAddr() net.Addr {
+	return s.clientAddr
 }
 
 func (s *Secrets) Verify(msg []byte, sig []byte) bool {

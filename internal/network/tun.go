@@ -4,6 +4,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/songgao/water"
@@ -44,7 +45,7 @@ func SetUpTUN(c *configs.Config) (*water.Interface, error) {
 	return ifce, nil
 }
 
-func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
+func ProcessTun(mode string, s *crypt.Secrets, tun *water.Interface) {
 	logger := configs.GetLogger()
 	wg := sync.WaitGroup{}
 	// local tun interface read and write channel.
@@ -54,7 +55,7 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 	go func() {
 		defer wg.Done()
 		for {
-			buf, err := c.Read()
+			buf, err := s.Read()
 			if err != nil {
 				logger.Error("Read packet from net", "error", err)
 				// Ignore bad packet
@@ -63,30 +64,39 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 			logger.Debug("Read from net", "len", len(buf))
 			// write into local tun interface channel.
 			wCh <- buf
+
+			// send to all clients except the sender
+			if mode == "server" {
+				//clients.SendAllExceptOne(buf, s.GetClientAddr())
+			}
 		}
 	}()
-	// read from local tun interface channel, and write into remote udp channel.
+	// read from local tun interface channel, and write into remote net channel.
 	wg.Add(1)
 	go func() {
-		wg.Done()
+		defer wg.Done()
 		for {
 			data := <-rCh
 			logger.Debug("Write to net", "len", len(data))
-			if err := c.Write(&data); err != nil {
-				logger.Error("Write to net", "error", err)
-				break
+			if mode == "server" {
+				clients.SendAllExceptOne(data, nil)
+			} else {
+				if err := s.Write(&data); err != nil {
+					logger.Error("Write to net", "error", err)
+					break
+				}
 			}
 		}
-		err := c.Close()
+		/*err := s.Close()
 		if err != nil {
 			logger.Error("Close crypt", "error", err)
-		}
+		}*/
 	}()
 
 	// read data from tun into rCh channel.
 	wg.Add(1)
 	go func() {
-		wg.Done()
+		defer wg.Done()
 		for {
 			buf := make([]byte, 1522)
 			var n int
@@ -103,7 +113,7 @@ func ProcessTun(c *crypt.Secrets, tun *water.Interface) {
 	// write data into tun from wCh channel.
 	wg.Add(1)
 	go func() {
-		wg.Done()
+		defer wg.Done()
 		for {
 			buf := <-wCh
 			if _, err := tun.Write(buf); err != nil {

@@ -20,6 +20,7 @@ type Transport interface {
 	Close() error
 	GetClientConn() net.Conn
 	GetFromBuf(net.Addr) []byte
+	GetName() string
 }
 
 type TransportData struct {
