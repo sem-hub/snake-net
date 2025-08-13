@@ -92,7 +92,7 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 	if err != nil {
 		return err
 	}
-	if l != len(*msg) {
+	if l != n+2 {
 		return errors.New("UDP sent less data")
 	}
 	return nil
