@@ -13,11 +13,13 @@ type UdpTransport struct {
 	td         *TransportData
 	conn       *net.UDPConn
 	clientAddr map[string]net.Addr
+	seqIn      map[string]int
+	seqOut     map[string]int
 }
 
 func NewUdpTransport(c *configs.Config) *UdpTransport {
 	var t = NewTransport(c)
-	return &UdpTransport{t, nil, make(map[string]net.Addr)}
+	return &UdpTransport{t, nil, make(map[string]net.Addr), make(map[string]int), make(map[string]int)}
 }
 
 func (udp *UdpTransport) GetName() string {
@@ -73,8 +75,19 @@ func (udp *UdpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 
 func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error {
 	udpconn := conn.(*net.UDPConn)
-	//configs.GetLogger().Debug("Send data", "len", len(*msg), "to", addr)
-	l, err := udpconn.WriteTo([]byte(*msg), addr)
+	n := len(*msg)
+	buf := make([]byte, n+2)
+	seq, ok := udp.seqOut[addr.String()]
+	if !ok {
+		udp.seqOut[addr.String()] = 1
+		seq = 1
+	} else {
+		seq++
+	}
+	buf[0] = byte(seq >> 8)
+	buf[1] = byte(seq & 0xff)
+	configs.GetLogger().Debug("Send data UDP (+2)", "len", n, "to", addr, "seq", seq)
+	l, err := udpconn.WriteTo(buf, addr)
 	if err != nil {
 		return err
 	}
@@ -93,7 +106,19 @@ func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, net.Addr, error)
 		return nil, 0, nil, err
 	}
 
-	udp.td.PutToBuf(fromAddr, b[:l])
+	seq := int(b[0])<<8 | int(b[1])
+	_, ok := udp.seqIn[fromAddr.String()]
+	if !ok {
+		udp.seqIn[fromAddr.String()] = 1
+	} else {
+		udp.seqIn[fromAddr.String()]++
+	}
+	if seq != udp.seqIn[fromAddr.String()] {
+		configs.GetLogger().Debug("UDP seq error", "expected", udp.seqIn[fromAddr.String()], "got", seq, "from", fromAddr)
+		return nil, 0, fromAddr, errors.New("UDP seq error")
+	}
+
+	udp.td.PutToBuf(fromAddr, b[2:l])
 
 	//logger.Debug("UDP  ReadFrom", "len", l, "fromAddr", fromAddr)
 	// if we first met this client
