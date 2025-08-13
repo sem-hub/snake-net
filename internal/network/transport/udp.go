@@ -121,7 +121,7 @@ func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, net.Addr, error)
 
 	udp.td.PutToBuf(fromAddr, b[2:l])
 
-	//logger.Debug("UDP  ReadFrom", "len", l, "fromAddr", fromAddr)
+	configs.GetLogger().Debug("UDP  ReadFrom", "len", l, "fromAddr", fromAddr, "seq", seq)
 	// if we first met this client
 	if _, ok := udp.clientAddr[fromAddr.String()]; !ok {
 		// WaitConnection() will call callback() for the new client
