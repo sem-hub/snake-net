@@ -82,6 +82,7 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 		udp.seqOut[addr.String()] = 1
 		seq = 1
 	} else {
+		udp.seqOut[addr.String()]++
 		seq++
 	}
 	buf[0] = byte(seq >> 8)
