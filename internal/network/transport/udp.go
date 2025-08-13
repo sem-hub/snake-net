@@ -87,6 +87,7 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 	}
 	buf[0] = byte(seq >> 8)
 	buf[1] = byte(seq & 0xff)
+	copy(buf[2:], *msg)
 	configs.GetLogger().Debug("Send data UDP (+2)", "len", n, "to", addr, "seq", seq)
 	l, err := udpconn.WriteTo(buf, addr)
 	if err != nil {
