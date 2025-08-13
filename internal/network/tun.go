@@ -79,7 +79,7 @@ func ProcessTun(mode string, s *crypt.Secrets, tun *water.Interface) {
 			data := <-rCh
 			logger.Debug("Write to net", "len", len(data))
 			if mode == "server" {
-				clients.SendAllExceptOne(data, nil)
+				clients.SendAllExceptSender(data)
 			} else {
 				if err := s.Write(&data); err != nil {
 					logger.Error("Write to net", "error", err)
