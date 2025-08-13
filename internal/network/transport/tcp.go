@@ -79,7 +79,7 @@ func (tcp *TcpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 	n := len(*msg)
 	buf := make([]byte, n+2)
 	buf[0] = byte(n >> 8)
-	buf[1] = byte(n)
+	buf[1] = byte(n & 0xff)
 	copy(buf[2:], *msg)
 	configs.GetLogger().Debug("Send data (+2)", "len", n)
 	l, err := tcpconn.Write(buf)
