@@ -53,24 +53,26 @@ func (udp *UdpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 	}
 
 	log.Printf("Listen: %s\n", c.LocalAddr+":"+c.LocalPort)
-	conn, err := net.ListenUDP("udp", udpLocal)
-	if err != nil {
-		return err
-	}
-	udp.conn = conn
-
 	for {
-		_, l, addr, err := udp.Receive(conn)
+		conn, err := net.ListenUDP("udp", udpLocal)
 		if err != nil {
-			logger.Error("First client read", "error", err)
-			break
+			return err
 		}
-		if l == 0 {
-			go callback(udp, conn, addr, tun)
+		udp.conn = conn
+
+		for {
+			_, l, addr, err := udp.Receive(conn)
+			if err != nil {
+				logger.Error("First client read", "error", err)
+				break
+			}
+			if l == 0 {
+				go callback(udp, conn, addr, tun)
+			}
 		}
+		conn.Close()
 	}
-	conn.Close()
-	return nil
+	//return nil
 }
 
 func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error {

@@ -17,10 +17,14 @@ type Config struct {
 
 var (
 	logger *slog.Logger
+	config *Config = nil
 )
 
-func NewConfig() *Config {
-	return &Config{}
+func GetConfig() *Config {
+	if config == nil {
+		config = &Config{}
+	}
+	return config
 }
 
 func removeTime(groups []string, a slog.Attr) slog.Attr {

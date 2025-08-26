@@ -62,12 +62,17 @@ func ProcessTun(mode string, s *crypt.Secrets, tun *water.Interface) {
 				continue
 			}
 			logger.Debug("Read from net", "len", len(buf))
-			// write into local tun interface channel.
-			wCh <- buf
 
 			// send to all clients except the sender
 			if mode == "server" {
-				//clients.SendAllExceptOne(buf, s.GetClientAddr())
+				found := clients.Route(buf)
+				// if no client found, write into local tun interface channel.
+				if !found {
+					wCh <- buf
+				}
+			} else {
+				// write into local tun interface channel.
+				wCh <- buf
 			}
 		}
 	}()
@@ -79,8 +84,13 @@ func ProcessTun(mode string, s *crypt.Secrets, tun *water.Interface) {
 			data := <-rCh
 			logger.Debug("Write to net", "len", len(data))
 			if mode == "server" {
-				clients.SendAllExceptSender(data)
+				clients.Route(data)
 			} else {
+				// Do not send data if client not authenticated
+				if clients.GetClientState(s.GetClientAddr()) != clients.Ready {
+					logger.Debug("Client not authenticated, drop packet", "addr", s.GetClientAddr())
+					continue
+				}
 				if err := s.Write(&data); err != nil {
 					logger.Error("Write to net", "error", err)
 					break

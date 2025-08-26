@@ -33,7 +33,7 @@ var flagAlias = map[string]string{
 }
 
 func init() {
-	cfg = configs.NewConfig()
+	cfg = configs.GetConfig()
 	flag.StringVar(&configFile, "config", "", "Path to config file.")
 	flag.BoolVar(&isServer, "server", false, "Run as server.")
 	flag.StringVar(&tunAddr, "tun", "", "Address (CIDR) for Tun interface.")

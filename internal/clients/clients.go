@@ -31,6 +31,18 @@ var (
 	lock    sync.Mutex
 )
 
+func GetClientConn(address net.Addr) net.Conn {
+	lock.Lock()
+	defer lock.Unlock()
+
+	for _, c := range clients {
+		if c.address.String() == address.String() {
+			return c.conn
+		}
+	}
+	return nil
+}
+
 func AddClient(conn net.Conn, address net.Addr) {
 	lock.Lock()
 	defer lock.Unlock()
@@ -44,6 +56,17 @@ func AddClient(conn net.Conn, address net.Addr) {
 		state:   Connected,
 		secrets: nil,
 	})
+}
+
+func AddTunAddressToClient(address net.Addr, tunAddr net.Addr) {
+	lock.Lock()
+	defer lock.Unlock()
+	for i := range clients {
+		if clients[i].address.String() == address.String() {
+			clients[i].tunAddr = tunAddr
+			break
+		}
+	}
 }
 
 func AddSecretsToClient(address net.Addr, s *crypt.Secrets) {
@@ -88,6 +111,7 @@ func SetClientState(address net.Addr, state State) {
 	for i, c := range clients {
 		if c.address.String() == address.String() {
 			clients[i].state = state
+			configs.GetLogger().Debug("SetClientState", "address", address, "state", state)
 			break
 		}
 	}
@@ -101,41 +125,67 @@ func GetClientCount() int {
 	}
 }
 
-func getSenderIP(packet []byte) net.Addr {
+func getDstIP(packet []byte) net.Addr {
 	if len(packet) < 1 {
 		return nil
 	}
 	version := packet[0] >> 4 // First 4 bits
 	if version == 4 {
-		return &net.IPAddr{IP: packet[16:20]} // IPv4 addresse in bytes 16-19
+		return &net.IPAddr{IP: packet[16:20]} // IPv4 address in bytes 16-19
+	}
+	if version == 6 {
+		return &net.IPAddr{IP: packet[24:40]} // IPv6 address in bytes 24-39
 	}
 	return nil
 }
 
-func SendAllExceptSender(data []byte) {
+func Route(data []byte) bool {
 	lock.Lock()
 	clientsCopy := make([]client, len(clients))
 	copy(clientsCopy, clients)
 	lock.Unlock()
 	logging := configs.GetLogger()
 
-	address := getSenderIP(data)
+	address := getDstIP(data)
 	if address == nil {
-		logging.Debug("SendAllExceptSender: no sender IP found")
-		return
+		logging.Debug("Route: no destination IP found. Ignore.")
+		return false
 	}
-	logging.Debug("SendAllExceptSender", "address", address, "len", len(data))
+	logging.Debug("Route", "address", address, "len", len(data))
+	// XXX read route table
+	found := false
 	for _, c := range clientsCopy {
-		logging.Debug("SendAllExceptSender", "address", address, "client", c.address)
-		if c.address.String() != address.String() {
+		logging.Debug("Route", "address", address, "client", c.tunAddr)
+		if c.tunAddr.String() == address.String() {
 			if c.secrets != nil {
 				go func(cl client) {
 					err := cl.secrets.Write(&data)
 					if err != nil {
-						logging.Error("SendAllExceptSender write", "error", err)
+						logging.Error("Route write", "error", err)
+					}
+				}(c)
+			}
+			found = true
+			break
+		}
+	}
+	myIP, _, err := net.ParseCIDR(configs.GetConfig().TunAddr)
+	if err != nil {
+		logging.Error("Route", "error", err)
+		return true
+	}
+	if !found && myIP.String() != address.String() {
+		logging.Debug("Route: no matching client found. Send to all clients")
+		for _, c := range clientsCopy {
+			if c.secrets != nil {
+				go func(cl client) {
+					err := cl.secrets.Write(&data)
+					if err != nil {
+						logging.Error("Route write", "error", err)
 					}
 				}(c)
 			}
 		}
 	}
+	return found
 }
