@@ -6,7 +6,6 @@ import (
 	"net"
 
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/songgao/water"
 )
 
 type UdpTransport struct {
@@ -43,8 +42,7 @@ func (udp *UdpTransport) Init(c *configs.Config) error {
 	return nil
 }
 
-func (udp *UdpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
-	callback func(Transport, net.Conn, net.Addr, *water.Interface)) error {
+func (udp *UdpTransport) WaitConnection(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
 	logger := configs.GetLogger()
 
 	udpLocal, err := net.ResolveUDPAddr("udp", c.LocalAddr+":"+c.LocalPort)
@@ -67,7 +65,7 @@ func (udp *UdpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 				break
 			}
 			if l == 0 {
-				go callback(udp, conn, addr, tun)
+				go callback(udp, conn, addr)
 			}
 		}
 		conn.Close()

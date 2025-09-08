@@ -11,41 +11,44 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-func SetUpTUN(c *configs.Config) (*water.Interface, error) {
-	ifce, err := water.New(water.Config{
+var tun *water.Interface
+
+func SetUpTUN(c *configs.Config) error {
+	var err error
+	tun, err = water.New(water.Config{
 		DeviceType: water.TUN,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("Interface Name: %s\n", ifce.Name())
+	log.Printf("Interface Name: %s\n", tun.Name())
 
-	link, err := netlink.LinkByName(ifce.Name())
+	link, err := netlink.LinkByName(tun.Name())
 	if err != nil {
-		return nil, err
+		return err
 	}
 	addr, err := netlink.ParseAddr(c.TunAddr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = netlink.AddrAdd(link, addr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = netlink.LinkSetMTU(link, 1436)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = netlink.LinkSetUp(link)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return ifce, nil
+	return nil
 }
 
-func ProcessTun(mode string, s *crypt.Secrets, tun *water.Interface) {
+func ProcessTun(mode string, s *crypt.Secrets) {
 	logger := configs.GetLogger()
 	wg := sync.WaitGroup{}
 	// local tun interface read and write channel.

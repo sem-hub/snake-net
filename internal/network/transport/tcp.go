@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/songgao/water"
 )
 
 const BUFSIZE = 4000
@@ -45,8 +44,7 @@ func (tcp *TcpTransport) Init(c *configs.Config) error {
 	return nil
 }
 
-func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
-	callback func(Transport, net.Conn, net.Addr, *water.Interface)) error {
+func (tcp *TcpTransport) WaitConnection(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
 	logger := configs.GetLogger()
 	logger.Debug("Listen for connection")
 	listen, err := net.Listen("tcp", c.LocalAddr+":"+c.LocalPort)
@@ -64,7 +62,7 @@ func (tcp *TcpTransport) WaitConnection(c *configs.Config, tun *water.Interface,
 		tcpconn.SetNoDelay(true)
 		tcpconn.SetLinger(0)
 		tcp.conn[tcpconn.RemoteAddr().String()] = *tcpconn
-		go callback(tcp, tcpconn, tcpconn.RemoteAddr(), tun)
+		go callback(tcp, tcpconn, tcpconn.RemoteAddr())
 	}
 	err = listen.Close()
 	if err != nil {

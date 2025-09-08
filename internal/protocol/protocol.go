@@ -10,7 +10,6 @@ import (
 	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
-	"github.com/songgao/water"
 )
 
 func IdentifyClient(c *crypt.Secrets) (net.Addr, error) {
@@ -71,7 +70,7 @@ func Identification(c *crypt.Secrets) error {
 	return nil
 }
 
-func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr, tun *water.Interface) {
+func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	logger := configs.GetLogger()
 
 	addr := conn.RemoteAddr()
@@ -101,10 +100,10 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr, tu
 
 	clients.SetClientState(addr, clients.Ready)
 	//fmt.Println("Session public key: ", c.GetPublicKey())
-	network.ProcessTun("server", s, tun)
+	network.ProcessTun("server", s)
 }
 
-func ProcessServer(t transport.Transport, conn net.Conn, addr net.Addr, tun *water.Interface) {
+func ProcessServer(t transport.Transport, conn net.Conn, addr net.Addr) {
 	logger := configs.GetLogger()
 	if conn == nil {
 		return
@@ -127,5 +126,5 @@ func ProcessServer(t transport.Transport, conn net.Conn, addr net.Addr, tun *wat
 	clients.SetClientState(addr, clients.Ready)
 
 	//fmt.Println("Session public key: ", c.GetPublicKey())
-	network.ProcessTun("client", c, tun)
+	network.ProcessTun("client", c)
 }

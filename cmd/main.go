@@ -116,7 +116,7 @@ func main() {
 		cfg.LocalPort = port
 	}
 
-	tun, err := network.SetUpTUN(cfg)
+	err = network.SetUpTUN(cfg)
 	if err != nil {
 		log.Fatalf("Error creating tun interface: %s", err)
 	}
@@ -137,7 +137,7 @@ func main() {
 		log.Fatalf("Transport init error %s", err)
 	}
 	if isServer {
-		err = t.WaitConnection(cfg, tun, protocol.ProcessNewClient)
+		err = t.WaitConnection(cfg, protocol.ProcessNewClient)
 		if err != nil {
 			logger.Error("WaitConnection", "Error", err)
 		}
@@ -154,7 +154,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("ResolveIPAddr error: %s", err)
 		}
-		protocol.ProcessServer(t, t.GetClientConn(), addr, tun)
+		protocol.ProcessServer(t, t.GetClientConn(), addr)
 	}
 	t.Close()
 }
