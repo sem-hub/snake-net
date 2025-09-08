@@ -11,12 +11,12 @@ import (
 const BUFSIZE = 4000
 
 type TcpTransport struct {
-	td         *TransportData
-	listen     net.Listener
-	clientConn *net.TCPConn
-	conn       map[string]net.TCPConn
-	buf        map[string][]byte
-	len        map[string]int
+	td       *TransportData
+	listen   net.Listener
+	mainConn *net.TCPConn
+	conn     map[string]net.TCPConn
+	buf      map[string][]byte
+	len      map[string]int
 }
 
 func NewTcpTransport(c *configs.Config) *TcpTransport {
@@ -38,13 +38,13 @@ func (tcp *TcpTransport) Init(c *configs.Config) error {
 		if err != nil {
 			return err
 		}
-		tcp.clientConn = conn
+		tcp.mainConn = conn
 	}
 
 	return nil
 }
 
-func (tcp *TcpTransport) WaitConnection(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
+func (tcp *TcpTransport) Listen(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
 	logger := configs.GetLogger()
 	logger.Debug("Listen for connection")
 	listen, err := net.Listen("tcp", c.LocalAddr+":"+c.LocalPort)
@@ -165,8 +165,8 @@ func (tcp *TcpTransport) GetFromBuf(addr net.Addr) []byte {
 }
 
 func (tcp *TcpTransport) Close() error {
-	if tcp.clientConn != nil {
-		err := tcp.clientConn.Close()
+	if tcp.mainConn != nil {
+		err := tcp.mainConn.Close()
 		if err != nil {
 			return err
 		}
@@ -175,6 +175,6 @@ func (tcp *TcpTransport) Close() error {
 	return nil
 }
 
-func (tcp *TcpTransport) GetClientConn() net.Conn {
-	return tcp.clientConn
+func (tcp *TcpTransport) GetMainConn() net.Conn {
+	return tcp.mainConn
 }

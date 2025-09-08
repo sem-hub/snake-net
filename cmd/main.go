@@ -137,9 +137,9 @@ func main() {
 		log.Fatalf("Transport init error %s", err)
 	}
 	if isServer {
-		err = t.WaitConnection(cfg, protocol.ProcessNewClient)
+		err = t.Listen(cfg, protocol.ProcessNewClient)
 		if err != nil {
-			logger.Error("WaitConnection", "Error", err)
+			logger.Error("Listen", "Error", err)
 		}
 		t.Close()
 	} else {

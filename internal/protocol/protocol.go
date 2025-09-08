@@ -77,7 +77,7 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	if addr == nil {
 		addr = gotAddr
 	}
-	clients.AddClient(conn, addr)
+	clients.AddClient(addr, t, conn)
 	s := crypt.NewSecrets(addr, t, conn)
 	clients.AddSecretsToClient(addr, s)
 
@@ -105,12 +105,12 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 
 func ProcessServer(t transport.Transport, addr net.Addr) {
 	logger := configs.GetLogger()
-	conn := t.GetClientConn()
+	conn := t.GetMainConn()
 	if conn == nil {
 		return
 	}
 	// Well, really it's server but we call it client here
-	clients.AddClient(conn, addr)
+	clients.AddClient(addr, t, conn)
 	c := crypt.NewSecrets(addr, t, conn)
 	if err := Identification(c); err == nil {
 		logger.Debug("Identification Success")

@@ -10,7 +10,7 @@ import (
 
 type UdpTransport struct {
 	td         *TransportData
-	conn       *net.UDPConn
+	mainConn   *net.UDPConn
 	clientAddr map[string]net.Addr
 	seqIn      map[string]int
 	seqOut     map[string]int
@@ -36,13 +36,13 @@ func (udp *UdpTransport) Init(c *configs.Config) error {
 		if err != nil {
 			return err
 		}
-		udp.conn = conn.(*net.UDPConn)
+		udp.mainConn = conn.(*net.UDPConn)
 	}
 
 	return nil
 }
 
-func (udp *UdpTransport) WaitConnection(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
+func (udp *UdpTransport) Listen(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
 	logger := configs.GetLogger()
 
 	udpLocal, err := net.ResolveUDPAddr("udp", c.LocalAddr+":"+c.LocalPort)
@@ -56,7 +56,7 @@ func (udp *UdpTransport) WaitConnection(c *configs.Config, callback func(Transpo
 		if err != nil {
 			return err
 		}
-		udp.conn = conn
+		udp.mainConn = conn
 
 		for {
 			_, l, addr, err := udp.Receive(conn)
@@ -125,7 +125,7 @@ func (udp *UdpTransport) Receive(conn net.Conn) (*Message, int, net.Addr, error)
 	configs.GetLogger().Debug("UDP  ReadFrom", "len", l, "fromAddr", fromAddr, "seq", seq)
 	// if we first met this client
 	if _, ok := udp.clientAddr[fromAddr.String()]; !ok {
-		// WaitConnection() will call callback() for the new client
+		// Listen() will call callback() for the new client
 		udp.clientAddr[fromAddr.String()] = fromAddr
 		return nil, 0, fromAddr, nil
 	}
@@ -140,8 +140,8 @@ func (udp *UdpTransport) GetFromBuf(addr net.Addr) []byte {
 }
 
 func (udp *UdpTransport) Close() error {
-	if udp.conn != nil {
-		err := udp.conn.Close()
+	if udp.mainConn != nil {
+		err := udp.mainConn.Close()
 		if err != nil {
 			return err
 		}
@@ -149,6 +149,6 @@ func (udp *UdpTransport) Close() error {
 	return nil
 }
 
-func (udp *UdpTransport) GetClientConn() net.Conn {
-	return udp.conn
+func (udp *UdpTransport) GetMainConn() net.Conn {
+	return udp.mainConn
 }

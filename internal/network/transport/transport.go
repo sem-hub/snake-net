@@ -13,11 +13,11 @@ type Message = []byte
 
 type Transport interface {
 	Init(*configs.Config) error
-	WaitConnection(*configs.Config, func(Transport, net.Conn, net.Addr)) error
+	Listen(*configs.Config, func(Transport, net.Conn, net.Addr)) error
 	Send(net.Addr, net.Conn, *Message) error
 	Receive(net.Conn) (*Message, int, net.Addr, error)
 	Close() error
-	GetClientConn() net.Conn
+	GetMainConn() net.Conn
 	GetFromBuf(net.Addr) []byte
 	GetName() string
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
+	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
 type State int
@@ -21,6 +22,7 @@ const (
 type client struct {
 	address net.Addr
 	tunAddr net.Addr
+	t       transport.Transport
 	conn    net.Conn
 	state   State
 	secrets *crypt.Secrets
@@ -31,7 +33,7 @@ var (
 	lock    sync.Mutex
 )
 
-func GetClientConn(address net.Addr) net.Conn {
+func GetMainConn(address net.Addr) net.Conn {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -43,7 +45,7 @@ func GetClientConn(address net.Addr) net.Conn {
 	return nil
 }
 
-func AddClient(conn net.Conn, address net.Addr) {
+func AddClient(address net.Addr, t transport.Transport, conn net.Conn) {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -52,6 +54,7 @@ func AddClient(conn net.Conn, address net.Addr) {
 	clients = append(clients, client{
 		address: address,
 		tunAddr: nil,
+		t:       t,
 		conn:    conn,
 		state:   Connected,
 		secrets: nil,
