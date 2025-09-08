@@ -103,8 +103,9 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	network.ProcessTun("server", s)
 }
 
-func ProcessServer(t transport.Transport, conn net.Conn, addr net.Addr) {
+func ProcessServer(t transport.Transport, addr net.Addr) {
 	logger := configs.GetLogger()
+	conn := t.GetClientConn()
 	if conn == nil {
 		return
 	}

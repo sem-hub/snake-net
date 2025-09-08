@@ -154,7 +154,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("ResolveIPAddr error: %s", err)
 		}
-		protocol.ProcessServer(t, t.GetClientConn(), addr)
+		protocol.ProcessServer(t, addr)
 	}
 	t.Close()
 }
