@@ -1,10 +1,7 @@
 package transport
 
 import (
-	"container/list"
-	"log"
 	"net"
-	"sync"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
@@ -15,52 +12,15 @@ type Transport interface {
 	Init(*configs.Config) error
 	Listen(*configs.Config, func(Transport, net.Conn, net.Addr)) error
 	Send(net.Addr, net.Conn, *Message) error
-	Receive(net.Conn) (*Message, int, net.Addr, error)
+	Receive(net.Conn) (Message, int, net.Addr, error)
 	Close() error
 	GetMainConn() net.Conn
-	GetFromBuf(net.Addr) []byte
 	GetName() string
 }
 
 type TransportData struct {
-	globalReadBufList *list.List
-	lock              *sync.Mutex
-}
-
-type listElement struct {
-	addr net.Addr
-	buf  []byte
 }
 
 func NewTransport(c *configs.Config) *TransportData {
-	return &TransportData{list.New(), new(sync.Mutex)}
-}
-
-func (t *TransportData) PutToBuf(addr net.Addr, buf []byte) {
-	log.Printf("PutToBuf %d for %s", len(buf), addr)
-	newElement := listElement{addr, buf}
-	t.lock.Lock()
-	defer t.lock.Unlock()
-	t.globalReadBufList.PushBack(newElement)
-}
-
-func (t *TransportData) GetFromBuf(addr net.Addr) []byte {
-	t.lock.Lock()
-	defer t.lock.Unlock()
-
-	if t.globalReadBufList.Len() == 0 {
-		return nil
-	}
-
-	var found []byte = nil
-	for e := t.globalReadBufList.Front(); e != nil; e = e.Next() {
-		var element listElement = e.Value.(listElement)
-		if element.addr.String() == addr.String() {
-			found = make([]byte, len(element.buf))
-			copy(found, element.buf)
-			t.globalReadBufList.Remove(e)
-			log.Printf("GetFromBuf. Found data (%d) for %s", len(found), element.addr)
-		}
-	}
-	return found
+	return &TransportData{}
 }

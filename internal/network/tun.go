@@ -6,7 +6,6 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
 )
@@ -48,7 +47,7 @@ func SetUpTUN(c *configs.Config) error {
 	return nil
 }
 
-func ProcessTun(mode string, s *crypt.Secrets) {
+func ProcessTun(mode string, c *clients.Client) {
 	logger := configs.GetLogger()
 	wg := sync.WaitGroup{}
 	// local tun interface read and write channel.
@@ -58,9 +57,9 @@ func ProcessTun(mode string, s *crypt.Secrets) {
 	go func() {
 		defer wg.Done()
 		for {
-			buf, err := s.Read()
+			buf, err := c.ReadBuf()
 			if err != nil {
-				logger.Error("Read packet from net", "error", err)
+				logger.Error("Error reading from buffer", "error", err)
 				// Ignore bad packet
 				continue
 			}
@@ -90,14 +89,16 @@ func ProcessTun(mode string, s *crypt.Secrets) {
 				clients.Route(data)
 			} else {
 				// Do not send data if client not authenticated
-				if clients.GetClientState(s.GetClientAddr()) != clients.Ready {
-					logger.Debug("Client not authenticated, drop packet", "addr", s.GetClientAddr())
+				c := clients.FindClient(c.GetClientAddr())
+				if c.GetClientState() != clients.Ready {
+					logger.Debug("Client not authenticated, drop packet", "addr", c.GetClientAddr())
 					continue
 				}
-				if err := s.Write(&data); err != nil {
+				c.Write(&data)
+				/*if err := c.Write(&data); err != nil {
 					logger.Error("Write to net", "error", err)
 					break
-				}
+				}*/
 			}
 		}
 		/*err := s.Close()

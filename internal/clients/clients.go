@@ -1,8 +1,17 @@
 package clients
 
 import (
+	"bytes"
 	"net"
 	"sync"
+
+	"crypto/ecdh"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+
+	"errors"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
@@ -19,69 +28,67 @@ const (
 	HasData
 )
 
-type client struct {
-	address net.Addr
-	tunAddr net.Addr
-	t       transport.Transport
-	conn    net.Conn
-	state   State
-	secrets *crypt.Secrets
+type Client struct {
+	address   net.Addr
+	tunAddr   net.Addr
+	t         transport.Transport
+	conn      net.Conn
+	state     State
+	secrets   *crypt.Secrets
+	buf       []byte
+	bufLock   *sync.Mutex
+	bufSignal chan int
+	offset    int
+	bufSize   int
+	seqIn     int
+	seqOut    int
 }
 
 var (
-	clients = []client{}
+	clients = []*Client{}
 	lock    sync.Mutex
 )
 
-func GetMainConn(address net.Addr) net.Conn {
-	lock.Lock()
-	defer lock.Unlock()
-
-	for _, c := range clients {
-		if c.address.String() == address.String() {
-			return c.conn
-		}
-	}
-	return nil
+func (c *Client) GetClientConn(address net.Addr) net.Conn {
+	return c.conn
 }
 
-func AddClient(address net.Addr, t transport.Transport, conn net.Conn) {
+func (c *Client) GetClientAddr() net.Addr {
+	return c.address
+}
+
+func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 	lock.Lock()
 	defer lock.Unlock()
 
 	logging := configs.GetLogger()
 	logging.Debug("AddClient", "address", address)
-	clients = append(clients, client{
-		address: address,
-		tunAddr: nil,
-		t:       t,
-		conn:    conn,
-		state:   Connected,
-		secrets: nil,
-	})
+	client := Client{
+		address:   address,
+		tunAddr:   nil,
+		t:         t,
+		conn:      conn,
+		state:     Connected,
+		secrets:   nil,
+		buf:       make([]byte, transport.BUFSIZE),
+		bufLock:   &sync.Mutex{},
+		bufSignal: make(chan int, 100),
+		offset:    0,
+		bufSize:   0,
+		seqIn:     0,
+		seqOut:    0,
+	}
+	clients = append(clients, &client)
+	return &client
 }
 
-func AddTunAddressToClient(address net.Addr, tunAddr net.Addr) {
-	lock.Lock()
-	defer lock.Unlock()
-	for i := range clients {
-		if clients[i].address.String() == address.String() {
-			clients[i].tunAddr = tunAddr
-			break
-		}
-	}
+func (c *Client) AddTunAddressToClient(tunAddr net.Addr) {
+	configs.GetLogger().Debug("AddTunAddressToClient", "addr", tunAddr)
+	c.tunAddr = tunAddr
 }
 
-func AddSecretsToClient(address net.Addr, s *crypt.Secrets) {
-	lock.Lock()
-	defer lock.Unlock()
-	for i := range clients {
-		if clients[i].address.String() == address.String() {
-			clients[i].secrets = new(crypt.Secrets)
-			clients[i].secrets = s
-			break
-		}
-	}
+func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
+	c.secrets = s
 }
 
 func RemoveClient(address net.Addr) {
@@ -95,29 +102,26 @@ func RemoveClient(address net.Addr) {
 	}
 }
 
-func GetClientState(address net.Addr) State {
+func FindClient(address net.Addr) *Client {
 	lock.Lock()
 	defer lock.Unlock()
 
 	for _, c := range clients {
 		if c.address.String() == address.String() {
-			return c.state
+			return c
 		}
 	}
-	return NotFound
+
+	return nil
 }
 
-func SetClientState(address net.Addr, state State) {
-	lock.Lock()
-	defer lock.Unlock()
+func (c *Client) GetClientState() State {
+	return c.state
+}
 
-	for i, c := range clients {
-		if c.address.String() == address.String() {
-			clients[i].state = state
-			configs.GetLogger().Debug("SetClientState", "address", address, "state", state)
-			break
-		}
-	}
+func (c *Client) SetClientState(state State) {
+	c.state = state
+	//configs.GetLogger().Debug("SetClientState", "address", address, "state", state)
 }
 
 func GetClientCount() int {
@@ -126,6 +130,105 @@ func GetClientCount() int {
 	} else {
 		return len(clients)
 	}
+}
+
+func (c *Client) RunNetLoop(address net.Addr) {
+	logger := configs.GetLogger()
+	logger.Debug("RunNetLoop", "address", address)
+	// read data from network into c.buf
+	// when data is available, send signal to c.bufSignal channel
+	// main loop will read data from c.buf
+	go func() {
+		for {
+			msg, n, _, err := c.t.Receive(c.conn)
+			if err != nil {
+				logger.Error("NetLoop error", "err", err)
+				return
+			}
+			logger.Debug("NetLoop", "len", n, "from", address)
+			c.bufLock.Lock()
+			copy(c.buf[c.offset:], msg[:n])
+			c.offset += n
+			c.bufSize += n
+			c.bufLock.Unlock()
+			logger.Debug("NetLoop Unlock")
+			c.bufSignal <- 1
+			logger.Debug("NetLoop receive finished")
+		}
+	}()
+}
+
+func (c *Client) ReadBuf() (transport.Message, error) {
+	// XXX decrypt. check and read
+	configs.GetLogger().Debug("ReadBuf", "bufSize", c.bufSize)
+	<-c.bufSignal
+	configs.GetLogger().Debug("ReadBuf got signal")
+	if c.bufSize > 0 {
+		c.bufLock.Lock()
+		msg := make([]byte, c.bufSize)
+		copy(msg, c.buf[:c.bufSize])
+		c.offset = 0
+		c.bufSize = 0
+		c.bufLock.Unlock()
+		return msg, nil
+	}
+	return nil, nil
+}
+
+func (c *Client) Write(msg *transport.Message) error {
+	// XXX Sign, Encrype and send
+	err := c.t.Send(c.address, c.conn, msg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) ECDH() error {
+	tempPrivateKey, err := ecdh.P256().GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+	tempPublicKey := tempPrivateKey.PublicKey()
+
+	buf, err := x509.MarshalPKIXPublicKey(tempPublicKey)
+	if err != nil {
+		return errors.New("marshaling ecdh public key: " + err.Error())
+	}
+
+	//configs.GetLogger().Debug("Write public key", "len", len(buf), "buf", buf)
+	err = c.Write(&buf)
+	if err != nil {
+		return err
+	}
+	buf, err = c.ReadBuf()
+	if err != nil {
+		return err
+	}
+	//logging.Debug("Read public key", "len", len(buf), "buf", buf)
+
+	publicKey, err := x509.ParsePKIXPublicKey(buf)
+	if err != nil {
+		return errors.New("parsing marshaled ecdh public key: " + err.Error())
+	}
+	ecdsaPublicKey, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return errors.New("converting marshaled public key to ecdsa public key")
+
+	}
+	parsedKey, _ := ecdsaPublicKey.ECDH()
+
+	c.secrets.SharedSecret, err = tempPrivateKey.ECDH(parsedKey)
+	if err != nil {
+		return err
+	}
+	//fmt.Println("shared secret: ", s.SharedSecret)
+	c.secrets.SessionPublicKey, c.secrets.SessionPrivateKey, err =
+		ed25519.GenerateKey(bytes.NewReader(c.secrets.SharedSecret))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func getDstIP(packet []byte) net.Addr {
@@ -144,7 +247,7 @@ func getDstIP(packet []byte) net.Addr {
 
 func Route(data []byte) bool {
 	lock.Lock()
-	clientsCopy := make([]client, len(clients))
+	clientsCopy := make([]*Client, len(clients))
 	copy(clientsCopy, clients)
 	lock.Unlock()
 	logging := configs.GetLogger()
@@ -161,8 +264,8 @@ func Route(data []byte) bool {
 		logging.Debug("Route", "address", address, "client", c.tunAddr)
 		if c.tunAddr.String() == address.String() {
 			if c.secrets != nil {
-				go func(cl client) {
-					err := cl.secrets.Write(&data)
+				go func(cl *Client) {
+					err := cl.Write(&data)
 					if err != nil {
 						logging.Error("Route write", "error", err)
 					}
@@ -181,8 +284,8 @@ func Route(data []byte) bool {
 		logging.Debug("Route: no matching client found. Send to all clients")
 		for _, c := range clientsCopy {
 			if c.secrets != nil {
-				go func(cl client) {
-					err := cl.secrets.Write(&data)
+				go func(cl *Client) {
+					err := cl.Write(&data)
 					if err != nil {
 						logging.Error("Route write", "error", err)
 					}

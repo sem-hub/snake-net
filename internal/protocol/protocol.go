@@ -12,8 +12,8 @@ import (
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
-func IdentifyClient(c *crypt.Secrets) (net.Addr, error) {
-	buf, err := c.Read()
+func IdentifyClient(c *clients.Client) (net.Addr, error) {
+	buf, err := c.ReadBuf()
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func IdentifyClient(c *crypt.Secrets) (net.Addr, error) {
 	}
 }
 
-func Identification(c *crypt.Secrets) error {
+func Identification(c *clients.Client) error {
 	logger := configs.GetLogger()
 	msg := []byte("Hello " + configs.GetConfig().TunAddr)
 	logger.Debug("Identification", "msg", string(msg))
@@ -59,7 +59,7 @@ func Identification(c *crypt.Secrets) error {
 		return err
 	}
 
-	msg1, err := c.Read()
+	msg1, err := c.ReadBuf()
 	if err != nil {
 		return err
 	}
@@ -77,11 +77,12 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	if addr == nil {
 		addr = gotAddr
 	}
-	clients.AddClient(addr, t, conn)
+	c := clients.NewClient(addr, t, conn)
 	s := crypt.NewSecrets(addr, t, conn)
-	clients.AddSecretsToClient(addr, s)
+	c.AddSecretsToClient(s)
+	c.RunNetLoop(addr)
 
-	clientIP, err := IdentifyClient(s)
+	clientIP, err := IdentifyClient(c)
 	if err != nil {
 		logger.Debug("Identification failed", "error", err)
 		// XXX close connection, remove client
@@ -90,17 +91,17 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 		return
 	}
 	logger.Debug("Identification passed", "clientIP", clientIP)
-	clients.AddTunAddressToClient(addr, clientIP)
+	c.AddTunAddressToClient(clientIP)
 
-	clients.SetClientState(addr, clients.Authenticated)
+	c.SetClientState(clients.Authenticated)
 
-	if err := s.ECDH(); err != nil {
+	if err := c.ECDH(); err != nil {
 		logger.Error("ECDH", "error", err)
 	}
 
-	clients.SetClientState(addr, clients.Ready)
+	c.SetClientState(clients.Ready)
 	//fmt.Println("Session public key: ", c.GetPublicKey())
-	network.ProcessTun("server", s)
+	network.ProcessTun("server", c)
 }
 
 func ProcessServer(t transport.Transport, addr net.Addr) {
@@ -110,8 +111,9 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 		return
 	}
 	// Well, really it's server but we call it client here
-	clients.AddClient(addr, t, conn)
-	c := crypt.NewSecrets(addr, t, conn)
+	c := clients.NewClient(addr, t, conn)
+	c.RunNetLoop(addr)
+	//s := crypt.NewSecrets(addr, t, conn)
 	if err := Identification(c); err == nil {
 		logger.Debug("Identification Success")
 	} else {
@@ -119,12 +121,13 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 		return
 	}
 
-	clients.SetClientState(addr, clients.Authenticated)
+	c.SetClientState(clients.Authenticated)
 
 	if err := c.ECDH(); err != nil {
 		logger.Error("ECDH", "error", err)
 	}
-	clients.SetClientState(addr, clients.Ready)
+
+	c.SetClientState(clients.Ready)
 
 	//fmt.Println("Session public key: ", c.GetPublicKey())
 	network.ProcessTun("client", c)
