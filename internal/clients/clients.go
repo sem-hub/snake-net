@@ -247,8 +247,10 @@ func getDstIP(packet []byte) net.Addr {
 
 func Route(data []byte) bool {
 	lock.Lock()
-	clientsCopy := make([]*Client, len(clients))
-	copy(clientsCopy, clients)
+	clientsCopy := make([]Client, len(clients))
+	for i, c := range clients {
+		clientsCopy[i] = *c
+	}
 	lock.Unlock()
 	logging := configs.GetLogger()
 
@@ -269,7 +271,7 @@ func Route(data []byte) bool {
 					if err != nil {
 						logging.Error("Route write", "error", err)
 					}
-				}(c)
+				}(&c)
 			}
 			found = true
 			break
@@ -289,7 +291,7 @@ func Route(data []byte) bool {
 					if err != nil {
 						logging.Error("Route write", "error", err)
 					}
-				}(c)
+				}(&c)
 			}
 		}
 	}
