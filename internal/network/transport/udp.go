@@ -9,14 +9,17 @@ import (
 )
 
 type UdpTransport struct {
-	td         *TransportData
-	mainConn   *net.UDPConn
-	clientAddr map[string]net.Addr
+	td          *TransportData
+	mainConn    *net.UDPConn
+	clientAddr  map[string]net.Addr
+	clientConn  map[net.Conn]net.Addr
+	firstPacket map[string][]byte
 }
 
 func NewUdpTransport(c *configs.Config) *UdpTransport {
 	var t = NewTransport(c)
-	return &UdpTransport{t, nil, make(map[string]net.Addr)}
+	return &UdpTransport{t, nil, make(map[string]net.Addr), make(map[net.Conn]net.Addr),
+		make(map[string][]byte)}
 }
 
 func (udp *UdpTransport) GetName() string {
@@ -62,6 +65,10 @@ func (udp *UdpTransport) Listen(c *configs.Config, callback func(Transport, net.
 				logger.Error("First client read", "error", err)
 				break
 			}
+			logger.Debug("First client read", "len", l, "from", addr)
+			if addr != nil {
+				udp.clientConn[conn] = addr
+			}
 			if l == 0 {
 				go callback(udp, conn, addr)
 			}
@@ -89,6 +96,18 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 func (udp *UdpTransport) Receive(conn net.Conn) (Message, int, net.Addr, error) {
 	udpconn := conn.(*net.UDPConn)
 
+	// If we have first packet from this client, return it.
+	if fromAddr, ok := udp.clientConn[conn]; !ok {
+		configs.GetLogger().Debug("Found UDP conn", "fromAddr", fromAddr)
+		if fromAddr != nil {
+			if buf, ok := udp.firstPacket[fromAddr.String()]; !ok {
+				configs.GetLogger().Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", fromAddr)
+				udp.firstPacket[fromAddr.String()] = nil
+				return buf, len(buf), fromAddr, nil
+			}
+		}
+	}
+
 	b := make([]byte, BUFSIZE)
 	l, fromAddr, err := udpconn.ReadFrom(b)
 	if err != nil {
@@ -96,10 +115,11 @@ func (udp *UdpTransport) Receive(conn net.Conn) (Message, int, net.Addr, error) 
 	}
 
 	configs.GetLogger().Debug("UDP ReadFrom", "len", l, "fromAddr", fromAddr)
-	// if we first met this client
+	// if we first met this client. Save first ppacket.
 	if _, ok := udp.clientAddr[fromAddr.String()]; !ok {
 		// Listen() will call callback() for the new client
 		udp.clientAddr[fromAddr.String()] = fromAddr
+		udp.firstPacket[fromAddr.String()] = b[:l]
 		return nil, 0, fromAddr, nil
 	}
 	udp.clientAddr[fromAddr.String()] = fromAddr
