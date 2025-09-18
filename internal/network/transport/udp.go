@@ -14,13 +14,11 @@ type UdpTransport struct {
 	packetBuf     map[string][][]byte
 	packetBufLock *sync.Mutex
 	bufferReady   bool
-	listening     bool
-	listenReady   chan bool
 }
 
 func NewUdpTransport(logger *slog.Logger) *UdpTransport {
-	return &UdpTransport{TransportData: *NewTransport(logger), mainConn: nil, clientAddr: make(map[string]net.Addr), packetBuf: make(map[string][][]byte), packetBufLock: &sync.Mutex{}, bufferReady: false,
-		listening: false, listenReady: make(chan bool)}
+	return &UdpTransport{TransportData: *NewTransport(logger), mainConn: nil, clientAddr: make(map[string]net.Addr),
+		packetBuf: make(map[string][][]byte), packetBufLock: &sync.Mutex{}, bufferReady: false}
 }
 
 func (udp *UdpTransport) GetName() string {
