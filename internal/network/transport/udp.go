@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"net"
 	"sync"
-
-	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 type UdpTransport struct {
@@ -30,17 +28,17 @@ func (udp *UdpTransport) GetName() string {
 	return "udp"
 }
 
-func (udp *UdpTransport) Init(callback func(Transport, net.Conn, net.Addr)) error {
-	c := configs.GetConfig()
+func (udp *UdpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
+	callback func(Transport, net.Conn, net.Addr)) error {
 
-	if c.Mode != "server" {
+	if mode != "server" {
 		conn, err := net.ListenPacket("udp", ":0")
 		if err != nil {
 			return err
 		}
 		udp.mainConn = conn.(*net.UDPConn)
 	} else {
-		udpLocal, err := net.ResolveUDPAddr("udp", c.LocalAddr+":"+c.LocalPort)
+		udpLocal, err := net.ResolveUDPAddr("udp", lAddr+":"+lPort)
 		if err != nil {
 			return err
 		}

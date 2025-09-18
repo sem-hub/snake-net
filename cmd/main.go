@@ -133,7 +133,7 @@ func main() {
 		log.Fatalf("Unknown Protocol: %s", cfg.Protocol)
 	}
 	if isServer {
-		err = t.Init(protocol.ProcessNewClient)
+		err = t.Init("server", cfg.RemoteAddr, cfg.RemotePort, cfg.LocalAddr, cfg.LocalPort, protocol.ProcessNewClient)
 		if err != nil {
 			log.Fatalf("Transport init error %s", err)
 		}
@@ -143,7 +143,7 @@ func main() {
 		<-forever
 	} else {
 		// No callback for client mode
-		err = t.Init(nil)
+		err = t.Init("client", cfg.RemoteAddr, cfg.RemotePort, cfg.LocalAddr, cfg.LocalPort, nil)
 		if err != nil {
 			log.Fatalf("Transport init error %s", err)
 		}

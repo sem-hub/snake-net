@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
-
-	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 const BUFSIZE = 4000
@@ -26,10 +24,10 @@ func (tcp *TcpTransport) GetName() string {
 	return "tcp"
 }
 
-func (tcp *TcpTransport) Init(callback func(Transport, net.Conn, net.Addr)) error {
-	c := configs.GetConfig()
-	if c.Mode != "server" {
-		tcpServer, err := net.ResolveTCPAddr("tcp", c.RemoteAddr+":"+c.RemotePort)
+func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
+	callback func(Transport, net.Conn, net.Addr)) error {
+	if mode != "server" {
+		tcpServer, err := net.ResolveTCPAddr("tcp", rAddr+":"+rPort)
 		if err != nil {
 			return err
 		}
@@ -39,15 +37,15 @@ func (tcp *TcpTransport) Init(callback func(Transport, net.Conn, net.Addr)) erro
 		}
 		tcp.mainConn = conn
 	} else {
-		tcp.listen(c, callback)
+		tcp.listen(rAddr, rPort, callback)
 	}
 
 	return nil
 }
 
-func (tcp *TcpTransport) listen(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
+func (tcp *TcpTransport) listen(rAddr string, rPort string, callback func(Transport, net.Conn, net.Addr)) error {
 	logger.Debug("Listen for connection")
-	listen, err := net.Listen("tcp", c.LocalAddr+":"+c.LocalPort)
+	listen, err := net.Listen("tcp", rAddr+":"+rPort)
 	if err != nil {
 		return err
 	}
