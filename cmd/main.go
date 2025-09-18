@@ -132,17 +132,21 @@ func main() {
 	default:
 		log.Fatalf("Unknown Protocol: %s", cfg.Protocol)
 	}
-	err = t.Init(cfg)
-	if err != nil {
-		log.Fatalf("Transport init error %s", err)
-	}
 	if isServer {
-		err = t.Listen(cfg, protocol.ProcessNewClient)
+		err = t.Init(cfg, protocol.ProcessNewClient)
 		if err != nil {
-			logger.Error("Listen", "Error", err)
+			log.Fatalf("Transport init error %s", err)
 		}
-		t.Close()
+
+		forever := make(chan bool)
+		logger.Info("Start server", "addr", cfg.LocalAddr, "port", cfg.LocalPort)
+		<-forever
 	} else {
+		err = t.Init(cfg, nil)
+		if err != nil {
+			log.Fatalf("Transport init error %s", err)
+		}
+
 		logger.Info("Connect to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
 		var addr net.Addr
 		var err error

@@ -29,7 +29,7 @@ func (udp *UdpTransport) GetName() string {
 	return "udp"
 }
 
-func (udp *UdpTransport) Init(c *configs.Config) error {
+func (udp *UdpTransport) Init(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
 	/*udpServer, err := net.ResolveUDPAddr("udp", c.RemoteAddr+":"+c.RemotePort)
 	if err != nil {
 		return err
@@ -53,11 +53,12 @@ func (udp *UdpTransport) Init(c *configs.Config) error {
 		}
 		udp.mainConn = conn
 	}
+	go udp.runReadLoop(callback)
 
 	return nil
 }
 
-func (udp *UdpTransport) Listen(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
+func (udp *UdpTransport) runReadLoop(callback func(Transport, net.Conn, net.Addr)) error {
 	logger := configs.GetLogger()
 
 	for {
@@ -95,12 +96,6 @@ func (udp *UdpTransport) Listen(c *configs.Config, callback func(Transport, net.
 func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error {
 	udpconn := conn.(*net.UDPConn)
 	n := len(*msg)
-
-	if !udp.listening {
-		// In client mode we only have one connection
-		// so we need to start listening for incoming packets
-		go udp.Listen(configs.GetConfig(), nil)
-	}
 
 	configs.GetLogger().Debug("Send data UDP", "len", n, "to", addr)
 	l, err := udpconn.WriteTo(*msg, addr)

@@ -12,21 +12,20 @@ const BUFSIZE = 4000
 
 type TcpTransport struct {
 	td       *TransportData
-	listen   net.Listener
 	mainConn *net.TCPConn
 	conn     map[string]net.TCPConn
 }
 
 func NewTcpTransport(c *configs.Config) *TcpTransport {
 	var t = NewTransport(c)
-	return &TcpTransport{t, nil, nil, make(map[string]net.TCPConn)}
+	return &TcpTransport{t, nil, make(map[string]net.TCPConn)}
 }
 
 func (tcp *TcpTransport) GetName() string {
 	return "tcp"
 }
 
-func (tcp *TcpTransport) Init(c *configs.Config) error {
+func (tcp *TcpTransport) Init(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
 	if c.Mode != "server" {
 		tcpServer, err := net.ResolveTCPAddr("tcp", c.RemoteAddr+":"+c.RemotePort)
 		if err != nil {
@@ -37,12 +36,14 @@ func (tcp *TcpTransport) Init(c *configs.Config) error {
 			return err
 		}
 		tcp.mainConn = conn
+	} else {
+		tcp.listen(c, callback)
 	}
 
 	return nil
 }
 
-func (tcp *TcpTransport) Listen(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
+func (tcp *TcpTransport) listen(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
 	logger := configs.GetLogger()
 	logger.Debug("Listen for connection")
 	listen, err := net.Listen("tcp", c.LocalAddr+":"+c.LocalPort)

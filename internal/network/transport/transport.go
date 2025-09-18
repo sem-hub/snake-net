@@ -9,8 +9,8 @@ import (
 type Message = []byte
 
 type Transport interface {
-	Init(*configs.Config) error
-	Listen(*configs.Config, func(Transport, net.Conn, net.Addr)) error
+	// Callback for new connection processing
+	Init(*configs.Config, func(Transport, net.Conn, net.Addr)) error
 	Send(net.Addr, net.Conn, *Message) error
 	Receive(net.Conn, net.Addr) (Message, int, net.Addr, error)
 	Close() error
