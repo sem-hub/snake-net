@@ -8,7 +8,7 @@ import (
 )
 
 type UdpTransport struct {
-	td            *TransportData
+	TransportData
 	mainConn      *net.UDPConn
 	clientAddr    map[string]net.Addr
 	packetBuf     map[string][][]byte
@@ -19,9 +19,8 @@ type UdpTransport struct {
 }
 
 func NewUdpTransport(logger *slog.Logger) *UdpTransport {
-	var t = NewTransport(logger)
-	return &UdpTransport{t, nil, make(map[string]net.Addr), make(map[string][][]byte), &sync.Mutex{}, false,
-		false, make(chan bool)}
+	return &UdpTransport{TransportData: *NewTransport(logger), mainConn: nil, clientAddr: make(map[string]net.Addr), packetBuf: make(map[string][][]byte), packetBufLock: &sync.Mutex{}, bufferReady: false,
+		listening: false, listenReady: make(chan bool)}
 }
 
 func (udp *UdpTransport) GetName() string {

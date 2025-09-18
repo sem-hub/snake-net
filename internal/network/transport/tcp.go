@@ -10,14 +10,13 @@ import (
 const BUFSIZE = 4000
 
 type TcpTransport struct {
-	td       *TransportData
+	TransportData
 	mainConn *net.TCPConn
 	conn     map[string]net.TCPConn
 }
 
 func NewTcpTransport(logger *slog.Logger) *TcpTransport {
-	var t = NewTransport(logger)
-	return &TcpTransport{t, nil, make(map[string]net.TCPConn)}
+	return &TcpTransport{TransportData: *NewTransport(logger), mainConn: nil, conn: make(map[string]net.TCPConn)}
 }
 
 func (tcp *TcpTransport) GetName() string {
