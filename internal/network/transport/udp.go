@@ -41,6 +41,17 @@ func (udp *UdpTransport) Init(c *configs.Config) error {
 			return err
 		}
 		udp.mainConn = conn.(*net.UDPConn)
+	} else {
+		udpLocal, err := net.ResolveUDPAddr("udp", c.LocalAddr+":"+c.LocalPort)
+		if err != nil {
+			return err
+		}
+
+		conn, err := net.ListenUDP("udp", udpLocal)
+		if err != nil {
+			return err
+		}
+		udp.mainConn = conn
 	}
 
 	return nil
@@ -49,58 +60,36 @@ func (udp *UdpTransport) Init(c *configs.Config) error {
 func (udp *UdpTransport) Listen(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
 	logger := configs.GetLogger()
 
-	var udpLocal *net.UDPAddr
-	var err error
-	if c.Mode == "server" {
-		udpLocal, err = net.ResolveUDPAddr("udp", c.LocalAddr+":"+c.LocalPort)
-	}
-	if err != nil {
-		return err
-	}
-
-	udp.listening = true
 	for {
-		conn, err := net.ListenUDP("udp", udpLocal)
+		newConnection := false
+		buf := make([]byte, 2048)
+		l, addr, err := udp.mainConn.ReadFrom(buf)
 		if err != nil {
-			return err
+			logger.Error("First client read", "error", err)
+			break
 		}
-		if c.Mode == "server" {
-			udp.mainConn = conn
+
+		udp.packetBufLock.Lock()
+		if _, ok := udp.clientAddr[addr.String()]; !ok {
+			newConnection = true
+			udp.clientAddr[addr.String()] = addr
+		} else {
+			newConnection = false
 		}
-		logger.Info("UDP Listening on " + udpLocal.String())
+		udp.packetBuf[addr.String()] = append(udp.packetBuf[addr.String()], buf[:l])
+		udp.bufferReady = true
+		udp.packetBufLock.Unlock()
+		logger.Debug("Listen buffer read", "len", l, "from", addr)
 
-		for {
-			newConnection := false
-			buf := make([]byte, 2048)
-			l, addr, err := udp.mainConn.ReadFrom(buf)
-			if err != nil {
-				logger.Error("First client read", "error", err)
-				break
+		if newConnection {
+			if callback == nil {
+				logger.Error("Listen: No callback for client connection")
+				continue
 			}
-
-			udp.packetBufLock.Lock()
-			if _, ok := udp.clientAddr[addr.String()]; !ok {
-				newConnection = true
-				udp.clientAddr[addr.String()] = addr
-			} else {
-				newConnection = false
-			}
-			udp.packetBuf[addr.String()] = append(udp.packetBuf[addr.String()], buf[:l])
-			udp.bufferReady = true
-			udp.packetBufLock.Unlock()
-			logger.Debug("Listen buffer read", "len", l, "from", addr)
-
-			if newConnection {
-				if callback == nil {
-					logger.Error("Listen: No callback for client connection")
-					continue
-				}
-				go callback(udp, conn, addr)
-			}
+			go callback(udp, udp.mainConn, addr)
 		}
-		//conn.Close()
 	}
-	//return nil
+	return nil
 }
 
 func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error {
