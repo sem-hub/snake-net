@@ -2,6 +2,7 @@ package clients
 
 import (
 	"bytes"
+	"log/slog"
 	"net"
 	"sync"
 
@@ -46,6 +47,7 @@ type Client struct {
 var (
 	clients     = []*Client{}
 	clientsLock sync.Mutex
+	logger      *slog.Logger
 )
 
 func (c *Client) GetClientConn(address net.Addr) net.Conn {
@@ -57,8 +59,8 @@ func (c *Client) GetClientAddr() net.Addr {
 }
 
 func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
-	logging := configs.GetLogger()
-	logging.Debug("AddClient", "address", address)
+	logger = configs.GetLogger()
+	logger.Debug("AddClient", "address", address)
 	client := Client{
 		address:   address,
 		tunAddr:   nil,
@@ -75,7 +77,7 @@ func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 	}
 
 	if len(clients) != 0 && FindClient(address) != nil {
-		logging.Error("Client already exists", "address", address)
+		logger.Error("Client already exists", "address", address)
 	} else {
 		clientsLock.Lock()
 		clients = append(clients, &client)
@@ -85,7 +87,7 @@ func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 }
 
 func (c *Client) AddTunAddressToClient(tunAddr net.Addr) {
-	configs.GetLogger().Debug("AddTunAddressToClient", "addr", tunAddr)
+	logger.Debug("AddTunAddressToClient", "addr", tunAddr)
 	c.tunAddr = tunAddr
 }
 
@@ -123,7 +125,7 @@ func (c *Client) GetClientState() State {
 
 func (c *Client) SetClientState(state State) {
 	c.state = state
-	//configs.GetLogger().Debug("SetClientState", "address", address, "state", state)
+	//logger.Debug("SetClientState", "address", address, "state", state)
 }
 
 func GetClientCount() int {
@@ -135,16 +137,15 @@ func GetClientCount() int {
 }
 
 func (c *Client) RunNetLoop(address net.Addr) {
-	logger := configs.GetLogger()
 	logger.Debug("RunNetLoop", "address", address)
 	// read data from network into c.buf
 	// when data is available, send signal to c.bufSignal channel
 	// main loop will read data from c.buf
 	go func() {
 		for {
-			configs.GetLogger().Debug("NetLoop waiting for data", "address", address)
+			logger.Debug("NetLoop waiting for data", "address", address)
 			msg, n, _, err := c.t.Receive(c.conn, address)
-			configs.GetLogger().Debug("NetLoop Receive", "len", n, "err", err)
+			logger.Debug("NetLoop Receive", "len", n, "err", err)
 			if err != nil {
 				logger.Error("NetLoop Receive error", "err", err)
 				return
@@ -164,31 +165,31 @@ func (c *Client) RunNetLoop(address net.Addr) {
 
 func (c *Client) ReadBuf() (transport.Message, error) {
 	// XXX decrypt. check and read
-	configs.GetLogger().Debug("ReadBuf", "bufSize", c.bufSize)
+	logger.Debug("ReadBuf", "bufSize", c.bufSize)
 	for c.bufSize == 0 {
 		<-c.bufSignal
 	}
 	c.bufLock.Lock()
 	n := int(c.buf[0])<<8 | int(c.buf[1])
-	//configs.GetLogger().Debug("ReadBuf size", "n", n)
+	//logger.Debug("ReadBuf size", "n", n)
 	msg := make([]byte, n)
 	copy(msg, c.buf[2:n+2])
 	copy(c.buf, c.buf[n+2:c.bufSize])
 	c.bufSize -= n + 2
 	if c.bufSize < 0 {
-		configs.GetLogger().Error("ReadBuf: invalid buffer size", "bufSize", c.bufSize)
+		logger.Error("ReadBuf: invalid buffer size", "bufSize", c.bufSize)
 		c.bufSize = 0
 		return nil, errors.New("invalid buffer size")
 	}
 	c.bufLock.Unlock()
-	configs.GetLogger().Debug("ReadBuf read", "Size", len(msg))
+	logger.Debug("ReadBuf read", "Size", len(msg))
 	return msg, nil
 }
 
 func (c *Client) Write(msg *transport.Message) error {
 	// XXX Sign, Encrype and send
 	n := len(*msg)
-	configs.GetLogger().Debug("Write data", "len", n)
+	logger.Debug("Write data", "len", n)
 	buf := make([]byte, n+2)
 	buf[0] = byte(n >> 8)
 	buf[1] = byte(n & 0xff)
@@ -212,7 +213,7 @@ func (c *Client) ECDH() error {
 		return errors.New("marshaling ecdh public key: " + err.Error())
 	}
 
-	configs.GetLogger().Debug("Write public key", "len", len(buf), "buf", buf)
+	logger.Debug("Write public key", "len", len(buf), "buf", buf)
 	err = c.Write(&buf)
 	if err != nil {
 		return err
@@ -221,7 +222,7 @@ func (c *Client) ECDH() error {
 	if err != nil {
 		return err
 	}
-	configs.GetLogger().Debug("Read public key", "len", len(buf), "buf", buf)
+	logger.Debug("Read public key", "len", len(buf), "buf", buf)
 
 	publicKey, err := x509.ParsePKIXPublicKey(buf)
 	if err != nil {
@@ -268,24 +269,23 @@ func Route(data []byte) bool {
 		clientsCopy[i] = *c
 	}
 	clientsLock.Unlock()
-	logging := configs.GetLogger()
 
 	address := getDstIP(data)
 	if address == nil {
-		logging.Debug("Route: no destination IP found. Ignore.")
+		logger.Debug("Route: no destination IP found. Ignore.")
 		return false
 	}
-	logging.Debug("Route", "address", address, "len", len(data))
+	logger.Debug("Route", "address", address, "len", len(data))
 	// XXX read route table
 	found := false
 	for _, c := range clientsCopy {
-		logging.Debug("Route", "address", address, "client", c.tunAddr)
+		logger.Debug("Route", "address", address, "client", c.tunAddr)
 		if c.tunAddr != nil && c.tunAddr.String() == address.String() && c.GetClientState() == Ready {
 			if c.secrets != nil {
 				go func(cl *Client) {
 					err := cl.Write(&data)
 					if err != nil {
-						logging.Error("Route write", "error", err)
+						logger.Error("Route write", "error", err)
 					}
 				}(&c)
 			}
@@ -295,17 +295,17 @@ func Route(data []byte) bool {
 	}
 	myIP, _, err := net.ParseCIDR(configs.GetConfig().TunAddr)
 	if err != nil {
-		logging.Error("Route", "error", err)
+		logger.Error("Route", "error", err)
 		return true
 	}
 	if !found && myIP.String() != address.String() {
-		logging.Debug("Route: no matching client found. Send to all clients")
+		logger.Debug("Route: no matching client found. Send to all clients")
 		for _, c := range clientsCopy {
 			if c.secrets != nil {
 				go func(cl *Client) {
 					err := cl.Write(&data)
 					if err != nil {
-						logging.Error("Route write", "error", err)
+						logger.Error("Route write", "error", err)
 					}
 				}(&c)
 			}
