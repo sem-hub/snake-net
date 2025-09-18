@@ -72,8 +72,8 @@ func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 		bufLock:   &sync.Mutex{},
 		bufSignal: make(chan int, 100),
 		bufSize:   0,
-		seqIn:     0,
-		seqOut:    0,
+		seqIn:     1,
+		seqOut:    1,
 	}
 
 	if len(clients) != 0 && FindClient(address) != nil {
@@ -170,19 +170,50 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		<-c.bufSignal
 	}
 	c.bufLock.Lock()
+	// Read message size and sequence number
+	// First 2 bytes are size
+	// Next 2 bytes are sequence number
+	// Next n bytes are message
+	//logger.Debug("ReadBuf", "bufSize", c.bufSize)
+	if c.bufSize < 4 {
+		c.bufLock.Unlock()
+		return nil, errors.New("invalid buffer size")
+	}
 	n := int(c.buf[0])<<8 | int(c.buf[1])
 	//logger.Debug("ReadBuf size", "n", n)
+	seq := int(c.buf[2])<<8 | int(c.buf[3])
+	logger.Debug("ReadBuf seq", "seq", seq, "expected", c.seqIn)
+	if n <= 0 || n > transport.BUFSIZE-4 {
+		c.bufLock.Unlock()
+		return nil, errors.New("invalid message size")
+	}
+	if seq != c.seqIn {
+		logger.Error("ReadBuf: invalid sequence number", "seq", seq,
+			"expected", c.seqIn)
+		// We can choose to resync here, but for now just return an error
+		copy(c.buf, c.buf[n+4:c.bufSize])
+		c.bufSize -= n + 4
+		c.bufLock.Unlock()
+		return nil, errors.New("invalid sequence number")
+	}
+	c.seqIn++
+	if c.seqIn > 65535 {
+		c.seqIn = 0
+	}
+	if c.bufSize < n+4 {
+		c.bufLock.Unlock()
+		return nil, errors.New("incomplete message")
+	}
 	msg := make([]byte, n)
-	copy(msg, c.buf[2:n+2])
-	copy(c.buf, c.buf[n+2:c.bufSize])
-	c.bufSize -= n + 2
+	copy(msg, c.buf[4:n+4])
+	copy(c.buf, c.buf[n+4:c.bufSize])
+	c.bufSize -= n + 4
 	if c.bufSize < 0 {
 		logger.Error("ReadBuf: invalid buffer size", "bufSize", c.bufSize)
 		c.bufSize = 0
 		return nil, errors.New("invalid buffer size")
 	}
 	c.bufLock.Unlock()
-	logger.Debug("ReadBuf read", "Size", len(msg))
 	return msg, nil
 }
 
@@ -190,10 +221,23 @@ func (c *Client) Write(msg *transport.Message) error {
 	// XXX Sign, Encrype and send
 	n := len(*msg)
 	logger.Debug("Write data", "len", n)
-	buf := make([]byte, n+2)
+	// First 2 bytes are size
+	// Next 2 bytes are sequence number
+	// Next n bytes are message
+	if n > transport.BUFSIZE-4 {
+		return errors.New("invalid message size")
+	}
+	buf := make([]byte, n+4)
 	buf[0] = byte(n >> 8)
 	buf[1] = byte(n & 0xff)
-	copy(buf[2:], *msg)
+	buf[2] = byte(c.seqOut >> 8)
+	buf[3] = byte(c.seqOut & 0xff)
+	logger.Debug("Write", "seq", c.seqOut)
+	c.seqOut++
+	if c.seqOut > 65535 {
+		c.seqOut = 0
+	}
+	copy(buf[4:n+4], *msg)
 	err := c.t.Send(c.address, c.conn, &buf)
 	if err != nil {
 		return err
@@ -283,7 +327,8 @@ func Route(data []byte) bool {
 		if c.tunAddr != nil && c.tunAddr.String() == address.String() && c.GetClientState() == Ready {
 			if c.secrets != nil {
 				go func(cl *Client) {
-					err := cl.Write(&data)
+					c := FindClient(cl.address)
+					err := c.Write(&data)
 					if err != nil {
 						logger.Error("Route write", "error", err)
 					}
@@ -301,9 +346,10 @@ func Route(data []byte) bool {
 	if !found && myIP.String() != address.String() {
 		logger.Debug("Route: no matching client found. Send to all clients")
 		for _, c := range clientsCopy {
-			if c.secrets != nil {
+			if c.secrets != nil && c.GetClientState() == Ready {
 				go func(cl *Client) {
-					err := cl.Write(&data)
+					c := FindClient(cl.address)
+					err := c.Write(&data)
 					if err != nil {
 						logger.Error("Route write", "error", err)
 					}
