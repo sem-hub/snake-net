@@ -7,8 +7,6 @@ import (
 	"strconv"
 )
 
-const BUFSIZE = 4000
-
 type TcpTransport struct {
 	TransportData
 	mainConn *net.TCPConn
@@ -36,15 +34,15 @@ func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 		}
 		tcp.mainConn = conn
 	} else {
-		tcp.listen(rAddr, rPort, callback)
+		tcp.listen(lAddr, lPort, callback)
 	}
 
 	return nil
 }
 
-func (tcp *TcpTransport) listen(rAddr string, rPort string, callback func(Transport, net.Conn, net.Addr)) error {
+func (tcp *TcpTransport) listen(addr string, port string, callback func(Transport, net.Conn, net.Addr)) error {
 	logger.Debug("Listen for connection")
-	listen, err := net.Listen("tcp", rAddr+":"+rPort)
+	listen, err := net.Listen("tcp", addr+":"+port)
 	if err != nil {
 		return err
 	}
@@ -87,7 +85,7 @@ func (tcp *TcpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, ne
 	tcpconn := conn.(*net.TCPConn)
 	addrStr := tcpconn.RemoteAddr().String()
 
-	b := make([]byte, BUFSIZE)
+	b := make([]byte, NETBUFSIZE)
 	l, err := tcpconn.Read(b)
 	if err != nil {
 		return nil, 0, nil, err

@@ -21,6 +21,8 @@ type TransportData struct {
 	Logger *slog.Logger
 }
 
+const NETBUFSIZE = 9000
+
 var logger *slog.Logger
 
 func NewTransport(loggerHandler *slog.Logger) *TransportData {

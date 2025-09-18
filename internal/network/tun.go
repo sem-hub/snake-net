@@ -59,7 +59,7 @@ func ProcessTun(mode string, c *clients.Client) {
 		for {
 			buf, err := c.ReadBuf()
 			if err != nil {
-				logger.Error("Error reading from buffer", "error", err)
+				logger.Error("Error reading from net buffer", "error", err)
 				// Ignore bad packet
 				continue
 			}

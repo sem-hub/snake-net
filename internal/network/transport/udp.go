@@ -54,7 +54,7 @@ func (udp *UdpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 func (udp *UdpTransport) runReadLoop(callback func(Transport, net.Conn, net.Addr)) error {
 	for {
 		newConnection := false
-		buf := make([]byte, 2048)
+		buf := make([]byte, NETBUFSIZE)
 		l, addr, err := udp.mainConn.ReadFrom(buf)
 		if err != nil {
 			logger.Error("First client read", "error", err)
