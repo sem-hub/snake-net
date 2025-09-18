@@ -125,15 +125,15 @@ func main() {
 	switch cfg.Protocol {
 	case "udp":
 		logger.Debug("Using UDP Transport.")
-		t = transport.NewUdpTransport(cfg)
+		t = transport.NewUdpTransport(logger)
 	case "tcp":
 		logger.Debug("Using TCP Transport.")
-		t = transport.NewTcpTransport(cfg)
+		t = transport.NewTcpTransport(logger)
 	default:
 		log.Fatalf("Unknown Protocol: %s", cfg.Protocol)
 	}
 	if isServer {
-		err = t.Init(cfg, protocol.ProcessNewClient)
+		err = t.Init(protocol.ProcessNewClient)
 		if err != nil {
 			log.Fatalf("Transport init error %s", err)
 		}
@@ -142,7 +142,8 @@ func main() {
 		logger.Info("Start server", "addr", cfg.LocalAddr, "port", cfg.LocalPort)
 		<-forever
 	} else {
-		err = t.Init(cfg, nil)
+		// No callback for client mode
+		err = t.Init(nil)
 		if err != nil {
 			log.Fatalf("Transport init error %s", err)
 		}

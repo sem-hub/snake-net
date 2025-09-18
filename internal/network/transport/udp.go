@@ -2,6 +2,7 @@ package transport
 
 import (
 	"errors"
+	"log/slog"
 	"net"
 	"sync"
 
@@ -19,8 +20,8 @@ type UdpTransport struct {
 	listenReady   chan bool
 }
 
-func NewUdpTransport(c *configs.Config) *UdpTransport {
-	var t = NewTransport(c)
+func NewUdpTransport(logger *slog.Logger) *UdpTransport {
+	var t = NewTransport(logger)
 	return &UdpTransport{t, nil, make(map[string]net.Addr), make(map[string][][]byte), &sync.Mutex{}, false,
 		false, make(chan bool)}
 }
@@ -29,11 +30,8 @@ func (udp *UdpTransport) GetName() string {
 	return "udp"
 }
 
-func (udp *UdpTransport) Init(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
-	/*udpServer, err := net.ResolveUDPAddr("udp", c.RemoteAddr+":"+c.RemotePort)
-	if err != nil {
-		return err
-	}*/
+func (udp *UdpTransport) Init(callback func(Transport, net.Conn, net.Addr)) error {
+	c := configs.GetConfig()
 
 	if c.Mode != "server" {
 		conn, err := net.ListenPacket("udp", ":0")
@@ -59,8 +57,6 @@ func (udp *UdpTransport) Init(c *configs.Config, callback func(Transport, net.Co
 }
 
 func (udp *UdpTransport) runReadLoop(callback func(Transport, net.Conn, net.Addr)) error {
-	logger := configs.GetLogger()
-
 	for {
 		newConnection := false
 		buf := make([]byte, 2048)
@@ -97,7 +93,7 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 	udpconn := conn.(*net.UDPConn)
 	n := len(*msg)
 
-	configs.GetLogger().Debug("Send data UDP", "len", n, "to", addr)
+	logger.Debug("Send data UDP", "len", n, "to", addr)
 	l, err := udpconn.WriteTo(*msg, addr)
 	if err != nil {
 		return err
@@ -122,7 +118,7 @@ func (udp *UdpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, ne
 	}
 	udp.packetBufLock.Lock()
 	buf := bufArray[0]
-	configs.GetLogger().Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addr)
+	logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addr)
 	bufArray = bufArray[1:]
 
 	if len(bufArray) > 0 {

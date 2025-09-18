@@ -2,6 +2,7 @@ package transport
 
 import (
 	"errors"
+	"log/slog"
 	"net"
 	"strconv"
 
@@ -16,8 +17,8 @@ type TcpTransport struct {
 	conn     map[string]net.TCPConn
 }
 
-func NewTcpTransport(c *configs.Config) *TcpTransport {
-	var t = NewTransport(c)
+func NewTcpTransport(logger *slog.Logger) *TcpTransport {
+	var t = NewTransport(logger)
 	return &TcpTransport{t, nil, make(map[string]net.TCPConn)}
 }
 
@@ -25,7 +26,8 @@ func (tcp *TcpTransport) GetName() string {
 	return "tcp"
 }
 
-func (tcp *TcpTransport) Init(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
+func (tcp *TcpTransport) Init(callback func(Transport, net.Conn, net.Addr)) error {
+	c := configs.GetConfig()
 	if c.Mode != "server" {
 		tcpServer, err := net.ResolveTCPAddr("tcp", c.RemoteAddr+":"+c.RemotePort)
 		if err != nil {
@@ -44,7 +46,6 @@ func (tcp *TcpTransport) Init(c *configs.Config, callback func(Transport, net.Co
 }
 
 func (tcp *TcpTransport) listen(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
-	logger := configs.GetLogger()
 	logger.Debug("Listen for connection")
 	listen, err := net.Listen("tcp", c.LocalAddr+":"+c.LocalPort)
 	if err != nil {
@@ -74,7 +75,7 @@ func (tcp *TcpTransport) Send(addr net.Addr, conn net.Conn, buf *Message) error 
 	tcpconn := conn.(*net.TCPConn)
 
 	n := len(*buf)
-	configs.GetLogger().Debug("Send data to network", "len", n)
+	logger.Debug("Send data to network", "len", n)
 	l, err := tcpconn.Write(*buf)
 	if err != nil {
 		return err
@@ -95,7 +96,7 @@ func (tcp *TcpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, ne
 		return nil, 0, nil, err
 	}
 
-	configs.GetLogger().Debug("Got data", "len", l, "from", addrStr)
+	logger.Debug("Got data", "len", l, "from", addrStr)
 	msg := Message(b)[:l]
 	return msg, l, conn.RemoteAddr(), nil
 }

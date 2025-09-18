@@ -1,16 +1,15 @@
 package transport
 
 import (
+	"log/slog"
 	"net"
-
-	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 type Message = []byte
 
 type Transport interface {
 	// Callback for new connection processing
-	Init(*configs.Config, func(Transport, net.Conn, net.Addr)) error
+	Init(func(Transport, net.Conn, net.Addr)) error
 	Send(net.Addr, net.Conn, *Message) error
 	Receive(net.Conn, net.Addr) (Message, int, net.Addr, error)
 	Close() error
@@ -19,8 +18,14 @@ type Transport interface {
 }
 
 type TransportData struct {
+	Logger *slog.Logger
 }
 
-func NewTransport(c *configs.Config) *TransportData {
-	return &TransportData{}
+var logger *slog.Logger
+
+func NewTransport(loggerHandler *slog.Logger) *TransportData {
+	logger = loggerHandler
+	return &TransportData{
+		Logger: logger,
+	}
 }
