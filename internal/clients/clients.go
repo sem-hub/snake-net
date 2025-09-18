@@ -44,8 +44,8 @@ type Client struct {
 }
 
 var (
-	clients = []*Client{}
-	lock    sync.Mutex
+	clients     = []*Client{}
+	clientsLock sync.Mutex
 )
 
 func (c *Client) GetClientConn(address net.Addr) net.Conn {
@@ -57,9 +57,6 @@ func (c *Client) GetClientAddr() net.Addr {
 }
 
 func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
-	lock.Lock()
-	defer lock.Unlock()
-
 	logging := configs.GetLogger()
 	logging.Debug("AddClient", "address", address)
 	client := Client{
@@ -76,10 +73,13 @@ func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 		seqIn:     0,
 		seqOut:    0,
 	}
+
 	if len(clients) != 0 && FindClient(address) != nil {
 		logging.Error("Client already exists", "address", address)
 	} else {
+		clientsLock.Lock()
 		clients = append(clients, &client)
+		clientsLock.Unlock()
 	}
 	return &client
 }
@@ -94,8 +94,8 @@ func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
 }
 
 func RemoveClient(address net.Addr) {
-	lock.Lock()
-	defer lock.Unlock()
+	clientsLock.Lock()
+	defer clientsLock.Unlock()
 	for i, c := range clients {
 		if c.address.String() == address.String() {
 			clients = append(clients[:i], clients[i+1:]...)
@@ -105,8 +105,8 @@ func RemoveClient(address net.Addr) {
 }
 
 func FindClient(address net.Addr) *Client {
-	lock.Lock()
-	defer lock.Unlock()
+	clientsLock.Lock()
+	defer clientsLock.Unlock()
 
 	for _, c := range clients {
 		if c.address.String() == address.String() {
@@ -262,12 +262,12 @@ func getDstIP(packet []byte) net.Addr {
 }
 
 func Route(data []byte) bool {
-	lock.Lock()
+	clientsLock.Lock()
 	clientsCopy := make([]Client, len(clients))
 	for i, c := range clients {
 		clientsCopy[i] = *c
 	}
-	lock.Unlock()
+	clientsLock.Unlock()
 	logging := configs.GetLogger()
 
 	address := getDstIP(data)

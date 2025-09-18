@@ -75,12 +75,16 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	logger.Debug("ProcessNewClient", "gotAddr", gotAddr)
 
 	addr := conn.RemoteAddr()
+	logger.Debug("ProcessNewClient", "conn.RemoteAddr()", addr)
 	if addr == nil {
 		addr = gotAddr
 	}
 	c := clients.NewClient(addr, t, conn)
+	logger.Debug("Newclient", "addr", addr)
 	s := crypt.NewSecrets(addr, t, conn)
+	logger.Debug("NewSecrets", "addr", addr)
 	c.AddSecretsToClient(s)
+	logger.Debug("AddSecretsToClient", "addr", addr)
 	c.RunNetLoop(addr)
 
 	clientIP, err := IdentifyClient(c)
