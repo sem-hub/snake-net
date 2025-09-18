@@ -130,10 +130,10 @@ func ProcessTun(mode string, c *clients.Client) {
 		defer wg.Done()
 		for {
 			buf := <-wCh
+			logger.Debug("Write into tun", "len", len(buf))
 			if _, err := tun.Write(buf); err != nil {
 				panic(err)
 			}
-			logger.Debug("Write into tun", "len", len(buf))
 		}
 	}()
 	wg.Wait()

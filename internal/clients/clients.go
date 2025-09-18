@@ -38,7 +38,6 @@ type Client struct {
 	buf       []byte
 	bufLock   *sync.Mutex
 	bufSignal chan int
-	offset    int
 	bufSize   int
 	seqIn     int
 	seqOut    int
@@ -73,12 +72,15 @@ func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 		buf:       make([]byte, transport.BUFSIZE),
 		bufLock:   &sync.Mutex{},
 		bufSignal: make(chan int, 100),
-		offset:    0,
 		bufSize:   0,
 		seqIn:     0,
 		seqOut:    0,
 	}
-	clients = append(clients, &client)
+	if len(clients) != 0 && FindClient(address) != nil {
+		logging.Error("Client already exists", "address", address)
+	} else {
+		clients = append(clients, &client)
+	}
 	return &client
 }
 
@@ -140,20 +142,22 @@ func (c *Client) RunNetLoop(address net.Addr) {
 	// main loop will read data from c.buf
 	go func() {
 		for {
-			msg, n, _, err := c.t.Receive(c.conn)
+			configs.GetLogger().Debug("NetLoop waiting for data", "address", address)
+			msg, n, _, err := c.t.Receive(c.conn, address)
+			configs.GetLogger().Debug("NetLoop Receive", "len", n, "err", err)
 			if err != nil {
-				logger.Error("NetLoop error", "err", err)
+				logger.Error("NetLoop Receive error", "err", err)
 				return
 			}
-			logger.Debug("NetLoop", "len", n, "from", address)
 			c.bufLock.Lock()
-			copy(c.buf[c.offset:], msg[:n])
-			c.offset += n
+			// Write to the end of the buffer
+			copy(c.buf[c.bufSize:], msg[:n])
 			c.bufSize += n
+			if n > 0 {
+				c.bufSignal <- 1
+			}
 			c.bufLock.Unlock()
-			logger.Debug("NetLoop Unlock")
-			c.bufSignal <- 1
-			logger.Debug("NetLoop receive finished")
+			logger.Debug("NetLoop", "len", n, "from", address)
 		}
 	}()
 }
@@ -161,23 +165,35 @@ func (c *Client) RunNetLoop(address net.Addr) {
 func (c *Client) ReadBuf() (transport.Message, error) {
 	// XXX decrypt. check and read
 	configs.GetLogger().Debug("ReadBuf", "bufSize", c.bufSize)
-	<-c.bufSignal
-	configs.GetLogger().Debug("ReadBuf got signal")
-	if c.bufSize > 0 {
-		c.bufLock.Lock()
-		msg := make([]byte, c.bufSize)
-		copy(msg, c.buf[:c.bufSize])
-		c.offset = 0
-		c.bufSize = 0
-		c.bufLock.Unlock()
-		return msg, nil
+	for c.bufSize == 0 {
+		<-c.bufSignal
 	}
-	return nil, nil
+	c.bufLock.Lock()
+	n := int(c.buf[0])<<8 | int(c.buf[1])
+	//configs.GetLogger().Debug("ReadBuf size", "n", n)
+	msg := make([]byte, n)
+	copy(msg, c.buf[2:n+2])
+	copy(c.buf, c.buf[n+2:c.bufSize])
+	c.bufSize -= n + 2
+	if c.bufSize < 0 {
+		configs.GetLogger().Error("ReadBuf: invalid buffer size", "bufSize", c.bufSize)
+		c.bufSize = 0
+		return nil, errors.New("invalid buffer size")
+	}
+	c.bufLock.Unlock()
+	configs.GetLogger().Debug("ReadBuf read", "Size", len(msg))
+	return msg, nil
 }
 
 func (c *Client) Write(msg *transport.Message) error {
 	// XXX Sign, Encrype and send
-	err := c.t.Send(c.address, c.conn, msg)
+	n := len(*msg)
+	configs.GetLogger().Debug("Write data", "len", n)
+	buf := make([]byte, n+2)
+	buf[0] = byte(n >> 8)
+	buf[1] = byte(n & 0xff)
+	copy(buf[2:], *msg)
+	err := c.t.Send(c.address, c.conn, &buf)
 	if err != nil {
 		return err
 	}
@@ -196,7 +212,7 @@ func (c *Client) ECDH() error {
 		return errors.New("marshaling ecdh public key: " + err.Error())
 	}
 
-	//configs.GetLogger().Debug("Write public key", "len", len(buf), "buf", buf)
+	configs.GetLogger().Debug("Write public key", "len", len(buf), "buf", buf)
 	err = c.Write(&buf)
 	if err != nil {
 		return err
@@ -205,7 +221,7 @@ func (c *Client) ECDH() error {
 	if err != nil {
 		return err
 	}
-	//logging.Debug("Read public key", "len", len(buf), "buf", buf)
+	configs.GetLogger().Debug("Read public key", "len", len(buf), "buf", buf)
 
 	publicKey, err := x509.ParsePKIXPublicKey(buf)
 	if err != nil {
@@ -264,7 +280,7 @@ func Route(data []byte) bool {
 	found := false
 	for _, c := range clientsCopy {
 		logging.Debug("Route", "address", address, "client", c.tunAddr)
-		if c.tunAddr.String() == address.String() {
+		if c.tunAddr != nil && c.tunAddr.String() == address.String() && c.GetClientState() == Ready {
 			if c.secrets != nil {
 				go func(cl *Client) {
 					err := cl.Write(&data)

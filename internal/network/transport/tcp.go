@@ -84,7 +84,7 @@ func (tcp *TcpTransport) Send(addr net.Addr, conn net.Conn, buf *Message) error 
 	return nil
 }
 
-func (tcp *TcpTransport) Receive(conn net.Conn) (Message, int, net.Addr, error) {
+func (tcp *TcpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, net.Addr, error) {
 	tcpconn := conn.(*net.TCPConn)
 	addrStr := tcpconn.RemoteAddr().String()
 

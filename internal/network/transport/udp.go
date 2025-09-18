@@ -2,24 +2,27 @@ package transport
 
 import (
 	"errors"
-	"log"
 	"net"
+	"sync"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 type UdpTransport struct {
-	td          *TransportData
-	mainConn    *net.UDPConn
-	clientAddr  map[string]net.Addr
-	clientConn  map[net.Conn]net.Addr
-	firstPacket map[string][]byte
+	td            *TransportData
+	mainConn      *net.UDPConn
+	clientAddr    map[string]net.Addr
+	packetBuf     map[string][][]byte
+	packetBufLock *sync.Mutex
+	bufferReady   bool
+	listening     bool
+	listenReady   chan bool
 }
 
 func NewUdpTransport(c *configs.Config) *UdpTransport {
 	var t = NewTransport(c)
-	return &UdpTransport{t, nil, make(map[string]net.Addr), make(map[net.Conn]net.Addr),
-		make(map[string][]byte)}
+	return &UdpTransport{t, nil, make(map[string]net.Addr), make(map[string][][]byte), &sync.Mutex{}, false,
+		false, make(chan bool)}
 }
 
 func (udp *UdpTransport) GetName() string {
@@ -46,34 +49,56 @@ func (udp *UdpTransport) Init(c *configs.Config) error {
 func (udp *UdpTransport) Listen(c *configs.Config, callback func(Transport, net.Conn, net.Addr)) error {
 	logger := configs.GetLogger()
 
-	udpLocal, err := net.ResolveUDPAddr("udp", c.LocalAddr+":"+c.LocalPort)
+	var udpLocal *net.UDPAddr
+	var err error
+	if c.Mode == "server" {
+		udpLocal, err = net.ResolveUDPAddr("udp", c.LocalAddr+":"+c.LocalPort)
+	}
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Listen: %s\n", c.LocalAddr+":"+c.LocalPort)
+	udp.listening = true
 	for {
 		conn, err := net.ListenUDP("udp", udpLocal)
 		if err != nil {
 			return err
 		}
-		udp.mainConn = conn
+		if c.Mode == "server" {
+			udp.mainConn = conn
+		}
+		logger.Info("UDP Listening on " + udpLocal.String())
 
 		for {
-			_, l, addr, err := udp.Receive(conn)
+			newConnection := false
+			buf := make([]byte, 2048)
+			l, addr, err := udp.mainConn.ReadFrom(buf)
 			if err != nil {
 				logger.Error("First client read", "error", err)
 				break
 			}
-			logger.Debug("First client read", "len", l, "from", addr)
-			if addr != nil {
-				udp.clientConn[conn] = addr
+
+			udp.packetBufLock.Lock()
+			if _, ok := udp.clientAddr[addr.String()]; !ok {
+				newConnection = true
+				udp.clientAddr[addr.String()] = addr
+			} else {
+				newConnection = false
 			}
-			if l == 0 {
+			udp.packetBuf[addr.String()] = append(udp.packetBuf[addr.String()], buf[:l])
+			udp.bufferReady = true
+			udp.packetBufLock.Unlock()
+			logger.Debug("Listen buffer read", "len", l, "from", addr)
+
+			if newConnection {
+				if callback == nil {
+					logger.Error("Listen: No callback for client connection")
+					continue
+				}
 				go callback(udp, conn, addr)
 			}
 		}
-		conn.Close()
+		//conn.Close()
 	}
 	//return nil
 }
@@ -81,6 +106,12 @@ func (udp *UdpTransport) Listen(c *configs.Config, callback func(Transport, net.
 func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error {
 	udpconn := conn.(*net.UDPConn)
 	n := len(*msg)
+
+	if !udp.listening {
+		// In client mode we only have one connection
+		// so we need to start listening for incoming packets
+		go udp.Listen(configs.GetConfig(), nil)
+	}
 
 	configs.GetLogger().Debug("Send data UDP", "len", n, "to", addr)
 	l, err := udpconn.WriteTo(*msg, addr)
@@ -93,39 +124,31 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 	return nil
 }
 
-func (udp *UdpTransport) Receive(conn net.Conn) (Message, int, net.Addr, error) {
-	udpconn := conn.(*net.UDPConn)
-
-	// If we have first packet from this client, return it.
-	if fromAddr, ok := udp.clientConn[conn]; !ok {
-		configs.GetLogger().Debug("Found UDP conn", "fromAddr", fromAddr)
-		if fromAddr != nil {
-			if buf, ok := udp.firstPacket[fromAddr.String()]; !ok {
-				configs.GetLogger().Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", fromAddr)
-				udp.firstPacket[fromAddr.String()] = nil
-				return buf, len(buf), fromAddr, nil
-			}
+func (udp *UdpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, net.Addr, error) {
+	// If we have buffered packets for this addr
+	var bufArray [][]byte
+	for {
+		udp.packetBufLock.Lock()
+		var ok bool
+		if bufArray, ok = udp.packetBuf[addr.String()]; udp.bufferReady && ok {
+			udp.packetBufLock.Unlock()
+			break
 		}
+		udp.packetBufLock.Unlock()
 	}
+	udp.packetBufLock.Lock()
+	buf := bufArray[0]
+	configs.GetLogger().Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addr)
+	bufArray = bufArray[1:]
 
-	b := make([]byte, BUFSIZE)
-	l, fromAddr, err := udpconn.ReadFrom(b)
-	if err != nil {
-		return nil, 0, nil, err
+	if len(bufArray) > 0 {
+		udp.packetBuf[addr.String()] = bufArray
+	} else {
+		delete(udp.packetBuf, addr.String())
 	}
-
-	configs.GetLogger().Debug("UDP ReadFrom", "len", l, "fromAddr", fromAddr)
-	// if we first met this client. Save first ppacket.
-	if _, ok := udp.clientAddr[fromAddr.String()]; !ok {
-		// Listen() will call callback() for the new client
-		udp.clientAddr[fromAddr.String()] = fromAddr
-		udp.firstPacket[fromAddr.String()] = b[:l]
-		return nil, 0, fromAddr, nil
-	}
-	udp.clientAddr[fromAddr.String()] = fromAddr
-
-	//configs.GetLogger().Debug("Got data", "len", l, "from", fromAddr)
-	return b, l, fromAddr, nil
+	udp.bufferReady = len(udp.packetBuf) > 0
+	udp.packetBufLock.Unlock()
+	return buf, len(buf), addr, nil
 }
 
 func (udp *UdpTransport) Close() error {

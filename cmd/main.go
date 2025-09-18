@@ -148,8 +148,15 @@ func main() {
 		var err error
 		if cfg.Protocol == "tcp" {
 			addr, err = net.ResolveTCPAddr("tcp", cfg.RemoteAddr+":"+cfg.RemotePort)
+			if err != nil {
+				logger.Error("ResolveTCPAddr", "Error", err)
+			}
+
 		} else {
 			addr, err = net.ResolveUDPAddr("udp", cfg.RemoteAddr+":"+cfg.RemotePort)
+			if err != nil {
+				logger.Error("ResolveUDPAddr", "Error", err)
+			}
 		}
 		if err != nil {
 			log.Fatalf("ResolveIPAddr error: %s", err)

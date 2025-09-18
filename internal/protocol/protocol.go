@@ -72,6 +72,7 @@ func Identification(c *clients.Client) error {
 
 func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	logger := configs.GetLogger()
+	logger.Debug("ProcessNewClient", "gotAddr", gotAddr)
 
 	addr := conn.RemoteAddr()
 	if addr == nil {
@@ -86,7 +87,11 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	if err != nil {
 		logger.Debug("Identification failed", "error", err)
 		// XXX close connection, remove client
-		s.Close()
+		if t.GetName() == "tcp" {
+			tcpconn := conn.(*net.TCPConn)
+			tcpconn.Close()
+		}
+		//s.Close()
 		clients.RemoveClient(addr)
 		return
 	}
@@ -112,8 +117,11 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 	}
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t, conn)
+	s := crypt.NewSecrets(addr, t, conn)
+	c.AddSecretsToClient(s)
+
 	c.RunNetLoop(addr)
-	//s := crypt.NewSecrets(addr, t, conn)
+
 	if err := Identification(c); err == nil {
 		logger.Debug("Identification Success")
 	} else {
