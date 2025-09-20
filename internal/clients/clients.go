@@ -180,11 +180,10 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	for c.bufSize-c.bufOffset <= 0 {
 		c.bufSignal.Wait()
 	}
-	// Read message size and sequence number
 	// First 2 bytes are size
 	// Next 2 bytes are sequence number
-	// Next 1 byte are flags
-	// Next n bytes are message
+	// Next 1 byte is flags
+	// Next n bytes are message finished with 64 bytes signature
 	logger.Debug("client ReadBuf after reading", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	if c.bufSize-c.bufOffset < ADDSIZE {
 		c.bufLock.Unlock()
@@ -206,6 +205,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
 			"expected", c.seqIn, "address", c.address)
 		// OutOfOrder leave packet in buffer and restart reading
+		// XXX make a packets limit
 		c.bufOffset += n + ADDSIZE
 		c.bufLock.Unlock()
 		return c.ReadBuf()
