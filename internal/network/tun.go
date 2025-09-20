@@ -31,10 +31,21 @@ func SetUpTUN(c *configs.Config) error {
 	if err != nil {
 		return err
 	}
+	configs.GetLogger().Info("SetUpTUN", "addr", addr)
 	err = netlink.AddrAdd(link, addr)
 	if err != nil {
 		return err
 	}
+	addr6, err := netlink.ParseAddr(c.TunAddr6)
+	if err != nil {
+		return err
+	}
+	configs.GetLogger().Info("SetUpTUN", "addr6", addr6)
+	err = netlink.AddrAdd(link, addr6)
+	if err != nil {
+		return err
+	}
+
 	err = netlink.LinkSetMTU(link, 1472)
 	if err != nil {
 		return err

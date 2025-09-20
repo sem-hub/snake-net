@@ -12,59 +12,84 @@ import (
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
-func IdentifyClient(c *clients.Client) (net.Addr, error) {
+func IdentifyClient(c *clients.Client) (net.Addr, net.Addr, error) {
 	var addr net.Addr
+	var addr6 net.Addr
 
 	buf, err := c.ReadBuf()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(buf) < 6 {
-		return nil, errors.New("invalid buffer length")
+		return nil, nil, errors.New("invalid buffer length")
 	}
-	h := string(buf[:6])
-	clientNet := string(buf[6:])
-	if h == "Hello " {
+	str := strings.Fields(string(buf))
+	if len(str) != 3 {
+		return nil, nil, errors.New("invalid identification string")
+	}
+	h := str[0]
+	clientNet := str[1]
+	clientNet6 := str[2]
+	configs.GetLogger().Debug("IdentifyClient", "h", h, "clientNet", clientNet, "clientNet6", clientNet6)
+	if h == "Hello" {
 		ip, _, err := net.ParseCIDR(clientNet)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		ip6, _, err := net.ParseCIDR(clientNet6)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		_, myNetwork, err := net.ParseCIDR(configs.GetConfig().TunAddr)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if !myNetwork.Contains(ip) {
 			buf = []byte("Error: IP not in " + myNetwork.String())
 			c.Write(&buf)
 
-			return nil, errors.New("Client IP " + ip.String() + " not in " +
+			return nil, nil, errors.New("Client IP " + ip.String() + " not in " +
 				myNetwork.String())
 		}
+		_, myNetwork6, err := net.ParseCIDR(configs.GetConfig().TunAddr6)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !myNetwork6.Contains(ip6) {
+			buf = []byte("Error: IP not in " + myNetwork6.String())
+			c.Write(&buf)
+
+			return nil, nil, errors.New("Client IP " + ip6.String() + " not in " +
+				myNetwork6.String())
+		}
+
 		addr = &net.IPAddr{IP: ip}
-		configs.GetLogger().Debug("IdentifyClient", "addr", addr)
+		addr6 = &net.IPAddr{IP: ip6}
+		configs.GetLogger().Debug("IdentifyClient", "addr", addr, "addr6", addr6)
 		buf = []byte("Welcome")
 		c.Write(&buf)
 	} else {
 		buf = []byte("Error")
 		c.Write(&buf)
-		return nil, errors.New("Identification error")
+		return nil, nil, errors.New("Identification error")
 	}
 	buf, err = c.ReadBuf()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(buf) < 2 {
-		return nil, errors.New("invalid buffer length")
+		return nil, nil, errors.New("invalid buffer length")
 	}
 	if string(buf[:2]) != "OK" {
-		return nil, errors.New("Identification not OK")
+		return nil, nil, errors.New("Identification not OK")
 	}
-	return addr, nil
+	return addr, addr6, nil
 }
 
 func Identification(c *clients.Client) error {
 	logger := configs.GetLogger()
-	msg := []byte("Hello " + configs.GetConfig().TunAddr)
+	msg := []byte("Hello " + configs.GetConfig().TunAddr + " " + configs.GetConfig().TunAddr6)
 	logger.Debug("Identification", "msg", string(msg))
 	err := c.Write(&msg)
 	if err != nil {
@@ -101,7 +126,7 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	c.AddSecretsToClient(s)
 	c.RunNetLoop(addr)
 
-	clientIP, err := IdentifyClient(c)
+	clientTunIP, clientTunIP6, err := IdentifyClient(c)
 	if err != nil {
 		logger.Debug("Identification failed", "error", err)
 		// XXX close connection, remove client
@@ -113,8 +138,8 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 		clients.RemoveClient(addr)
 		return
 	}
-	logger.Debug("Identification passed", "clientIP", clientIP)
-	c.AddTunAddressToClient(clientIP)
+	logger.Debug("Identification passed", "clientTunIP", clientTunIP)
+	c.AddTunAddressToClient(clientTunIP, clientTunIP6)
 
 	c.SetClientState(clients.Authenticated)
 

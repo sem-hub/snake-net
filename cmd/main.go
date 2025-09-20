@@ -22,6 +22,7 @@ var (
 	configFile string
 	isServer   bool
 	tunAddr    string
+	tunAddr6   string
 	debug      bool
 )
 
@@ -29,6 +30,7 @@ var flagAlias = map[string]string{
 	"server": "s",
 	"config": "c",
 	"tun":    "t",
+	"tun6":   "t6",
 	"debug":  "d",
 }
 
@@ -37,6 +39,7 @@ func init() {
 	flag.StringVar(&configFile, "config", "", "Path to config file.")
 	flag.BoolVar(&isServer, "server", false, "Run as server.")
 	flag.StringVar(&tunAddr, "tun", "", "Address (CIDR) for Tun interface.")
+	flag.StringVar(&tunAddr6, "tun6", "", "Address (CIDR) for Tun interface (IPv6).")
 	flag.BoolVar(&debug, "debug", false, "Enable debug mode.")
 
 	for from, to := range flagAlias {
@@ -46,7 +49,7 @@ func init() {
 }
 func main() {
 	flag.Parse()
-	if flag.NArg() == 0 {
+	if flag.NArg() == 0 && configFile == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -56,6 +59,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		debug = cfg.Debug
 	}
 
 	var level slog.Level = slog.LevelInfo
@@ -65,7 +69,18 @@ func main() {
 	configs.InitLogger(level)
 	logger := configs.GetLogger()
 
-	addr := strings.ToLower(flag.Arg(0))
+	var addr string
+	if configFile == "" {
+		addr = strings.ToLower(flag.Arg(0))
+	} else {
+		isServer = (cfg.Mode == "server")
+		if isServer {
+			addr = strings.ToLower(cfg.Protocol + "://" + cfg.LocalAddr + ":" + cfg.LocalPort)
+		} else {
+			addr = strings.ToLower(cfg.Protocol + "://" + cfg.RemoteAddr + ":" + cfg.RemotePort)
+		}
+		logger.Info(addr)
+	}
 
 	proto_regex := `(tcp|udp)://`
 	ipv4_regex := `(?:[0-9]{1,3}[\.]){3}[0-9]{1,3}`
@@ -91,10 +106,14 @@ func main() {
 	}
 	logger.Debug("URI", "Protocol", cfg.Protocol, "Peer", host, "port", port)
 
-	if tunAddr == "" {
-		log.Fatal("Tun Address is mandatory")
+	if configFile == "" {
+		cfg.TunAddr = tunAddr
+		cfg.TunAddr6 = tunAddr6
 	}
-	cfg.TunAddr = tunAddr
+
+	if cfg.TunAddr == "" || cfg.TunAddr6 == "" {
+		log.Fatal("Tun and Tun6 Addresses are mandatory")
+	}
 
 	ips, err := net.LookupIP(host)
 	if err != nil {

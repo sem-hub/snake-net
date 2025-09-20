@@ -38,6 +38,7 @@ const (
 type Client struct {
 	address    net.Addr
 	tunAddr    net.Addr
+	tunAddr6   net.Addr
 	t          transport.Transport
 	conn       net.Conn
 	state      State
@@ -72,6 +73,7 @@ func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 	client := Client{
 		address:    address,
 		tunAddr:    nil,
+		tunAddr6:   nil,
 		t:          t,
 		conn:       conn,
 		state:      Connected,
@@ -96,9 +98,10 @@ func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 	return &client
 }
 
-func (c *Client) AddTunAddressToClient(tunAddr net.Addr) {
-	logger.Debug("AddTunAddressToClient", "addr", tunAddr)
+func (c *Client) AddTunAddressToClient(tunAddr net.Addr, tunAddr6 net.Addr) {
+	logger.Debug("AddTunAddressToClient", "addr", tunAddr, "addr6", tunAddr6)
 	c.tunAddr = tunAddr
+	c.tunAddr6 = tunAddr6
 }
 
 func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
@@ -364,8 +367,15 @@ func Route(data []byte) bool {
 	// XXX read route table
 	found := false
 	for _, c := range clientsCopy {
-		logger.Debug("Route", "address", address, "client", c.tunAddr)
+		logger.Debug("Route", "address", address, "tun", c.tunAddr, "tun6", c.tunAddr6, "clientState", c.GetClientState())
 		if c.tunAddr != nil && c.tunAddr.String() == address.String() {
+			if c.GetClientState() == Ready {
+				sendDataToClient(c.address, data)
+			}
+			found = true
+			break
+		}
+		if c.tunAddr6 != nil && c.tunAddr6.String() == address.String() {
 			if c.GetClientState() == Ready {
 				sendDataToClient(c.address, data)
 			}
@@ -378,7 +388,12 @@ func Route(data []byte) bool {
 		logger.Error("Route", "error", err)
 		return true
 	}
-	if !found && myIP.String() != address.String() {
+	myIP6, _, err := net.ParseCIDR(configs.GetConfig().TunAddr6)
+	if err != nil {
+		logger.Error("Route", "error", err)
+		return true
+	}
+	if !found && myIP.String() != address.String() && myIP6.String() != address.String() {
 		logger.Debug("Route: no matching client found. Send to all clients")
 		for _, c := range clientsCopy {
 			if c.GetClientState() == Ready {

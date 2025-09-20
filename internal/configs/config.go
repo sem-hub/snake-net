@@ -7,12 +7,14 @@ import (
 
 type Config struct {
 	Mode       string `toml:"mode"`
+	Debug      bool   `toml:"debug"`
 	Protocol   string `toml:"protocol"`
 	RemoteAddr string `toml:"remote_addr"`
 	RemotePort string `toml:"remote_port"`
 	LocalAddr  string `toml:"local_addr"`
 	LocalPort  string `toml:"local_port"`
 	TunAddr    string `toml:"tun_addr"`
+	TunAddr6   string `toml:"tun_addr6"`
 }
 
 var (
