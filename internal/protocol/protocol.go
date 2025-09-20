@@ -13,6 +13,8 @@ import (
 )
 
 func IdentifyClient(c *clients.Client) (net.Addr, error) {
+	var addr net.Addr
+
 	buf, err := c.ReadBuf()
 	if err != nil {
 		return nil, err
@@ -38,16 +40,26 @@ func IdentifyClient(c *clients.Client) (net.Addr, error) {
 			return nil, errors.New("Client IP " + ip.String() + " not in " +
 				myNetwork.String())
 		}
-		var addr net.Addr = &net.IPAddr{IP: ip}
+		addr = &net.IPAddr{IP: ip}
 		configs.GetLogger().Debug("IdentifyClient", "addr", addr)
 		buf = []byte("Welcome")
 		c.Write(&buf)
-		return addr, nil
 	} else {
 		buf = []byte("Error")
 		c.Write(&buf)
 		return nil, errors.New("Identification error")
 	}
+	buf, err = c.ReadBuf()
+	if err != nil {
+		return nil, err
+	}
+	if len(buf) < 2 {
+		return nil, errors.New("invalid buffer length")
+	}
+	if string(buf[:2]) != "OK" {
+		return nil, errors.New("Identification not OK")
+	}
+	return addr, nil
 }
 
 func Identification(c *clients.Client) error {
@@ -66,6 +78,11 @@ func Identification(c *clients.Client) error {
 	logger.Debug("ID", "msg", string(msg1))
 	if !strings.HasPrefix(string(msg1), "Welcome") {
 		return errors.New("Identification " + string(msg1))
+	}
+	msg = []byte("OK")
+	err = c.Write(&msg)
+	if err != nil {
+		return err
 	}
 	return nil
 }

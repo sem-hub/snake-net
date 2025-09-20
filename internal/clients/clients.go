@@ -21,7 +21,12 @@ import (
 
 type State int
 
-const BUFSIZE = 65535
+const (
+	BUFSIZE = 65535
+	HEADER  = 5 // 2 bytes size + 2 bytes sequence number + 1 byte flags
+	SIGSIZE = 0
+	ADDSIZE = HEADER + SIGSIZE
+)
 
 const (
 	NotFound State = iota
@@ -131,7 +136,7 @@ func (c *Client) GetClientState() State {
 
 func (c *Client) SetClientState(state State) {
 	c.state = state
-	//logger.Debug("SetClientState", "address", address, "state", state)
+	logger.Debug("SetClientState", "address", c.address, "state", state)
 }
 
 func GetClientCount() int {
@@ -173,24 +178,27 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	// XXX decrypt. check and read
 	logger.Debug("ReadBuf", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	// If we need to wait for data
-	for c.bufSize-c.bufOffset == 0 {
+	for c.bufSize-c.bufOffset <= 0 {
 		<-c.bufSignal
 	}
 	c.bufLock.Lock()
 	// Read message size and sequence number
 	// First 2 bytes are size
 	// Next 2 bytes are sequence number
+	// Next 1 byte are flags
 	// Next n bytes are message
 	logger.Debug("ReadBuf after reading", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
-	if c.bufSize-c.bufOffset < 4 {
+	if c.bufSize-c.bufOffset < ADDSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid buffer size")
 	}
 	n := int(c.buf[c.bufOffset])<<8 | int(c.buf[c.bufOffset+1])
 	logger.Debug("ReadBuf size", "address", c.address, "n", n)
 	seq := int(c.buf[c.bufOffset+2])<<8 | int(c.buf[c.bufOffset+3])
+	flags := c.buf[c.bufOffset+4]
+	logger.Debug("ReadBuf flags", "address", c.address, "flags", flags)
 	logger.Debug("ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
-	if n <= 0 || n > BUFSIZE-4 {
+	if n <= 0 || n+ADDSIZE > BUFSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid message size")
 	}
@@ -200,7 +208,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		logger.Error("ReadBuf: invalid sequence number", "seq", seq,
 			"expected", c.seqIn, "address", c.address)
 		// OutOfOrder leave packet in buffer and restart reading
-		c.bufOffset += n + 4
+		c.bufOffset += n + ADDSIZE
 		c.bufLock.Unlock()
 		return c.ReadBuf()
 	} else {
@@ -213,20 +221,20 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	if c.seqIn > 65535 {
 		c.seqIn = 0
 	}
-	if c.bufSize-c.bufOffset < n+4 {
+	if c.bufSize-c.bufOffset < n+ADDSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("incomplete message")
 	}
 	msg := make([]byte, n)
-	copy(msg, c.buf[c.bufOffset+4:c.bufOffset+n+4])
-	copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+4:c.bufSize])
-	c.bufSize -= n + 4
+	copy(msg, c.buf[c.bufOffset+HEADER:c.bufOffset+n+ADDSIZE])
+	copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
+	c.bufSize -= n + ADDSIZE
 	if needResetOffset {
 		logger.Debug("ReadBuf: reset bufOffset to 0", "address", c.address)
 		c.bufOffset = 0
 	}
 	if c.bufSize < 0 {
-		logger.Error("ReadBuf: invalid buffer size", "address", c.address, "bufSize", c.bufSize)
+		logger.Error("ReadBuf: ", "address", c.address, "bufSize", c.bufSize)
 		c.bufSize = 0
 		return nil, errors.New("invalid buffer size")
 	}
@@ -235,28 +243,29 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 }
 
 func (c *Client) Write(msg *transport.Message) error {
-	// XXX Sign, Encrype and send
 	n := len(*msg)
 	logger.Debug("Write data", "len", n)
 	// First 2 bytes are size
 	// Next 2 bytes are sequence number
 	// Next n bytes are message
-	if n > BUFSIZE-4 {
+	if n+ADDSIZE > BUFSIZE {
 		return errors.New("invalid message size")
 	}
-	buf := make([]byte, n+4)
+	buf := make([]byte, n+ADDSIZE)
 	buf[0] = byte(n >> 8)
 	buf[1] = byte(n & 0xff)
 	c.seqOutLock.Lock()
 	buf[2] = byte(c.seqOut >> 8)
 	buf[3] = byte(c.seqOut & 0xff)
+	buf[4] = 0 // flags
 	logger.Debug("Write", "address", c.address, "seq", c.seqOut)
 	c.seqOut++
 	if c.seqOut > 65535 {
 		c.seqOut = 0
 	}
 	c.seqOutLock.Unlock()
-	copy(buf[4:n+4], *msg)
+	copy(buf[HEADER:n+HEADER], *msg)
+	// XXX sign and encrypt buf here
 	err := c.t.Send(c.address, c.conn, &buf)
 	if err != nil {
 		return err

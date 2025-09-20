@@ -91,8 +91,10 @@ func ProcessTun(mode string, c *clients.Client) {
 				// Do not send data if client not authenticated
 				c := clients.FindClient(c.GetClientAddr())
 				if c.GetClientState() != clients.Ready {
-					logger.Debug("Client not authenticated, drop packet", "addr", c.GetClientAddr())
+					logger.Debug("Client not ready, drop packet", "addr", c.GetClientAddr())
 					continue
+				} else {
+					logger.Debug("Client ready, send packet", "addr", c.GetClientAddr())
 				}
 				c.Write(&data)
 				/*if err := c.Write(&data); err != nil {
