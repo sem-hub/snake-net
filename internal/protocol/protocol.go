@@ -97,7 +97,7 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 		addr = gotAddr
 	}
 	c := clients.NewClient(addr, t, conn)
-	s := crypt.NewSecrets(addr, t, conn)
+	s := crypt.NewSecrets()
 	c.AddSecretsToClient(s)
 	c.RunNetLoop(addr)
 
@@ -135,7 +135,7 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 	}
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t, conn)
-	s := crypt.NewSecrets(addr, t, conn)
+	s := crypt.NewSecrets()
 	c.AddSecretsToClient(s)
 
 	c.RunNetLoop(addr)

@@ -24,8 +24,7 @@ type State int
 const (
 	BUFSIZE = 65535
 	HEADER  = 5 // 2 bytes size + 2 bytes sequence number + 1 byte flags
-	SIGSIZE = 0
-	ADDSIZE = HEADER + SIGSIZE
+	ADDSIZE = HEADER + crypt.SIGNLEN
 )
 
 const (
@@ -45,7 +44,7 @@ type Client struct {
 	secrets    *crypt.Secrets
 	buf        []byte
 	bufLock    *sync.Mutex
-	bufSignal  chan int
+	bufSignal  *sync.Cond
 	bufSize    int
 	bufOffset  int
 	seqIn      int
@@ -79,13 +78,13 @@ func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 		secrets:    nil,
 		buf:        make([]byte, BUFSIZE),
 		bufLock:    &sync.Mutex{},
-		bufSignal:  make(chan int, 100),
 		bufSize:    0,
 		bufOffset:  0,
 		seqIn:      1,
 		seqOut:     1,
 		seqOutLock: &sync.Mutex{},
 	}
+	client.bufSignal = sync.NewCond(client.bufLock)
 
 	if len(clients) != 0 && FindClient(address) != nil {
 		logger.Error("Client already exists", "address", address)
@@ -150,15 +149,15 @@ func GetClientCount() int {
 func (c *Client) RunNetLoop(address net.Addr) {
 	logger.Debug("RunNetLoop", "address", address)
 	// read data from network into c.buf
-	// when data is available, send signal to c.bufSignal channel
+	// when data is available, send signal to c.bufSignal
 	// main loop will read data from c.buf
 	go func() {
 		for {
-			logger.Debug("NetLoop waiting for data", "address", address)
+			logger.Debug("client NetLoop waiting for data", "address", address)
 			msg, n, _, err := c.t.Receive(c.conn, address)
-			logger.Debug("NetLoop Receive", "len", n, "err", err)
+			logger.Debug("client NetLoop after Receive", "len", n, "err", err)
 			if err != nil {
-				logger.Error("NetLoop Receive error", "err", err)
+				logger.Error("client NetLoop Receive error", "err", err)
 				return
 			}
 			c.bufLock.Lock()
@@ -166,38 +165,37 @@ func (c *Client) RunNetLoop(address net.Addr) {
 			copy(c.buf[c.bufSize:], msg[:n])
 			c.bufSize += n
 			if n > 0 {
-				c.bufSignal <- 1
+				c.bufSignal.Signal()
 			}
 			c.bufLock.Unlock()
-			logger.Debug("NetLoop", "len", n, "from", address)
+			logger.Debug("client NetLoop put", "len", n, "from", address)
 		}
 	}()
 }
 
 func (c *Client) ReadBuf() (transport.Message, error) {
-	// XXX decrypt. check and read
-	logger.Debug("ReadBuf", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
+	logger.Debug("client ReadBuf", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	// If we need to wait for data
-	for c.bufSize-c.bufOffset <= 0 {
-		<-c.bufSignal
-	}
 	c.bufLock.Lock()
+	for c.bufSize-c.bufOffset <= 0 {
+		c.bufSignal.Wait()
+	}
 	// Read message size and sequence number
 	// First 2 bytes are size
 	// Next 2 bytes are sequence number
 	// Next 1 byte are flags
 	// Next n bytes are message
-	logger.Debug("ReadBuf after reading", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
+	logger.Debug("client ReadBuf after reading", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	if c.bufSize-c.bufOffset < ADDSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid buffer size")
 	}
 	n := int(c.buf[c.bufOffset])<<8 | int(c.buf[c.bufOffset+1])
-	logger.Debug("ReadBuf size", "address", c.address, "n", n)
+	logger.Debug("client ReadBuf size", "address", c.address, "n", n)
 	seq := int(c.buf[c.bufOffset+2])<<8 | int(c.buf[c.bufOffset+3])
 	flags := c.buf[c.bufOffset+4]
-	logger.Debug("ReadBuf flags", "address", c.address, "flags", flags)
-	logger.Debug("ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
+	logger.Debug("client ReadBuf flags", "address", c.address, "flags", flags)
+	logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid message size")
@@ -205,7 +203,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	needResetOffset := false
 
 	if seq != c.seqIn {
-		logger.Error("ReadBuf: invalid sequence number", "seq", seq,
+		logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
 			"expected", c.seqIn, "address", c.address)
 		// OutOfOrder leave packet in buffer and restart reading
 		c.bufOffset += n + ADDSIZE
@@ -225,26 +223,29 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		c.bufLock.Unlock()
 		return nil, errors.New("incomplete message")
 	}
-	msg := make([]byte, n)
-	copy(msg, c.buf[c.bufOffset+HEADER:c.bufOffset+n+ADDSIZE])
+	msg := make([]byte, n+ADDSIZE)
+	copy(msg, c.buf[c.bufOffset:c.bufOffset+n+ADDSIZE])
 	copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
 	c.bufSize -= n + ADDSIZE
 	if needResetOffset {
-		logger.Debug("ReadBuf: reset bufOffset to 0", "address", c.address)
+		logger.Debug("client ReadBuf: reset bufOffset to 0", "address", c.address)
 		c.bufOffset = 0
 	}
 	if c.bufSize < 0 {
-		logger.Error("ReadBuf: ", "address", c.address, "bufSize", c.bufSize)
+		logger.Error("client ReadBuf: ", "address", c.address, "bufSize", c.bufSize)
 		c.bufSize = 0
 		return nil, errors.New("invalid buffer size")
 	}
 	c.bufLock.Unlock()
-	return msg, nil
+	if !c.secrets.Verify(msg[:n+HEADER], msg[n+HEADER:]) {
+		return nil, errors.New("invalid signature")
+	}
+	return msg[HEADER : n+HEADER], nil
 }
 
 func (c *Client) Write(msg *transport.Message) error {
 	n := len(*msg)
-	logger.Debug("Write data", "len", n)
+	logger.Debug("client Write data", "len", n, "address", c.address)
 	// First 2 bytes are size
 	// Next 2 bytes are sequence number
 	// Next n bytes are message
@@ -258,14 +259,15 @@ func (c *Client) Write(msg *transport.Message) error {
 	buf[2] = byte(c.seqOut >> 8)
 	buf[3] = byte(c.seqOut & 0xff)
 	buf[4] = 0 // flags
-	logger.Debug("Write", "address", c.address, "seq", c.seqOut)
+	logger.Debug("client Write", "address", c.address, "seq", c.seqOut)
 	c.seqOut++
 	if c.seqOut > 65535 {
 		c.seqOut = 0
 	}
 	c.seqOutLock.Unlock()
 	copy(buf[HEADER:n+HEADER], *msg)
-	// XXX sign and encrypt buf here
+	signature := c.secrets.Sign(buf[:n+HEADER])
+	copy(buf[n+HEADER:], signature)
 	err := c.t.Send(c.address, c.conn, &buf)
 	if err != nil {
 		return err

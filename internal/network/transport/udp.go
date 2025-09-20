@@ -57,7 +57,7 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, net.Conn, net.Addr
 		buf := make([]byte, NETBUFSIZE)
 		l, addr, err := udp.mainConn.ReadFrom(buf)
 		if err != nil {
-			logger.Error("ReadFrom", "error", err)
+			logger.Error("UDP ReadFrom", "error", err)
 			break
 		}
 
@@ -68,15 +68,13 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, net.Conn, net.Addr
 		} else {
 			newConnection = false
 		}
-		data := make([]byte, l)
-		copy(data, buf[:l])
-		udp.packetBuf[addr.String()] = append(udp.packetBuf[addr.String()], data)
+		udp.packetBuf[addr.String()] = append(udp.packetBuf[addr.String()], buf[:l])
 		udp.packetBufLock.Unlock()
-		logger.Debug("Listen buffer read", "len", l, "from", addr, "packetBuf len", len(udp.packetBuf[addr.String()]))
+		logger.Debug("UDP Listen put into buffer", "len", l, "from", addr, "packetBuf len", len(udp.packetBuf[addr.String()]))
 
 		if newConnection {
 			if callback == nil {
-				logger.Error("Listen: No callback for client connection")
+				logger.Error("UDP Listen: No callback for client connection")
 				continue
 			}
 			go callback(udp, udp.mainConn, addr)
@@ -89,7 +87,7 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 	udpconn := conn.(*net.UDPConn)
 	n := len(*msg)
 
-	logger.Debug("Send data UDP", "len", n, "to", addr)
+	logger.Debug("UDP Send data", "len", n, "to", addr)
 	l, err := udpconn.WriteTo(*msg, addr)
 	if err != nil {
 		return err
@@ -103,6 +101,8 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 func (udp *UdpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, net.Addr, error) {
 	// If we have buffered packets for this addr
 	var bufArray [][]byte
+
+	logger.Debug("UDP Receive waiting for data", "fromAddr", addr)
 	for {
 		udp.packetBufLock.Lock()
 		var ok bool

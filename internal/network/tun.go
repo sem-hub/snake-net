@@ -35,7 +35,7 @@ func SetUpTUN(c *configs.Config) error {
 	if err != nil {
 		return err
 	}
-	err = netlink.LinkSetMTU(link, 1436)
+	err = netlink.LinkSetMTU(link, 1472)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func ProcessTun(mode string, c *clients.Client) {
 				// Ignore bad packet
 				continue
 			}
-			logger.Debug("Read from net", "len", len(buf))
+			logger.Debug("TUN: Read from net", "len", len(buf))
 
 			// send to all clients except the sender
 			if mode == "server" {
@@ -84,7 +84,7 @@ func ProcessTun(mode string, c *clients.Client) {
 		defer wg.Done()
 		for {
 			data := <-rCh
-			logger.Debug("Write to net", "len", len(data))
+			logger.Debug("TUN: Write to net", "len", len(data))
 			if mode == "server" {
 				clients.Route(data)
 			} else {
@@ -93,8 +93,6 @@ func ProcessTun(mode string, c *clients.Client) {
 				if c.GetClientState() != clients.Ready {
 					logger.Debug("Client not ready, drop packet", "addr", c.GetClientAddr())
 					continue
-				} else {
-					logger.Debug("Client ready, send packet", "addr", c.GetClientAddr())
 				}
 				c.Write(&data)
 				/*if err := c.Write(&data); err != nil {
@@ -122,7 +120,7 @@ func ProcessTun(mode string, c *clients.Client) {
 				panic(err)
 			}
 			buf = buf[:n]
-			logger.Debug("Read from tun", "len", n)
+			logger.Debug("TUN: Read from tun", "len", n)
 			rCh <- buf
 		}
 	}()
@@ -132,7 +130,7 @@ func ProcessTun(mode string, c *clients.Client) {
 		defer wg.Done()
 		for {
 			buf := <-wCh
-			logger.Debug("Write into tun", "len", len(buf))
+			logger.Debug("TUN: Write into tun", "len", len(buf))
 			if _, err := tun.Write(buf); err != nil {
 				panic(err)
 			}
