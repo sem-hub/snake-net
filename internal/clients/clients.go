@@ -45,6 +45,7 @@ type Client struct {
 	seqIn      int
 	seqOut     int
 	seqOutLock *sync.Mutex
+	oooPackets int
 }
 
 var (
@@ -79,6 +80,7 @@ func NewClient(address net.Addr, t transport.Transport, conn net.Conn) *Client {
 		seqIn:      1,
 		seqOut:     1,
 		seqOutLock: &sync.Mutex{},
+		oooPackets: 0,
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
 
@@ -202,12 +204,18 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
 			"expected", c.seqIn, "address", c.address)
 		// OutOfOrder leave packet in buffer and restart reading
-		// XXX make a packets limit
+		c.oooPackets++
+		if c.oooPackets > 100 {
+			// Too many out of order packets, reset buffer
+			logger.Error("client ReadBuf: too many out of order packets, reset buffer", "address", c.address)
+			return nil, errors.New("too many out of order packets")
+		}
 		c.bufOffset += n + ADDSIZE
 		c.bufLock.Unlock()
 		return c.ReadBuf()
 	} else {
-		// In order, reset bufOffset
+		// In order, reset bufOffset and oooPackets counter
+		c.oooPackets = 0
 		if c.bufOffset != 0 {
 			needResetOffset = true
 		}

@@ -2,8 +2,12 @@ package crypt
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ed25519"
 	"crypto/rand"
+	"io"
+	"strings"
 )
 
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
@@ -59,4 +63,22 @@ func (s *Secrets) XOR(data *[]byte) {
 	for i := 0; i < len(*data); i++ {
 		(*data)[i] ^= s.XORKey[i%len(s.XORKey)]
 	}
+}
+
+func (s *Secrets) CryptDecrypt(data *[]byte) error {
+	bReader := bytes.NewReader(*data)
+	block, err := aes.NewCipher(s.SharedSecret)
+	if err != nil {
+		return err
+	}
+	var iv [aes.BlockSize]byte
+	stream := cipher.NewOFB(block, iv[:])
+
+	reader := &cipher.StreamReader{S: stream, R: bReader}
+	buf := new(strings.Builder)
+	if _, err := io.Copy(buf, reader); err != nil {
+		return err
+	}
+	*data = []byte(buf.String())
+	return nil
 }
