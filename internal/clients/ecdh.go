@@ -7,10 +7,17 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/hex"
 	"errors"
+
+	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 func (c *Client) ECDH() error {
+	// Make a temporary ecdh key pair, marshal and send the public key
+	// Read peer's public key, unmarshal and compute shared secret
+	// From the shared secret, make an ed25519 key pair for signing
+	logger := configs.GetLogger()
 	tempPrivateKey, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
 		return err
@@ -22,16 +29,18 @@ func (c *Client) ECDH() error {
 		return errors.New("marshaling ecdh public key: " + err.Error())
 	}
 
-	logger.Debug("Write public key", "len", len(buf), "buf", buf)
+	logger.Debug("ECDH: Write public key", "len", len(buf), "buf", buf)
 	err = c.Write(&buf)
 	if err != nil {
 		return err
 	}
+
+	// Read peer's public key
 	buf, err = c.ReadBuf()
 	if err != nil {
 		return err
 	}
-	logger.Debug("Read public key", "len", len(buf), "buf", buf)
+	logger.Debug("ECDH: Read public key", "len", len(buf), "buf", buf)
 
 	publicKey, err := x509.ParsePKIXPublicKey(buf)
 	if err != nil {
@@ -48,7 +57,8 @@ func (c *Client) ECDH() error {
 	if err != nil {
 		return err
 	}
-	//fmt.Println("shared secret: ", s.SharedSecret)
+	logger.Debug("ECDH:", "shared secret", hex.EncodeToString(c.secrets.SharedSecret))
+
 	c.secrets.SessionPublicKey, c.secrets.SessionPrivateKey, err =
 		ed25519.GenerateKey(bytes.NewReader(c.secrets.SharedSecret))
 	if err != nil {

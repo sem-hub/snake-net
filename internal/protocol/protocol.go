@@ -23,7 +23,10 @@ func IdentifyClient(c *clients.Client) (net.Addr, net.Addr, error) {
 	if len(buf) < 6 {
 		return nil, nil, errors.New("invalid buffer length")
 	}
-	str := strings.Fields(string(buf))
+	c.XOR(&buf)
+	configs.GetLogger().Debug("IdentifyClient", "ID string", string(buf))
+	sep := strings.Index(string(buf), "\x00")
+	str := strings.Fields(string(buf[:sep]))
 	if len(str) != 3 {
 		return nil, nil, errors.New("invalid identification string")
 	}
@@ -66,12 +69,17 @@ func IdentifyClient(c *clients.Client) (net.Addr, net.Addr, error) {
 
 		addr = &net.IPAddr{IP: ip}
 		addr6 = &net.IPAddr{IP: ip6}
-		configs.GetLogger().Debug("IdentifyClient", "addr", addr, "addr6", addr6)
-		buf = []byte("Welcome")
-		c.Write(&buf)
+		configs.GetLogger().Debug("IdentifyClient OK", "addr", addr, "addr6", addr6)
+		if err := c.WriteWithXORAndPadding([]byte("Welcome")); err != nil {
+			configs.GetLogger().Debug("Failed to write Welcome message", "error", err)
+			return nil, nil, err
+		}
 	} else {
-		buf = []byte("Error")
-		c.Write(&buf)
+		if err := c.WriteWithXORAndPadding([]byte("Error")); err != nil {
+			configs.GetLogger().Debug("Failed to write Error message", "error", err)
+			return nil, nil, err
+		}
+
 		return nil, nil, errors.New("Identification error")
 	}
 	buf, err = c.ReadBuf()
@@ -81,6 +89,8 @@ func IdentifyClient(c *clients.Client) (net.Addr, net.Addr, error) {
 	if len(buf) < 2 {
 		return nil, nil, errors.New("invalid buffer length")
 	}
+	c.XOR(&buf)
+	configs.GetLogger().Debug("IdentifyClient", "Final string", string(buf))
 	if string(buf[:2]) != "OK" {
 		return nil, nil, errors.New("Identification not OK")
 	}
@@ -91,7 +101,7 @@ func Identification(c *clients.Client) error {
 	logger := configs.GetLogger()
 	msg := []byte("Hello " + configs.GetConfig().TunAddr + " " + configs.GetConfig().TunAddr6)
 	logger.Debug("Identification", "msg", string(msg))
-	err := c.Write(&msg)
+	err := c.WriteWithXORAndPadding(msg)
 	if err != nil {
 		return err
 	}
@@ -100,13 +110,13 @@ func Identification(c *clients.Client) error {
 	if err != nil {
 		return err
 	}
+	c.XOR(&msg1)
 	logger.Debug("ID", "msg", string(msg1))
 	if !strings.HasPrefix(string(msg1), "Welcome") {
 		return errors.New("Identification " + string(msg1))
 	}
-	msg = []byte("OK")
-	err = c.Write(&msg)
-	if err != nil {
+	if err := c.WriteWithXORAndPadding([]byte("OK")); err != nil {
+		logger.Debug("Failed to write OK message", "error", err)
 		return err
 	}
 	return nil
@@ -125,6 +135,18 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	s := crypt.NewSecrets()
 	c.AddSecretsToClient(s)
 	c.RunNetLoop(addr)
+
+	// Get XOR key from client
+	buf, err := c.ReadBuf()
+	if err != nil {
+		logger.Debug("Failed to read XOR key", "error", err)
+		return
+	}
+	copy(s.XORKey, buf)
+	if err := c.WriteWithXORAndPadding([]byte("OK")); err != nil {
+		logger.Debug("Failed to write OK message", "error", err)
+		return
+	}
 
 	clientTunIP, clientTunIP6, err := IdentifyClient(c)
 	if err != nil {
@@ -164,6 +186,21 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 	c.AddSecretsToClient(s)
 
 	c.RunNetLoop(addr)
+
+	// Send XOR key to server
+	c.Write(&s.XORKey)
+
+	buf, err := c.ReadBuf()
+	if err != nil {
+		logger.Debug("Failed to read response message", "error", err)
+		return
+	}
+
+	c.XOR(&buf)
+	if len(buf) < 2 || !strings.HasPrefix(string(buf), "OK") {
+		logger.Debug("Invalid server response", "len", len(buf))
+		return
+	}
 
 	if err := Identification(c); err == nil {
 		logger.Debug("Identification Success")
