@@ -181,7 +181,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	// Next 2 bytes are sequence number
 	// Next 1 byte is flags
 	// Next n bytes are message finished with 64 bytes signature
-	logger.Debug("client ReadBuf after reading", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
+	//logger.Debug("client ReadBuf after reading", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	if c.bufSize-c.bufOffset < ADDSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid buffer size")
@@ -189,9 +189,9 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	n := int(c.buf[c.bufOffset])<<8 | int(c.buf[c.bufOffset+1])
 	logger.Debug("client ReadBuf size", "address", c.address, "n", n)
 	seq := int(c.buf[c.bufOffset+2])<<8 | int(c.buf[c.bufOffset+3])
-	flags := c.buf[c.bufOffset+4]
-	logger.Debug("client ReadBuf flags", "address", c.address, "flags", flags)
-	logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
+	//flags := c.buf[c.bufOffset+4]
+	//logger.Debug("client ReadBuf flags", "address", c.address, "flags", flags)
+	//logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid message size")
@@ -256,12 +256,12 @@ func (c *Client) Write(msg *transport.Message) error {
 	buf[2] = byte(c.seqOut >> 8)
 	buf[3] = byte(c.seqOut & 0xff)
 	buf[4] = 0 // flags
-	logger.Debug("client Write", "address", c.address, "seq", c.seqOut)
 	c.seqOut++
 	if c.seqOut > 65535 {
 		c.seqOut = 0
 	}
 	c.seqOutLock.Unlock()
+	//logger.Debug("client Write", "address", c.address, "seq", c.seqOut)
 	copy(buf[HEADER:n+HEADER], *msg)
 	signature := c.secrets.Sign(buf[:n+HEADER])
 	copy(buf[n+HEADER:], signature)

@@ -117,7 +117,7 @@ func (udp *UdpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, ne
 	// Refresh bufArray in case it changed
 	bufArray = udp.packetBuf[addr.String()]
 	buf := bufArray[0]
-	logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addr)
+	//logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addr)
 
 	if len(bufArray) > 1 {
 		udp.packetBuf[addr.String()] = bufArray[1:]
