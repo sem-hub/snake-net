@@ -140,12 +140,14 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	buf, err := c.ReadBuf()
 	if err != nil {
 		logger.Debug("Failed to read XOR key", "error", err)
+		clients.RemoveClient(addr)
 		return
 	}
 	copy(s.XORKey, buf[:crypt.XORKEYLEN])
 	logger.Debug("ProcessNewClient: Received XOR key", "XORKey", s.XORKey)
 	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
 		logger.Debug("Failed to write OK message", "error", err)
+		clients.RemoveClient(addr)
 		return
 	}
 
@@ -168,6 +170,8 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 
 	if err := c.ECDH(); err != nil {
 		logger.Error("ECDH", "error", err)
+		clients.RemoveClient(addr)
+		return
 	}
 
 	c.SetClientState(clients.Ready)
@@ -193,18 +197,21 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 	err := c.WriteWithXORAndPadding(s.XORKey, false)
 	if err != nil {
 		logger.Debug("Failed to write XOR key", "error", err)
+		clients.RemoveClient(addr)
 		return
 	}
 
 	buf, err := c.ReadBuf()
 	if err != nil {
 		logger.Debug("Failed to read response message", "error", err)
+		clients.RemoveClient(addr)
 		return
 	}
 
 	c.XOR(&buf)
 	if len(buf) < 2 || string(buf[:2]) != "OK" {
 		logger.Debug("Invalid server response", "len", len(buf), "msg", string(buf))
+		clients.RemoveClient(addr)
 		return
 	}
 
@@ -212,6 +219,7 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 		logger.Debug("Identification Success")
 	} else {
 		logger.Debug("Identification Fails", "error", err)
+		clients.RemoveClient(addr)
 		return
 	}
 
@@ -219,6 +227,8 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 
 	if err := c.ECDH(); err != nil {
 		logger.Error("ECDH", "error", err)
+		clients.RemoveClient(addr)
+		return
 	}
 
 	c.SetClientState(clients.Ready)

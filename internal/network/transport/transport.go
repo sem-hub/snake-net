@@ -15,6 +15,8 @@ type Transport interface {
 	Close() error
 	GetMainConn() net.Conn
 	GetName() string
+	GetType() string
+	IsEncrypted() bool
 }
 
 type TransportData struct {

@@ -21,6 +21,14 @@ func (tcp *TcpTransport) GetName() string {
 	return "tcp"
 }
 
+func (tcp *TcpTransport) GetType() string {
+	return "stream"
+}
+
+func (tcp *TcpTransport) IsEncrypted() bool {
+	return false
+}
+
 func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
 	callback func(Transport, net.Conn, net.Addr)) error {
 	if mode != "server" {

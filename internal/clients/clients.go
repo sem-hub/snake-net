@@ -109,6 +109,8 @@ func RemoveClient(address net.Addr) {
 	defer clientsLock.Unlock()
 	for i, c := range clients {
 		if c.address.String() == address.String() {
+			c.Close()
+			logger.Debug("RemoveClient", "address", address)
 			clients = append(clients[:i], clients[i+1:]...)
 			break
 		}
@@ -300,4 +302,12 @@ func (c *Client) WriteWithXORAndPadding(msg []byte, needXOR bool) error {
 
 func (c *Client) XOR(data *[]byte) {
 	c.secrets.XOR(data)
+}
+
+func (c *Client) Close() error {
+	// Only for stream transports
+	if c.t.GetType() == "stream" {
+		return c.t.Close()
+	}
+	return nil
 }

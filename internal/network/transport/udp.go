@@ -25,6 +25,14 @@ func (udp *UdpTransport) GetName() string {
 	return "udp"
 }
 
+func (udp *UdpTransport) GetType() string {
+	return "datagram"
+}
+
+func (udp *UdpTransport) IsEncrypted() bool {
+	return false
+}
+
 func (udp *UdpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
 	callback func(Transport, net.Conn, net.Addr)) error {
 
