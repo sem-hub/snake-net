@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"strings"
 )
 
 type TcpTransport struct {
@@ -32,13 +33,18 @@ func (tcp *TcpTransport) IsEncrypted() bool {
 func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
 	callback func(Transport, net.Conn, net.Addr)) error {
 	if mode != "server" {
-		tcpServer, err := net.ResolveTCPAddr("tcp", rAddr+":"+rPort)
-		if err != nil {
-			return err
+		family := "tcp"
+		if strings.Contains(rAddr, ":") {
+			family = "tcp6"
+			rAddr = "[" + rAddr + "]"
 		}
-		conn, err := net.DialTCP("tcp", nil, tcpServer)
+		tcpServer, err := net.ResolveTCPAddr(family, rAddr+":"+rPort)
 		if err != nil {
-			return err
+			return errors.New("ResolveTCPAddr error: " + err.Error())
+		}
+		conn, err := net.DialTCP(family, nil, tcpServer)
+		if err != nil {
+			return errors.New("DialTCP error: " + err.Error())
 		}
 		tcp.mainConn = conn
 	} else {

@@ -115,13 +115,19 @@ func main() {
 		log.Fatal("Tun and Tun6 Addresses are mandatory")
 	}
 
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		log.Fatalf("Error resolving host: %s", err)
-		os.Exit(1)
+	if strings.HasPrefix((host), "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
 	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		ips, err := net.LookupIP(host)
+		if err != nil {
+			log.Fatalf("Error resolving host: %s", err)
+			os.Exit(1)
+		}
 
-	ip := ips[0]
+		ip = ips[0]
+	}
 	logger.Debug("", "ip", ip)
 
 	if !isServer {
@@ -135,7 +141,7 @@ func main() {
 		cfg.LocalPort = port
 	}
 
-	err = network.SetUpTUN(cfg)
+	err := network.SetUpTUN(cfg)
 	if err != nil {
 		log.Fatalf("Error creating tun interface: %s", err)
 	}
@@ -168,24 +174,8 @@ func main() {
 		}
 
 		logger.Info("Connect to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
-		var addr net.Addr
-		var err error
-		if cfg.Protocol == "tcp" {
-			addr, err = net.ResolveTCPAddr("tcp", cfg.RemoteAddr+":"+cfg.RemotePort)
-			if err != nil {
-				logger.Error("ResolveTCPAddr", "Error", err)
-			}
 
-		} else {
-			addr, err = net.ResolveUDPAddr("udp", cfg.RemoteAddr+":"+cfg.RemotePort)
-			if err != nil {
-				logger.Error("ResolveUDPAddr", "Error", err)
-			}
-		}
-		if err != nil {
-			log.Fatalf("ResolveIPAddr error: %s", err)
-		}
-		protocol.ProcessServer(t, addr)
+		protocol.ProcessServer(t, cfg.RemoteAddr, cfg.RemotePort)
 	}
 	t.Close()
 }

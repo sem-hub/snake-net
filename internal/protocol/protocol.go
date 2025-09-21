@@ -3,6 +3,7 @@ package protocol
 import (
 	"errors"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/sem-hub/snake-net/internal/clients"
@@ -173,12 +174,22 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	network.ProcessTun("server", c)
 }
 
-func ProcessServer(t transport.Transport, addr net.Addr) {
+func getAddr(t transport.Transport, address string, port string) net.Addr {
+	nport, _ := strconv.Atoi(port)
+
+	if t.GetName() == "tcp" {
+		return &net.TCPAddr{IP: net.ParseIP(address), Port: nport}
+	}
+	return &net.UDPAddr{IP: net.ParseIP(address), Port: nport}
+}
+
+func ProcessServer(t transport.Transport, address string, port string) {
 	logger := configs.GetLogger()
 	conn := t.GetMainConn()
 	if conn == nil {
 		return
 	}
+	addr := getAddr(t, address, port)
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t, conn)
 	s := crypt.NewSecrets()
