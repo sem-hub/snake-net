@@ -70,12 +70,12 @@ func IdentifyClient(c *clients.Client) (net.Addr, net.Addr, error) {
 		addr = &net.IPAddr{IP: ip}
 		addr6 = &net.IPAddr{IP: ip6}
 		configs.GetLogger().Debug("IdentifyClient OK", "addr", addr, "addr6", addr6)
-		if err := c.WriteWithXORAndPadding([]byte("Welcome")); err != nil {
+		if err := c.WriteWithXORAndPadding([]byte("Welcome"), true); err != nil {
 			configs.GetLogger().Debug("Failed to write Welcome message", "error", err)
 			return nil, nil, err
 		}
 	} else {
-		if err := c.WriteWithXORAndPadding([]byte("Error")); err != nil {
+		if err := c.WriteWithXORAndPadding([]byte("Error"), true); err != nil {
 			configs.GetLogger().Debug("Failed to write Error message", "error", err)
 			return nil, nil, err
 		}
@@ -101,7 +101,7 @@ func Identification(c *clients.Client) error {
 	logger := configs.GetLogger()
 	msg := []byte("Hello " + configs.GetConfig().TunAddr + " " + configs.GetConfig().TunAddr6)
 	logger.Debug("Identification", "msg", string(msg))
-	err := c.WriteWithXORAndPadding(msg)
+	err := c.WriteWithXORAndPadding(msg, true)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func Identification(c *clients.Client) error {
 	if !strings.HasPrefix(string(msg1), "Welcome") {
 		return errors.New("Identification " + string(msg1))
 	}
-	if err := c.WriteWithXORAndPadding([]byte("OK")); err != nil {
+	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
 		logger.Debug("Failed to write OK message", "error", err)
 		return err
 	}
@@ -142,8 +142,9 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 		logger.Debug("Failed to read XOR key", "error", err)
 		return
 	}
-	copy(s.XORKey, buf)
-	if err := c.WriteWithXORAndPadding([]byte("OK")); err != nil {
+	copy(s.XORKey, buf[:crypt.XORKEYLEN])
+	logger.Debug("ProcessNewClient: Received XOR key", "XORKey", s.XORKey)
+	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
 		logger.Debug("Failed to write OK message", "error", err)
 		return
 	}
@@ -188,7 +189,12 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 	c.RunNetLoop(addr)
 
 	// Send XOR key to server
-	c.Write(&s.XORKey)
+	logger.Debug("ProcessServer: Send XOR key", "XORKey", s.XORKey)
+	err := c.WriteWithXORAndPadding(s.XORKey, false)
+	if err != nil {
+		logger.Debug("Failed to write XOR key", "error", err)
+		return
+	}
 
 	buf, err := c.ReadBuf()
 	if err != nil {
@@ -197,8 +203,8 @@ func ProcessServer(t transport.Transport, addr net.Addr) {
 	}
 
 	c.XOR(&buf)
-	if len(buf) < 2 || !strings.HasPrefix(string(buf), "OK") {
-		logger.Debug("Invalid server response", "len", len(buf))
+	if len(buf) < 2 || string(buf[:2]) != "OK" {
+		logger.Debug("Invalid server response", "len", len(buf), "msg", string(buf))
 		return
 	}
 

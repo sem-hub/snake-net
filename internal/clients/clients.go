@@ -272,7 +272,7 @@ func (c *Client) Write(msg *transport.Message) error {
 	return nil
 }
 
-func (c *Client) WriteWithXORAndPadding(msg []byte) error {
+func (c *Client) WriteWithXORAndPadding(msg []byte, needXOR bool) error {
 	paddingSize := rand.Intn(64)
 	buf := make([]byte, len(msg)+paddingSize+1)
 	copy(buf, msg)
@@ -283,8 +283,10 @@ func (c *Client) WriteWithXORAndPadding(msg []byte) error {
 	// 0 byte to separate message and padding
 	buf[len(msg)] = 0
 	copy(buf[len(msg)+1:], padding)
-	c.XOR(&buf)
-	logger.Debug("client WriteWithPadding", "len", len(buf), "paddingSize", paddingSize, "address", c.address)
+	if needXOR {
+		c.XOR(&buf)
+	}
+	logger.Debug("client WriteWithPadding", "len", len(buf), "data", len(msg), "paddingSize", paddingSize+1, "address", c.address)
 	return c.Write(&buf)
 }
 
