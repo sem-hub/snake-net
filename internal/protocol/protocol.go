@@ -154,12 +154,6 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	clientTunIP, clientTunIP6, err := IdentifyClient(c)
 	if err != nil {
 		logger.Debug("Identification failed", "error", err)
-		// XXX close connection, remove client
-		if t.GetName() == "tcp" {
-			tcpconn := conn.(*net.TCPConn)
-			tcpconn.Close()
-		}
-		//s.Close()
 		clients.RemoveClient(addr)
 		return
 	}
