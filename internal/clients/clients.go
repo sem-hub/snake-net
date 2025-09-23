@@ -185,15 +185,25 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	// Next 2 bytes are sequence number
 	// Next 1 byte is flags
 	// Next n bytes are message finished with 64 bytes signature
-	//logger.Debug("client ReadBuf after reading", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
+	logger.Debug("client ReadBuf after reading", "address", c.address, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	if c.bufSize-c.bufOffset < ADDSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid buffer size")
 	}
-	n := int(c.buf[c.bufOffset])<<8 | int(c.buf[c.bufOffset+1])
+	data, err := c.secrets.CryptDecrypt(c.buf[c.bufOffset:c.bufSize])
+	if err != nil {
+		c.bufLock.Unlock()
+		return nil, err
+	}
+	n := int(data[0])<<8 | int(data[1])
 	logger.Debug("client ReadBuf size", "address", c.address, "n", n)
-	seq := int(c.buf[c.bufOffset+2])<<8 | int(c.buf[c.bufOffset+3])
-	//flags := c.buf[c.bufOffset+4]
+	seq := int(data[2])<<8 | int(data[3])
+	flags := data[4]
+	if flags == 0xff {
+		logger.Debug("client ReadBuf flags 0xff, closing connection", "address", c.address)
+		c.bufLock.Unlock()
+		return nil, errors.New("connection closed by peer")
+	}
 	//logger.Debug("client ReadBuf flags", "address", c.address, "flags", flags)
 	//logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
@@ -247,7 +257,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	if !c.secrets.Verify(msg[:n+HEADER], msg[n+HEADER:]) {
 		return nil, errors.New("invalid signature")
 	}
-	return msg[HEADER : n+HEADER], nil
+	return data[HEADER : n+HEADER], nil
 }
 
 func (c *Client) Write(msg *transport.Message) error {
@@ -273,9 +283,15 @@ func (c *Client) Write(msg *transport.Message) error {
 	c.seqOutLock.Unlock()
 	//logger.Debug("client Write", "address", c.address, "seq", c.seqOut)
 	copy(buf[HEADER:n+HEADER], *msg)
+	data, err := c.secrets.CryptDecrypt(buf[:n+HEADER])
+	if err != nil {
+		return err
+	}
+	copy(buf[:n+HEADER], data)
+
 	signature := c.secrets.Sign(buf[:n+HEADER])
 	copy(buf[n+HEADER:], signature)
-	err := c.t.Send(c.address, c.conn, &buf)
+	err = c.t.Send(c.address, c.conn, &buf)
 	if err != nil {
 		return err
 	}
@@ -284,19 +300,18 @@ func (c *Client) Write(msg *transport.Message) error {
 
 func (c *Client) WriteWithXORAndPadding(msg []byte, needXOR bool) error {
 	paddingSize := rand.Intn(64)
-	buf := make([]byte, len(msg)+paddingSize+1)
+	buf := make([]byte, len(msg)+paddingSize)
 	copy(buf, msg)
 	padding := make([]byte, paddingSize)
 	for i := 0; i < paddingSize; i++ {
 		padding[i] = byte(rand.Intn(256))
 	}
 	// 0 byte to separate message and padding
-	buf[len(msg)] = 0
-	copy(buf[len(msg)+1:], padding)
+	copy(buf[len(msg):], padding)
 	if needXOR {
 		c.XOR(&buf)
 	}
-	logger.Debug("client WriteWithPadding", "len", len(buf), "data", len(msg), "paddingSize", paddingSize+1, "address", c.address)
+	logger.Debug("client WriteWithPadding", "len", len(buf), "data", len(msg), "paddingSize", paddingSize, "address", c.address)
 	return c.Write(&buf)
 }
 

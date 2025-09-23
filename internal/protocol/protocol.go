@@ -100,7 +100,7 @@ func IdentifyClient(c *clients.Client) (net.Addr, net.Addr, error) {
 
 func Identification(c *clients.Client) error {
 	logger := configs.GetLogger()
-	msg := []byte("Hello " + configs.GetConfig().TunAddr + " " + configs.GetConfig().TunAddr6)
+	msg := []byte("Hello " + configs.GetConfig().TunAddr + " " + configs.GetConfig().TunAddr6 + "\x00")
 	logger.Debug("Identification", "msg", string(msg))
 	err := c.WriteWithXORAndPadding(msg, true)
 	if err != nil {

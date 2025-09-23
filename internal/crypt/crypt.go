@@ -8,6 +8,8 @@ import (
 	"crypto/rand"
 	"io"
 	"strings"
+
+	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
@@ -26,8 +28,10 @@ type Secrets struct {
 func NewSecrets() *Secrets {
 	s := Secrets{}
 
+	s.SharedSecret = make([]byte, 32)
+	copy(s.SharedSecret, []byte(FIRSTSECRET))
 	s.SessionPublicKey, s.SessionPrivateKey, _ =
-		ed25519.GenerateKey(bytes.NewReader([]byte(FIRSTSECRET)))
+		ed25519.GenerateKey(bytes.NewReader([]byte(s.SharedSecret)))
 
 	s.XORKey = make([]byte, XORKEYLEN)
 	rand.Read(s.XORKey)
@@ -65,11 +69,12 @@ func (s *Secrets) XOR(data *[]byte) {
 	}
 }
 
-func (s *Secrets) CryptDecrypt(data *[]byte) error {
-	bReader := bytes.NewReader(*data)
+func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
+	configs.GetLogger().Debug("CryptDecrypt", "data len", len(data))
+	bReader := bytes.NewReader(data)
 	block, err := aes.NewCipher(s.SharedSecret)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var iv [aes.BlockSize]byte
 	stream := cipher.NewOFB(block, iv[:])
@@ -77,8 +82,8 @@ func (s *Secrets) CryptDecrypt(data *[]byte) error {
 	reader := &cipher.StreamReader{S: stream, R: bReader}
 	buf := new(strings.Builder)
 	if _, err := io.Copy(buf, reader); err != nil {
-		return err
+		return nil, err
 	}
-	*data = []byte(buf.String())
-	return nil
+	data = []byte(buf.String())
+	return data, nil
 }
