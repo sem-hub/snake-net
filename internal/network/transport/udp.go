@@ -136,6 +136,14 @@ func (udp *UdpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, ne
 	return buf, len(buf), addr, nil
 }
 
+func (udp *UdpTransport) CloseClient(addr net.Addr) error {
+	udp.packetBufLock.Lock()
+	defer udp.packetBufLock.Unlock()
+	delete(udp.clientAddr, addr.String())
+	delete(udp.packetBuf, addr.String())
+	return nil
+}
+
 func (udp *UdpTransport) Close() error {
 	if udp.mainConn != nil {
 		err := udp.mainConn.Close()

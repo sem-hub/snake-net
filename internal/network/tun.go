@@ -105,17 +105,16 @@ func ProcessTun(mode string, c *clients.Client) {
 					logger.Debug("Client not ready, drop packet", "addr", c.GetClientAddr())
 					continue
 				}
-				c.Write(&data)
-				/*if err := c.Write(&data); err != nil {
+				if err := c.Write(&data); err != nil {
 					logger.Error("Write to net", "error", err)
 					break
-				}*/
+				}
 			}
 		}
-		/*err := s.Close()
+		err := c.Close()
 		if err != nil {
-			logger.Error("Close crypt", "error", err)
-		}*/
+			logger.Error("Close client", "error", err)
+		}
 	}()
 
 	// read data from tun into rCh channel.

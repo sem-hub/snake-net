@@ -110,6 +110,20 @@ func (tcp *TcpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, ne
 	return msg, l, conn.RemoteAddr(), nil
 }
 
+func (tcp *TcpTransport) CloseClient(addr net.Addr) error {
+	addrStr := addr.String()
+	if c, ok := tcp.conn[addrStr]; ok {
+		err := c.Close()
+		if err != nil {
+			return err
+		}
+		delete(tcp.conn, addrStr)
+	} else {
+		return errors.New("No such client connection: " + addrStr)
+	}
+	return nil
+}
+
 func (tcp *TcpTransport) Close() error {
 	if tcp.mainConn != nil {
 		err := tcp.mainConn.Close()

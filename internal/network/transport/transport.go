@@ -12,7 +12,8 @@ type Transport interface {
 	Init(string, string, string, string, string, func(Transport, net.Conn, net.Addr)) error
 	Send(net.Addr, net.Conn, *Message) error
 	Receive(net.Conn, net.Addr) (Message, int, net.Addr, error)
-	Close() error
+	Close() error               // Close main (listening) connection
+	CloseClient(net.Addr) error // Close client connection by address
 	GetMainConn() net.Conn
 	GetName() string
 	GetType() string

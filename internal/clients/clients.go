@@ -319,14 +319,10 @@ func (c *Client) XOR(data *[]byte) {
 	c.secrets.XOR(data)
 }
 
-// XXX should not tie to tcp transport only
 func (c *Client) Close() error {
-	// Only for stream transports
-	if c.t.GetType() == "stream" {
-		if c.t.GetName() == "tcp" {
-			tcpconn := c.conn.(*net.TCPConn)
-			tcpconn.Close()
-		}
+	err := c.t.CloseClient(c.address)
+	if err != nil {
+		return err
 	}
 	return nil
 }
