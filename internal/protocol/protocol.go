@@ -3,7 +3,7 @@ package protocol
 import (
 	"errors"
 	"net"
-	"strconv"
+	"net/netip"
 	"strings"
 
 	"github.com/sem-hub/snake-net/internal/clients"
@@ -123,16 +123,11 @@ func Identification(c *clients.Client) error {
 	return nil
 }
 
-func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
+func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	logger := configs.GetLogger()
-	logger.Debug("ProcessNewClient", "gotAddr", gotAddr)
+	logger.Debug("ProcessNewClient", "gotAddr", addr.String())
 
-	addr := conn.RemoteAddr()
-	logger.Debug("ProcessNewClient", "conn.RemoteAddr()", addr)
-	if addr == nil {
-		addr = gotAddr
-	}
-	c := clients.NewClient(addr, t, conn)
+	c := clients.NewClient(addr, t)
 	s := crypt.NewSecrets()
 	c.AddSecretsToClient(s)
 	c.RunNetLoop(addr)
@@ -174,24 +169,15 @@ func ProcessNewClient(t transport.Transport, conn net.Conn, gotAddr net.Addr) {
 	network.ProcessTun("server", c)
 }
 
-func getAddr(t transport.Transport, address string, port string) net.Addr {
-	nport, _ := strconv.Atoi(port)
-
-	if t.GetName() == "tcp" {
-		return &net.TCPAddr{IP: net.ParseIP(address), Port: nport}
-	}
-	return &net.UDPAddr{IP: net.ParseIP(address), Port: nport}
-}
-
 func ProcessServer(t transport.Transport, address string, port string) {
 	logger := configs.GetLogger()
 	conn := t.GetMainConn()
 	if conn == nil {
 		return
 	}
-	addr := getAddr(t, address, port)
+	addr := netip.MustParseAddrPort(address + ":" + port)
 	// Well, really it's server but we call it client here
-	c := clients.NewClient(addr, t, conn)
+	c := clients.NewClient(addr, t)
 	s := crypt.NewSecrets()
 	c.AddSecretsToClient(s)
 

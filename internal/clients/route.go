@@ -2,6 +2,7 @@ package clients
 
 import (
 	"net"
+	"net/netip"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
@@ -21,7 +22,7 @@ func getDstIP(packet []byte) net.Addr {
 }
 
 // Find real client and send data to it in background
-func sendDataToClient(addr net.Addr, data []byte) {
+func sendDataToClient(addr netip.AddrPort, data []byte) {
 	c := FindClient(addr)
 	go func(cl *Client) {
 		err := c.Write(&data)

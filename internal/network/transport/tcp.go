@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -11,11 +12,11 @@ import (
 type TcpTransport struct {
 	TransportData
 	mainConn *net.TCPConn
-	conn     map[string]net.TCPConn
+	conn     map[netip.AddrPort]net.TCPConn
 }
 
 func NewTcpTransport(logger *slog.Logger) *TcpTransport {
-	return &TcpTransport{TransportData: *NewTransport(logger), mainConn: nil, conn: make(map[string]net.TCPConn)}
+	return &TcpTransport{TransportData: *NewTransport(logger), mainConn: nil, conn: make(map[netip.AddrPort]net.TCPConn)}
 }
 
 func (tcp *TcpTransport) GetName() string {
@@ -31,7 +32,7 @@ func (tcp *TcpTransport) IsEncrypted() bool {
 }
 
 func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
-	callback func(Transport, net.Conn, net.Addr)) error {
+	callback func(Transport, netip.AddrPort)) error {
 	if mode != "server" {
 		family := "tcp"
 		if strings.Contains(rAddr, ":") {
@@ -47,6 +48,9 @@ func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 			return errors.New("DialTCP error: " + err.Error())
 		}
 		tcp.mainConn = conn
+		tcp.conn[netip.MustParseAddrPort(conn.RemoteAddr().String())] = *conn
+		logAddr := conn.LocalAddr().String()
+		logger.Info("Connected to server", "addr", rAddr, "port", rPort, "from", logAddr)
 	} else {
 		tcp.listen(lAddr, lPort, callback)
 	}
@@ -54,7 +58,7 @@ func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 	return nil
 }
 
-func (tcp *TcpTransport) listen(addr string, port string, callback func(Transport, net.Conn, net.Addr)) error {
+func (tcp *TcpTransport) listen(addr string, port string, callback func(Transport, netip.AddrPort)) error {
 	logger.Debug("Listen for connection")
 	listen, err := net.Listen("tcp", addr+":"+port)
 	if err != nil {
@@ -70,8 +74,10 @@ func (tcp *TcpTransport) listen(addr string, port string, callback func(Transpor
 		tcpconn := conn.(*net.TCPConn)
 		tcpconn.SetNoDelay(true)
 		tcpconn.SetLinger(0)
-		tcp.conn[tcpconn.RemoteAddr().String()] = *tcpconn
-		go callback(tcp, tcpconn, tcpconn.RemoteAddr())
+		netipAddrPort := netip.MustParseAddrPort(tcpconn.RemoteAddr().String()) // XXX
+		logger.Debug("New TCP connection from", "addr", netipAddrPort.String())
+		tcp.conn[netipAddrPort] = *tcpconn
+		go callback(tcp, netipAddrPort)
 	}
 	err = listen.Close()
 	if err != nil {
@@ -80,8 +86,8 @@ func (tcp *TcpTransport) listen(addr string, port string, callback func(Transpor
 	return nil
 }
 
-func (tcp *TcpTransport) Send(addr net.Addr, conn net.Conn, buf *Message) error {
-	tcpconn := conn.(*net.TCPConn)
+func (tcp *TcpTransport) Send(addr netip.AddrPort, buf *Message) error {
+	tcpconn := tcp.conn[addr]
 
 	n := len(*buf)
 	logger.Debug("Send data to network", "len", n)
@@ -95,31 +101,29 @@ func (tcp *TcpTransport) Send(addr net.Addr, conn net.Conn, buf *Message) error 
 	return nil
 }
 
-func (tcp *TcpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, net.Addr, error) {
-	tcpconn := conn.(*net.TCPConn)
-	addrStr := tcpconn.RemoteAddr().String()
+func (tcp *TcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
+	tcpconn := tcp.conn[addr]
 
 	b := make([]byte, NETBUFSIZE)
 	l, err := tcpconn.Read(b)
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, err
 	}
 
-	logger.Debug("Got data", "len", l, "from", addrStr)
+	logger.Debug("Got data", "len", l, "from", addr.String())
 	msg := Message(b)[:l]
-	return msg, l, conn.RemoteAddr(), nil
+	return msg, l, nil
 }
 
-func (tcp *TcpTransport) CloseClient(addr net.Addr) error {
-	addrStr := addr.String()
-	if c, ok := tcp.conn[addrStr]; ok {
+func (tcp *TcpTransport) CloseClient(addr netip.AddrPort) error {
+	if c, ok := tcp.conn[addr]; ok {
 		err := c.Close()
 		if err != nil {
 			return err
 		}
-		delete(tcp.conn, addrStr)
+		delete(tcp.conn, addr)
 	} else {
-		return errors.New("No such client connection: " + addrStr)
+		return errors.New("No such client connection: " + addr.String())
 	}
 	return nil
 }

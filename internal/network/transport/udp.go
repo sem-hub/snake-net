@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 )
@@ -11,14 +12,14 @@ import (
 type UdpTransport struct {
 	TransportData
 	mainConn      *net.UDPConn
-	clientAddr    map[string]net.Addr
-	packetBuf     map[string][][]byte
+	clientAddr    map[netip.AddrPort]net.Addr
+	packetBuf     map[netip.AddrPort][][]byte
 	packetBufLock *sync.Mutex
 }
 
 func NewUdpTransport(logger *slog.Logger) *UdpTransport {
-	return &UdpTransport{TransportData: *NewTransport(logger), mainConn: nil, clientAddr: make(map[string]net.Addr),
-		packetBuf: make(map[string][][]byte), packetBufLock: &sync.Mutex{}}
+	return &UdpTransport{TransportData: *NewTransport(logger), mainConn: nil, clientAddr: make(map[netip.AddrPort]net.Addr),
+		packetBuf: make(map[netip.AddrPort][][]byte), packetBufLock: &sync.Mutex{}}
 }
 
 func (udp *UdpTransport) GetName() string {
@@ -34,7 +35,7 @@ func (udp *UdpTransport) IsEncrypted() bool {
 }
 
 func (udp *UdpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
-	callback func(Transport, net.Conn, net.Addr)) error {
+	callback func(Transport, netip.AddrPort)) error {
 
 	if mode != "server" {
 		conn, err := net.ListenPacket("udp", ":0")
@@ -59,7 +60,7 @@ func (udp *UdpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 	return nil
 }
 
-func (udp *UdpTransport) runReadLoop(callback func(Transport, net.Conn, net.Addr)) error {
+func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) error {
 	for {
 		newConnection := false
 		buf := make([]byte, NETBUFSIZE)
@@ -69,34 +70,39 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, net.Conn, net.Addr
 			break
 		}
 
+		netipAddrPort := netip.MustParseAddrPort(addr.String()) // XXX
+
 		udp.packetBufLock.Lock()
-		if _, ok := udp.clientAddr[addr.String()]; !ok {
+		if _, ok := udp.clientAddr[netipAddrPort]; !ok {
 			newConnection = true
-			udp.clientAddr[addr.String()] = addr
+			udp.clientAddr[netipAddrPort] = addr
 		} else {
 			newConnection = false
 		}
-		udp.packetBuf[addr.String()] = append(udp.packetBuf[addr.String()], buf[:l])
+		udp.packetBuf[netipAddrPort] = append(udp.packetBuf[netipAddrPort], buf[:l])
 		udp.packetBufLock.Unlock()
-		logger.Debug("UDP Listen put into buffer", "len", l, "from", addr, "packetBuf len", len(udp.packetBuf[addr.String()]))
+		logger.Debug("UDP Listen put into buffer", "len", l, "from", addr, "packetBuf len", len(udp.packetBuf[netipAddrPort]))
 
 		if newConnection {
 			if callback == nil {
 				logger.Error("UDP Listen: No callback for client connection")
 				continue
 			}
-			go callback(udp, udp.mainConn, addr)
+			go callback(udp, netipAddrPort)
 		}
 	}
 	return nil
 }
 
-func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error {
-	udpconn := conn.(*net.UDPConn)
+func (udp *UdpTransport) Send(addrPort netip.AddrPort, msg *Message) error {
 	n := len(*msg)
 
-	logger.Debug("UDP Send data", "len", n, "to", addr)
-	l, err := udpconn.WriteTo(*msg, addr)
+	logger.Debug("UDP Send data", "len", n, "to", addrPort.String())
+	udpAddr := &net.UDPAddr{
+		IP:   addrPort.Addr().AsSlice(), // Преобразуем в net.IP
+		Port: int(addrPort.Port()),      // uint16 -> int
+	}
+	l, err := udp.mainConn.WriteTo(*msg, udpAddr)
 	if err != nil {
 		return err
 	}
@@ -106,15 +112,15 @@ func (udp *UdpTransport) Send(addr net.Addr, conn net.Conn, msg *Message) error 
 	return nil
 }
 
-func (udp *UdpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, net.Addr, error) {
+func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) {
 	// If we have buffered packets for this addr
 	var bufArray [][]byte
 
-	logger.Debug("UDP Receive waiting for data", "fromAddr", addr)
+	logger.Debug("UDP Receive waiting for data", "fromAddr", addrPort.String())
 	for {
 		udp.packetBufLock.Lock()
 		var ok bool
-		if bufArray, ok = udp.packetBuf[addr.String()]; ok && len(bufArray) > 0 {
+		if bufArray, ok = udp.packetBuf[addrPort]; ok && len(bufArray) > 0 {
 			udp.packetBufLock.Unlock()
 			break
 		}
@@ -123,24 +129,24 @@ func (udp *UdpTransport) Receive(conn net.Conn, addr net.Addr) (Message, int, ne
 	}
 	udp.packetBufLock.Lock()
 	// Refresh bufArray in case it changed
-	bufArray = udp.packetBuf[addr.String()]
+	bufArray = udp.packetBuf[addrPort]
 	buf := bufArray[0]
-	//logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addr)
+	//logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addrPort.String())
 
 	if len(bufArray) > 1 {
-		udp.packetBuf[addr.String()] = bufArray[1:]
+		udp.packetBuf[addrPort] = bufArray[1:]
 	} else {
-		delete(udp.packetBuf, addr.String())
+		delete(udp.packetBuf, addrPort)
 	}
 	udp.packetBufLock.Unlock()
-	return buf, len(buf), addr, nil
+	return buf, len(buf), nil
 }
 
-func (udp *UdpTransport) CloseClient(addr net.Addr) error {
+func (udp *UdpTransport) CloseClient(addrPort netip.AddrPort) error {
 	udp.packetBufLock.Lock()
 	defer udp.packetBufLock.Unlock()
-	delete(udp.clientAddr, addr.String())
-	delete(udp.packetBuf, addr.String())
+	delete(udp.clientAddr, addrPort)
+	delete(udp.packetBuf, addrPort)
 	return nil
 }
 
