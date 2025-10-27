@@ -169,6 +169,21 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 		return
 	}
 
+	// Wait for OK from client after ECDH
+	buf, err = c.ReadBuf()
+	if err != nil {
+		logger.Debug("Failed to read response message", "error", err)
+		clients.RemoveClient(addr)
+		return
+	}
+
+	c.XOR(&buf)
+	if len(buf) < 2 || string(buf[:2]) != "OK" {
+		logger.Debug("Invalid server response", "len", len(buf), "msg", string(buf))
+		clients.RemoveClient(addr)
+		return
+	}
+
 	c.SetClientState(clients.Ready)
 	//fmt.Println("Session public key: ", c.GetPublicKey())
 	network.ProcessTun("server", c)
@@ -219,6 +234,12 @@ func ProcessServer(t transport.Transport, address string, port string) {
 
 	if err := c.ECDH(); err != nil {
 		logger.Error("ECDH", "error", err)
+		clients.RemoveClient(addr)
+		return
+	}
+
+	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
+		logger.Debug("Failed to write OK message", "error", err)
 		clients.RemoveClient(addr)
 		return
 	}

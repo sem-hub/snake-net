@@ -174,7 +174,9 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	logger.Debug("client ReadBuf", "address", c.address.String(), "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	// If we need to wait for data
 	c.bufLock.Lock()
+	var lastSize int = 0
 	for c.bufSize-c.bufOffset <= 0 {
+		lastSize = c.bufSize
 		c.bufSignal.Wait()
 	}
 	// First 2 bytes are size
@@ -182,12 +184,12 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	// Next 1 byte is flags
 	// Next 4 bytes are CRC32 of the header (of 5 bytes)
 	// Next n bytes are message finished with 64 bytes signature
-	logger.Debug("client ReadBuf after reading", "address", c.address.String(), "bufSize", c.bufSize, "bufOffset", c.bufOffset)
+	logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	if c.bufSize-c.bufOffset < ADDSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid buffer size")
 	}
-	/*data, err := c.secrets.CryptDecrypt(c.buf[c.bufOffset:c.bufSize])
+	/*data, err := c.secrets.CryptDecrypt(c.buf[c.bufOffset : c.bufOffset+HEADER])
 	if err != nil {
 		c.bufLock.Unlock()
 		return nil, err
@@ -201,7 +203,20 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		return nil, errors.New("invalid CRC32")
 	}
 	n := int(data[0])<<8 | int(data[1])
+	if n <= 0 || n+ADDSIZE > BUFSIZE {
+		c.bufLock.Unlock()
+		return nil, errors.New("invalid message size")
+	}
+
 	logger.Debug("client ReadBuf size", "address", c.address.String(), "n", n)
+	if !c.secrets.Verify(c.buf[c.bufOffset:c.bufOffset+HEADER+n], c.buf[c.bufOffset+HEADER+n:c.bufOffset+n+ADDSIZE]) {
+		logger.Error("cleint Readbuf: invalid signature")
+		// Drop the packet
+		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
+		c.bufSize = lastSize
+		c.bufLock.Unlock()
+		return c.ReadBuf()
+	}
 	seq := int(data[2])<<8 | int(data[3])
 	flags := data[4]
 	if flags == 0xff {
@@ -220,14 +235,22 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	if seq != c.seqIn {
 		logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
 			"expected", c.seqIn, "address", c.address)
-		// OutOfOrder leave packet in buffer and restart reading
-		c.oooPackets++
-		if c.oooPackets > 100 {
-			// Too many out of order packets, reset buffer
-			logger.Error("client ReadBuf: too many out of order packets, reset buffer", "address", c.address.String())
-			return nil, errors.New("too many out of order packets")
+		if seq > c.seqIn {
+			// OutOfOrder leave packet in buffer and restart reading
+			c.oooPackets++
+			if c.oooPackets > 100 {
+				// Too many out of order packets, reset buffer
+				logger.Error("client ReadBuf: too many out of order packets, reset buffer", "address", c.address.String())
+				c.bufLock.Unlock()
+				return nil, errors.New("too many out of order packets")
+			}
+			// Go to next packet
+			c.bufOffset += n + ADDSIZE
+		} else {
+			logger.Error("client ReadBuf: duplicate. Drop.")
+			copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
+			c.bufSize -= n + ADDSIZE
 		}
-		c.bufOffset += n + ADDSIZE
 		c.bufLock.Unlock()
 		return c.ReadBuf()
 	} else {
@@ -259,10 +282,15 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		return nil, errors.New("invalid buffer size")
 	}
 	c.bufLock.Unlock()
-	if !c.secrets.Verify(msg[:n+HEADER], msg[n+HEADER:]) {
-		return nil, errors.New("invalid signature")
+
+	/*data, err = c.secrets.CryptDecrypt(msg[0 : n+HEADER])
+	if err != nil {
+		c.bufLock.Unlock()
+		return nil, err
 	}
-	return data[HEADER : n+HEADER], nil
+	copy(msg, data)*/
+
+	return msg[HEADER : n+HEADER], nil
 }
 
 func (c *Client) Write(msg *transport.Message) error {

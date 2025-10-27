@@ -7,9 +7,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"io"
+	"slices"
 	"strings"
-
-	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
@@ -56,10 +55,12 @@ func (s *Secrets) GetSharedSecret() []byte {
 }
 
 func (s *Secrets) Verify(msg []byte, sig []byte) bool {
+	//configs.GetLogger().Debug("Verify", "msg len", len(msg), "sig len", len(sig))
 	return ed25519.Verify(s.SessionPublicKey, msg, sig)
 }
 
 func (s *Secrets) Sign(msg []byte) []byte {
+	//configs.GetLogger().Debug("Sign", "msg len", len(msg))
 	return ed25519.Sign(s.SessionPrivateKey, msg)
 }
 
@@ -70,7 +71,8 @@ func (s *Secrets) XOR(data *[]byte) {
 }
 
 func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
-	configs.GetLogger().Debug("CryptDecrypt", "data len", len(data))
+	buf := slices.Clone(data)
+	//configs.GetLogger().Debug("CryptDecrypt", "data len", len(data))
 	bReader := bytes.NewReader(data)
 	block, err := aes.NewCipher(s.SharedSecret)
 	if err != nil {
@@ -80,10 +82,10 @@ func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
 	stream := cipher.NewOFB(block, iv[:])
 
 	reader := &cipher.StreamReader{S: stream, R: bReader}
-	buf := new(strings.Builder)
-	if _, err := io.Copy(buf, reader); err != nil {
+	buf1 := new(strings.Builder)
+	if _, err := io.Copy(buf1, reader); err != nil {
 		return nil, err
 	}
-	data = []byte(buf.String())
-	return data, nil
+	copy(buf, []byte(buf1.String()))
+	return buf, nil
 }

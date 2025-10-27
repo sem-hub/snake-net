@@ -46,7 +46,7 @@ func SetUpTUN(c *configs.Config) error {
 		return err
 	}
 
-	err = netlink.LinkSetMTU(link, 1472)
+	err = netlink.LinkSetMTU(link, 1470)
 	if err != nil {
 		return err
 	}
