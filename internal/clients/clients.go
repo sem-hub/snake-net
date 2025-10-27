@@ -199,34 +199,50 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 
 	crc := uint32(int(data[5])<<24 | int(data[6])<<16 | int(data[7])<<8 | int(data[8]))
 	if crc != crc32.ChecksumIEEE(data[:5]) {
+		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
+		c.bufSize = lastSize
+
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid CRC32")
 	}
 	n := int(data[0])<<8 | int(data[1])
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
+		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
+		c.bufSize = lastSize
+
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid message size")
 	}
 
 	logger.Debug("client ReadBuf size", "address", c.address.String(), "n", n)
+	if n+ADDSIZE > c.bufSize-c.bufOffset {
+		c.bufLock.Unlock()
+		logger.Error("client Readbuf: incomplete message", "address", c.address.String(), "needed", n+ADDSIZE, "have", c.bufSize-c.bufOffset)
+		//return nil, errors.New("incomplete message")
+		return c.ReadBuf()
+	}
 	if !c.secrets.Verify(c.buf[c.bufOffset:c.bufOffset+HEADER+n], c.buf[c.bufOffset+HEADER+n:c.bufOffset+n+ADDSIZE]) {
 		logger.Error("cleint Readbuf: invalid signature")
 		// Drop the packet
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
 		c.bufLock.Unlock()
-		return c.ReadBuf()
+		return nil, errors.New("invalid signature")
 	}
 	seq := int(data[2])<<8 | int(data[3])
 	flags := data[4]
 	if flags == 0xff {
 		logger.Debug("client ReadBuf flags 0xff, closing connection", "address", c.address.String())
 		c.bufLock.Unlock()
+		// XXXX Close connection
 		return nil, errors.New("connection closed by peer")
 	}
 	//logger.Debug("client ReadBuf flags", "address", c.address, "flags", flags)
 	logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
+		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
+		c.bufSize = lastSize
+
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid message size")
 	}
@@ -264,10 +280,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	if c.seqIn > 65535 {
 		c.seqIn = 0
 	}
-	if c.bufSize-c.bufOffset < n+ADDSIZE {
-		c.bufLock.Unlock()
-		return nil, errors.New("incomplete message")
-	}
+
 	msg := make([]byte, n+ADDSIZE)
 	copy(msg, c.buf[c.bufOffset:c.bufOffset+n+ADDSIZE])
 	copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
