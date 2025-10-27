@@ -171,10 +171,6 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 
 func ProcessServer(t transport.Transport, address string, port string) {
 	logger := configs.GetLogger()
-	conn := t.GetMainConn()
-	if conn == nil {
-		return
-	}
 	addr := netip.MustParseAddrPort(address + ":" + port)
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t)

@@ -149,7 +149,3 @@ func (tcp *TcpTransport) Close() error {
 
 	return nil
 }
-
-func (tcp *TcpTransport) GetMainConn() net.Conn {
-	return tcp.mainConn
-}

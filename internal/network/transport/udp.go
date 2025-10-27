@@ -159,7 +159,3 @@ func (udp *UdpTransport) Close() error {
 	}
 	return nil
 }
-
-func (udp *UdpTransport) GetMainConn() net.Conn {
-	return udp.mainConn
-}
