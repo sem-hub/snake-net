@@ -139,6 +139,11 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 		clients.RemoveClient(addr)
 		return
 	}
+	if len(buf) < crypt.XORKEYLEN {
+		logger.Debug("Invalid XOR key length", "len", len(buf))
+		clients.RemoveClient(addr)
+		return
+	}
 	copy(s.XORKey, buf[:crypt.XORKEYLEN])
 	logger.Debug("ProcessNewClient: Received XOR key", "XORKey", s.XORKey)
 	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {

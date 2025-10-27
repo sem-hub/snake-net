@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"hash/crc32"
 	"log/slog"
 	"math/rand"
 	"net"
@@ -18,7 +19,7 @@ type State int
 
 const (
 	BUFSIZE = 65535
-	HEADER  = 5 // 2 bytes size + 2 bytes sequence number + 1 byte flags
+	HEADER  = 9 // 2 bytes size + 2 bytes sequence number + 1 byte flags + 4 bytes CRC32
 	ADDSIZE = HEADER + crypt.SIGNLEN
 )
 
@@ -179,16 +180,25 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	// First 2 bytes are size
 	// Next 2 bytes are sequence number
 	// Next 1 byte is flags
+	// Next 4 bytes are CRC32 of the header (of 5 bytes)
 	// Next n bytes are message finished with 64 bytes signature
 	logger.Debug("client ReadBuf after reading", "address", c.address.String(), "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	if c.bufSize-c.bufOffset < ADDSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid buffer size")
 	}
-	data, err := c.secrets.CryptDecrypt(c.buf[c.bufOffset:c.bufSize])
+	/*data, err := c.secrets.CryptDecrypt(c.buf[c.bufOffset:c.bufSize])
 	if err != nil {
 		c.bufLock.Unlock()
 		return nil, err
+	}*/
+	data := make([]byte, c.bufSize-c.bufOffset)
+	copy(data, c.buf[c.bufOffset:c.bufSize])
+
+	crc := uint32(int(data[5])<<24 | int(data[6])<<16 | int(data[7])<<8 | int(data[8]))
+	if crc != crc32.ChecksumIEEE(data[:5]) {
+		c.bufLock.Unlock()
+		return nil, errors.New("invalid CRC32")
 	}
 	n := int(data[0])<<8 | int(data[1])
 	logger.Debug("client ReadBuf size", "address", c.address.String(), "n", n)
@@ -200,7 +210,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		return nil, errors.New("connection closed by peer")
 	}
 	//logger.Debug("client ReadBuf flags", "address", c.address, "flags", flags)
-	//logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
+	logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid message size")
@@ -276,17 +286,23 @@ func (c *Client) Write(msg *transport.Message) error {
 		c.seqOut = 0
 	}
 	c.seqOutLock.Unlock()
+	crc := crc32.ChecksumIEEE(buf[:5])
+	buf[5] = byte(crc >> 24)
+	buf[6] = byte((crc >> 16) & 0xff)
+	buf[7] = byte((crc >> 8) & 0xff)
+	buf[8] = byte(crc & 0xff)
+	// Copy message
 	logger.Debug("client Write", "address", c.address, "seq", c.seqOut)
 	copy(buf[HEADER:n+HEADER], *msg)
-	data, err := c.secrets.CryptDecrypt(buf[:n+HEADER])
+	/*data, err := c.secrets.CryptDecrypt(buf[:n+HEADER])
 	if err != nil {
 		return err
 	}
-	copy(buf[:n+HEADER], data)
+	copy(buf[:n+HEADER], data)*/
 
 	signature := c.secrets.Sign(buf[:n+HEADER])
 	copy(buf[n+HEADER:], signature)
-	err = c.t.Send(c.address, &buf)
+	err := c.t.Send(c.address, &buf)
 	if err != nil {
 		return err
 	}
