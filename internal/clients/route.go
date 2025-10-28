@@ -25,7 +25,7 @@ func getDstIP(packet []byte) net.Addr {
 func sendDataToClient(addr netip.AddrPort, data []byte) {
 	c := FindClient(addr)
 	go func(cl *Client) {
-		err := c.Write(&data)
+		err := c.Write(&data, NoneCmd)
 		if err != nil {
 			logger.Error("Route write", "error", err)
 		}

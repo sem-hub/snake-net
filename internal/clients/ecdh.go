@@ -30,7 +30,7 @@ func (c *Client) ECDH() error {
 	}
 
 	logger.Debug("ECDH: Write public key", "len", len(buf), "buf", buf)
-	err = c.Write(&buf)
+	err = c.Write(&buf, NoneCmd)
 	if err != nil {
 		return err
 	}

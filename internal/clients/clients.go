@@ -7,20 +7,23 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"time"
 
 	"errors"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/network/transport"
+	"github.com/sem-hub/snake-net/internal/utils"
 )
 
 type State int
+type Cmd byte
 
 const (
 	BUFSIZE = 65535
-	HEADER  = 9 // 2 bytes size + 2 bytes sequence number + 1 byte flags + 4 bytes CRC32
-	ADDSIZE = HEADER + crypt.SIGNLEN
+	HEADER  = 9                      // 2 bytes size + 2 bytes sequence number + 1 byte flags + 4 bytes CRC32
+	ADDSIZE = HEADER + crypt.SIGNLEN // 9+64=73
 )
 
 const (
@@ -29,6 +32,12 @@ const (
 	Authenticated
 	Ready
 	HasData
+)
+
+const (
+	NoneCmd         Cmd = iota
+	AskForResendCmd     = 0xfe
+	ShutdownCmd         = 0xff
 )
 
 type Client struct {
@@ -47,6 +56,7 @@ type Client struct {
 	seqOut     int
 	seqOutLock *sync.Mutex
 	oooPackets int
+	sentBuffer *utils.CircularBuffer
 }
 
 var (
@@ -77,6 +87,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		seqOut:     1,
 		seqOutLock: &sync.Mutex{},
 		oooPackets: 0,
+		sentBuffer: utils.NewCircularBuffer(100),
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
 
@@ -170,6 +181,97 @@ func (c *Client) RunNetLoop(address netip.AddrPort) {
 	}()
 }
 
+// Executed under lock
+func (c *Client) lookInBufferForSeq(seq int) bool {
+	offset := 0
+	for offset < c.bufSize {
+		if c.bufSize-offset < ADDSIZE {
+			return false
+		}
+		// Get data size and sequence number
+		n := int(c.buf[offset])<<8 | int(c.buf[offset+1])
+		packetSeq := int(c.buf[offset+2])<<8 | int(c.buf[offset+3])
+		if packetSeq == seq {
+			c.bufOffset = offset
+			return true
+		}
+		offset += n + ADDSIZE
+	}
+	return false
+}
+
+// Executed under lock
+func (c *Client) processOOOP(n int, seq int) (transport.Message, error) {
+	if seq > c.seqIn {
+		if c.lookInBufferForSeq(c.seqIn) {
+			// Found in buffer, process it
+			logger.Debug("client ReadBuf: found out of order packet in buffer", "address", c.address.String(), "seq", seq)
+			c.bufLock.Unlock()
+			return c.ReadBuf()
+		}
+		// OutOfOrder leave packet in buffer and restart reading
+		c.oooPackets++
+		if c.oooPackets > 10 {
+			// Too many out of order packets, reset buffer
+			logger.Error("client ReadBuf: too many out of order packets, reset buffer", "address", c.address.String())
+			seq = c.seqIn
+			c.bufLock.Unlock()
+			c.AskForResend(seq)
+			return nil, errors.New("too many out of order packets")
+		}
+		// Go to next packet
+		c.bufOffset += n + ADDSIZE
+	} else {
+		logger.Error("client ReadBuf: duplicate. Drop.")
+		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
+		c.bufSize -= n + ADDSIZE
+		c.bufLock.Unlock()
+		return c.ReadBuf()
+	}
+	c.bufLock.Unlock()
+	return c.ReadBuf()
+}
+
+func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Message, error) {
+	if flags == ShutdownCmd {
+		logger.Debug("client ReadBuf shutdown command, closing connection", "address", c.address.String())
+		c.bufLock.Unlock()
+		c.SetClientState(NotFound)
+		c.Close()
+		time.Sleep(5 * time.Second)
+		RemoveClient(c.address)
+
+		return nil, errors.New("connection closed by peer")
+	}
+	if flags == AskForResendCmd {
+		// Find in sentBuffer and resend
+		askSeq := int(data[HEADER])<<8 | int(data[HEADER+1])
+		logger.Debug("client ReadBuf asked for resend command", "address", c.address.String(), "seq", askSeq)
+
+		dataSend, ok := c.sentBuffer.Find(func(index interface{}) bool {
+			buf := index.([]byte)
+			seqNum := int(buf[2])<<8 | int(buf[3])
+			return seqNum == askSeq
+		})
+		if ok {
+			buf := dataSend.([]byte)
+			err := c.t.Send(c.address, &buf)
+			if err != nil {
+				logger.Error("client ReadBuf resend failed", "address", c.address.String(), "seq", askSeq, "error", err)
+			}
+		} else {
+			logger.Error("client ReadBuf resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
+		}
+		// Drop the packet
+		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
+		c.bufSize -= n + ADDSIZE
+
+		c.bufLock.Unlock()
+		return c.ReadBuf()
+	}
+	return nil, errors.New("unknown command")
+}
+
 func (c *Client) ReadBuf() (transport.Message, error) {
 	logger.Debug("client ReadBuf", "address", c.address.String(), "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	// If we need to wait for data
@@ -199,6 +301,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 
 	crc := uint32(int(data[5])<<24 | int(data[6])<<16 | int(data[7])<<8 | int(data[8]))
 	if crc != crc32.ChecksumIEEE(data[:5]) {
+		logger.Debug("Write CRC32", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(data[:5]))
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
 
@@ -230,18 +333,17 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		return nil, errors.New("invalid signature")
 	}
 	seq := int(data[2])<<8 | int(data[3])
-	flags := data[4]
-	if flags == 0xff {
-		logger.Debug("client ReadBuf flags 0xff, closing connection", "address", c.address.String())
-		c.bufLock.Unlock()
-		// XXXX Close connection
-		return nil, errors.New("connection closed by peer")
+	flags := Cmd(data[4])
+	if flags != NoneCmd {
+		logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", flags)
+		return c.processCommand(flags, data, n)
 	}
+
 	//logger.Debug("client ReadBuf flags", "address", c.address, "flags", flags)
 	logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
-		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
-		c.bufSize = lastSize
+		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
+		c.bufSize -= n + ADDSIZE
 
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid message size")
@@ -251,24 +353,8 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	if seq != c.seqIn {
 		logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
 			"expected", c.seqIn, "address", c.address)
-		if seq > c.seqIn {
-			// OutOfOrder leave packet in buffer and restart reading
-			c.oooPackets++
-			if c.oooPackets > 100 {
-				// Too many out of order packets, reset buffer
-				logger.Error("client ReadBuf: too many out of order packets, reset buffer", "address", c.address.String())
-				c.bufLock.Unlock()
-				return nil, errors.New("too many out of order packets")
-			}
-			// Go to next packet
-			c.bufOffset += n + ADDSIZE
-		} else {
-			logger.Error("client ReadBuf: duplicate. Drop.")
-			copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
-			c.bufSize -= n + ADDSIZE
-		}
-		c.bufLock.Unlock()
-		return c.ReadBuf()
+		// We still hold lock here
+		return c.processOOOP(n, seq)
 	} else {
 		// In order, reset bufOffset and oooPackets counter
 		c.oooPackets = 0
@@ -283,6 +369,8 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 
 	msg := make([]byte, n+ADDSIZE)
 	copy(msg, c.buf[c.bufOffset:c.bufOffset+n+ADDSIZE])
+
+	/* Remove the packet from buffer */
 	copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
 	c.bufSize -= n + ADDSIZE
 	if needResetOffset {
@@ -306,7 +394,16 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	return msg[HEADER : n+HEADER], nil
 }
 
-func (c *Client) Write(msg *transport.Message) error {
+func (c *Client) AskForResend(seq int) error {
+	logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq)
+
+	buf := make([]byte, 2)
+	buf[0] = byte(seq >> 8)
+	buf[1] = byte(seq & 0xff)
+	return c.Write(&buf, AskForResendCmd)
+}
+
+func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	n := len(*msg)
 	logger.Debug("client Write data", "len", n, "address", c.address.String())
 	// First 2 bytes are size
@@ -321,19 +418,21 @@ func (c *Client) Write(msg *transport.Message) error {
 	c.seqOutLock.Lock()
 	buf[2] = byte(c.seqOut >> 8)
 	buf[3] = byte(c.seqOut & 0xff)
-	buf[4] = 0 // flags
+	seq := c.seqOut
 	c.seqOut++
 	if c.seqOut > 65535 {
 		c.seqOut = 0
 	}
 	c.seqOutLock.Unlock()
+	buf[4] = byte(cmd) // flags or command
+
 	crc := crc32.ChecksumIEEE(buf[:5])
 	buf[5] = byte(crc >> 24)
 	buf[6] = byte((crc >> 16) & 0xff)
 	buf[7] = byte((crc >> 8) & 0xff)
 	buf[8] = byte(crc & 0xff)
 	// Copy message
-	logger.Debug("client Write", "address", c.address, "seq", c.seqOut)
+	logger.Debug("client Write", "address", c.address, "seq", seq)
 	copy(buf[HEADER:n+HEADER], *msg)
 	/*data, err := c.secrets.CryptDecrypt(buf[:n+HEADER])
 	if err != nil {
@@ -347,6 +446,8 @@ func (c *Client) Write(msg *transport.Message) error {
 	if err != nil {
 		return err
 	}
+	logger.Debug("client Write sent", "len", len(buf), "address", c.address.String(), "seq", seq)
+	c.sentBuffer.Push(buf)
 	return nil
 }
 
@@ -364,7 +465,7 @@ func (c *Client) WriteWithXORAndPadding(msg []byte, needXOR bool) error {
 		c.XOR(&buf)
 	}
 	logger.Debug("client WriteWithPadding", "len", len(buf), "data", len(msg), "paddingSize", paddingSize, "address", c.address)
-	return c.Write(&buf)
+	return c.Write(&buf, NoneCmd)
 }
 
 func (c *Client) XOR(data *[]byte) {

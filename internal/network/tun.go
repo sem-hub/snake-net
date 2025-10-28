@@ -10,6 +10,8 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+const MTU = 1420
+
 var tun *water.Interface
 
 func SetUpTUN(c *configs.Config) error {
@@ -46,7 +48,7 @@ func SetUpTUN(c *configs.Config) error {
 		return err
 	}
 
-	err = netlink.LinkSetMTU(link, 1470)
+	err = netlink.LinkSetMTU(link, MTU)
 	if err != nil {
 		return err
 	}
@@ -105,7 +107,7 @@ func ProcessTun(mode string, c *clients.Client) {
 					logger.Debug("Client not ready, drop packet", "addr", c.GetClientAddr())
 					continue
 				}
-				if err := c.Write(&data); err != nil {
+				if err := c.Write(&data, clients.NoneCmd); err != nil {
 					logger.Error("Write to net", "error", err)
 					break
 				}
@@ -122,7 +124,7 @@ func ProcessTun(mode string, c *clients.Client) {
 	go func() {
 		defer wg.Done()
 		for {
-			buf := make([]byte, 1522)
+			buf := make([]byte, MTU)
 			var n int
 			var err error
 

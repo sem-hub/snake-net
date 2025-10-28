@@ -51,7 +51,7 @@ func IdentifyClient(c *clients.Client) (net.Addr, net.Addr, error) {
 		}
 		if !myNetwork.Contains(ip) {
 			buf = []byte("Error: IP not in " + myNetwork.String())
-			c.Write(&buf)
+			c.Write(&buf, clients.NoneCmd)
 
 			return nil, nil, errors.New("Client IP " + ip.String() + " not in " +
 				myNetwork.String())
@@ -62,7 +62,7 @@ func IdentifyClient(c *clients.Client) (net.Addr, net.Addr, error) {
 		}
 		if !myNetwork6.Contains(ip6) {
 			buf = []byte("Error: IP not in " + myNetwork6.String())
-			c.Write(&buf)
+			c.Write(&buf, clients.NoneCmd)
 
 			return nil, nil, errors.New("Client IP " + ip6.String() + " not in " +
 				myNetwork6.String())
