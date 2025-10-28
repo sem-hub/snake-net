@@ -81,7 +81,7 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 		}
 		udp.packetBuf[netipAddrPort] = append(udp.packetBuf[netipAddrPort], buf[:l])
 		udp.packetBufLock.Unlock()
-		logger.Debug("UDP Listen put into buffer", "len", l, "from", addr, "packetBuf len", len(udp.packetBuf[netipAddrPort]))
+		logger.Debug("UDP Listen put into buffer", "len", l, "from", addr, "len(packetBuf)", len(udp.packetBuf[netipAddrPort]))
 
 		if newConnection {
 			if callback == nil {

@@ -38,7 +38,6 @@ func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 		family := "tcp"
 		if strings.Contains(rAddr, ":") {
 			family = "tcp6"
-			rAddr = "[" + rAddr + "]"
 		}
 		tcpServer, err := net.ResolveTCPAddr(family, rAddr+":"+rPort)
 		if err != nil {

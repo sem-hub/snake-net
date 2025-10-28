@@ -132,12 +132,20 @@ func main() {
 
 	if !isServer {
 		cfg.Mode = "client"
-		cfg.RemoteAddr = ip.String()
+		if len(ip) == 16 {
+			cfg.RemoteAddr = "[" + ip.String() + "]"
+		} else {
+			cfg.RemoteAddr = ip.String()
+		}
 		cfg.RemotePort = port
 
 	} else {
 		cfg.Mode = "server"
-		cfg.LocalAddr = ip.String()
+		if len(ip) == 16 {
+			cfg.LocalAddr = "[" + ip.String() + "]"
+		} else {
+			cfg.LocalAddr = ip.String()
+		}
 		cfg.LocalPort = port
 	}
 
