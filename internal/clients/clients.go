@@ -41,22 +41,23 @@ const (
 )
 
 type Client struct {
-	address    netip.AddrPort
-	tunAddr    net.Addr
-	tunAddr6   net.Addr
-	t          transport.Transport
-	state      State
-	secrets    *crypt.Secrets
-	buf        []byte
-	bufLock    *sync.Mutex
-	bufSignal  *sync.Cond
-	bufSize    int
-	bufOffset  int
-	seqIn      int
-	seqOut     int
-	seqOutLock *sync.Mutex
-	oooPackets int
-	sentBuffer *utils.CircularBuffer
+	address       netip.AddrPort
+	tunAddr       net.Addr
+	tunAddr6      net.Addr
+	t             transport.Transport
+	state         State
+	secrets       *crypt.Secrets
+	buf           []byte
+	bufLock       *sync.Mutex
+	bufSignal     *sync.Cond
+	bufSize       int
+	bufOffset     int
+	seqIn         int
+	seqOut        int
+	seqOutLock    *sync.Mutex
+	oooPackets    int
+	sentBuffer    *utils.CircularBuffer
+	orderSendLock *sync.Mutex
 }
 
 var (
@@ -73,21 +74,22 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 	logger = configs.GetLogger()
 	logger.Debug("AddClient", "address", address)
 	client := Client{
-		address:    address,
-		tunAddr:    nil,
-		tunAddr6:   nil,
-		t:          t,
-		state:      Connected,
-		secrets:    nil,
-		buf:        make([]byte, BUFSIZE),
-		bufLock:    &sync.Mutex{},
-		bufSize:    0,
-		bufOffset:  0,
-		seqIn:      1,
-		seqOut:     1,
-		seqOutLock: &sync.Mutex{},
-		oooPackets: 0,
-		sentBuffer: utils.NewCircularBuffer(100),
+		address:       address,
+		tunAddr:       nil,
+		tunAddr6:      nil,
+		t:             t,
+		state:         Connected,
+		secrets:       nil,
+		buf:           make([]byte, BUFSIZE),
+		bufLock:       &sync.Mutex{},
+		bufSize:       0,
+		bufOffset:     0,
+		seqIn:         1,
+		seqOut:        1,
+		seqOutLock:    &sync.Mutex{},
+		oooPackets:    0,
+		sentBuffer:    utils.NewCircularBuffer(100),
+		orderSendLock: &sync.Mutex{},
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
 
@@ -404,6 +406,9 @@ func (c *Client) AskForResend(seq int) error {
 }
 
 func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
+	c.orderSendLock.Lock()
+	defer c.orderSendLock.Unlock()
+
 	n := len(*msg)
 	logger.Debug("client Write data", "len", n, "address", c.address.String())
 	// First 2 bytes are size
