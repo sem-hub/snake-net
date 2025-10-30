@@ -7,18 +7,18 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 )
 
-func getDstIP(packet []byte) net.Addr {
+func getDstIP(packet []byte) (netip.Addr, bool) {
 	if len(packet) < 1 {
-		return nil
+		return netip.Addr{}, false
 	}
 	version := packet[0] >> 4 // First 4 bits
 	if version == 4 {
-		return &net.IPAddr{IP: packet[16:20]} // IPv4 address in bytes 16-19
+		return netip.AddrFromSlice(packet[16:20]) // IPv4 address in bytes 16-19
 	}
 	if version == 6 {
-		return &net.IPAddr{IP: packet[24:40]} // IPv6 address in bytes 24-39
+		return netip.AddrFromSlice(packet[24:40]) // IPv6 address in bytes 24-39
 	}
-	return nil
+	return netip.Addr{}, false
 }
 
 // Find real client and send data to it in background
@@ -40,8 +40,8 @@ func Route(data []byte) bool {
 	}
 	clientsLock.Unlock()
 
-	address := getDstIP(data)
-	if address == nil {
+	address, ok := getDstIP(data)
+	if !ok {
 		logger.Debug("Route: no destination IP found. Ignore.")
 		return false
 	}
@@ -75,7 +75,7 @@ func Route(data []byte) bool {
 		logger.Error("Route", "error", err)
 		return true
 	}
-	if !found && myIP.String() != address.String() && myIP6.String() != address.String() {
+	if !found && !myIP.Equal(address.AsSlice()) && myIP6.Equal(address.AsSlice()) {
 		logger.Debug("Route: no matching client found. Send to all clients")
 		for _, c := range clientsCopy {
 			if c.GetClientState() == Ready {

@@ -10,8 +10,8 @@ import (
 
 type UdpTransport struct {
 	TransportData
-	mainConn      *net.UDPConn
-	clientAddr    map[netip.AddrPort]net.Addr
+	mainConn      net.PacketConn
+	clientAddr    map[netip.AddrPort]netip.AddrPort
 	packetBuf     map[netip.AddrPort][][]byte
 	packetBufLock *sync.Mutex
 	packetBufCond *sync.Cond
@@ -21,7 +21,7 @@ func NewUdpTransport(logger *slog.Logger) *UdpTransport {
 	udpTransport := UdpTransport{
 		TransportData: *NewTransport(logger),
 		mainConn:      nil,
-		clientAddr:    make(map[netip.AddrPort]net.Addr),
+		clientAddr:    make(map[netip.AddrPort]netip.AddrPort),
 		packetBuf:     make(map[netip.AddrPort][][]byte),
 		packetBufLock: &sync.Mutex{},
 	}
@@ -44,19 +44,19 @@ func (udp *UdpTransport) IsEncrypted() bool {
 func (udp *UdpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
 	callback func(Transport, netip.AddrPort)) error {
 
-	if mode != "server" {
-		conn, err := net.ListenPacket("udp", ":0")
-		if err != nil {
-			return err
-		}
-		udp.mainConn = conn.(*net.UDPConn)
-	} else {
+	if mode == "server" {
 		udpLocal, err := net.ResolveUDPAddr("udp", lAddr+":"+lPort)
 		if err != nil {
 			return err
 		}
 
 		conn, err := net.ListenUDP("udp", udpLocal)
+		if err != nil {
+			return err
+		}
+		udp.mainConn = conn
+	} else {
+		conn, err := net.ListenPacket("udp", ":0")
 		if err != nil {
 			return err
 		}
@@ -77,12 +77,19 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 			break
 		}
 
-		netipAddrPort := netip.MustParseAddrPort(addr.String()) // XXX
+		var netipAddr netip.Addr
+		if addr.(*net.UDPAddr).IP.To4() != nil {
+			netipAddr = netip.AddrFrom4([4]byte(addr.(*net.UDPAddr).IP.To4()))
+		} else {
+			netipAddr = netip.AddrFrom16([16]byte(addr.(*net.UDPAddr).IP.To16()))
+		}
+		netipAddrPort := netip.AddrPortFrom(netipAddr, uint16(addr.(*net.UDPAddr).Port))
+		logger.Debug("UDP read from connection", "len", l, "from", netipAddrPort.String())
 
 		udp.packetBufLock.Lock()
 		if _, ok := udp.clientAddr[netipAddrPort]; !ok {
 			newConnection = true
-			udp.clientAddr[netipAddrPort] = addr
+			udp.clientAddr[netipAddrPort] = netipAddrPort
 		} else {
 			newConnection = false
 		}
@@ -90,7 +97,7 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 		udp.packetBufLock.Unlock()
 		// Ready to process
 		udp.packetBufCond.Broadcast()
-		logger.Debug("UDP Listen put into buffer", "len", l, "from", addr, "len(packetBuf)", len(udp.packetBuf[netipAddrPort]))
+		logger.Debug("UDP put into buffer", "len", l, "from", netipAddrPort.String(), "len(packetBuf)", len(udp.packetBuf[netipAddrPort]))
 
 		if newConnection {
 			if callback == nil {

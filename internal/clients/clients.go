@@ -117,7 +117,7 @@ func RemoveClient(address netip.AddrPort) {
 	clientsLock.Lock()
 	defer clientsLock.Unlock()
 	for i, c := range clients {
-		if c.address.String() == address.String() {
+		if c.address == address {
 			c.Close()
 			logger.Debug("RemoveClient", "address", address)
 			clients = append(clients[:i], clients[i+1:]...)
@@ -131,7 +131,7 @@ func FindClient(address netip.AddrPort) *Client {
 	defer clientsLock.Unlock()
 
 	for _, c := range clients {
-		if c.address.String() == address.String() {
+		if c.address == address {
 			return c
 		}
 	}

@@ -34,7 +34,9 @@ func (tcp *TcpTransport) IsEncrypted() bool {
 
 func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
 	callback func(Transport, netip.AddrPort)) error {
-	if mode != "server" {
+	if mode == "server" {
+		tcp.listen(lAddr, lPort, callback)
+	} else {
 		family := "tcp"
 		if strings.Contains(rAddr, ":") {
 			family = "tcp6"
@@ -48,11 +50,9 @@ func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 			return errors.New("DialTCP error: " + err.Error())
 		}
 		tcp.mainConn = conn
-		tcp.conn.Store(netip.MustParseAddrPort(conn.RemoteAddr().String()), conn) // XXX
+		tcp.conn.Store(conn.RemoteAddr().(*net.TCPAddr).AddrPort(), conn)
 		logAddr := conn.LocalAddr().String()
 		logger.Info("Connected to server", "addr", rAddr, "port", rPort, "from", logAddr)
-	} else {
-		tcp.listen(lAddr, lPort, callback)
 	}
 
 	return nil
@@ -74,7 +74,7 @@ func (tcp *TcpTransport) listen(addr string, port string, callback func(Transpor
 		tcpconn := conn.(*net.TCPConn)
 		tcpconn.SetNoDelay(true)
 		tcpconn.SetLinger(0)
-		netipAddrPort := netip.MustParseAddrPort(tcpconn.RemoteAddr().String()) // XXX
+		netipAddrPort := tcpconn.RemoteAddr().(*net.TCPAddr).AddrPort()
 		logger.Debug("New TCP connection from", "addr", netipAddrPort.String())
 		tcp.conn.Store(netipAddrPort, tcpconn)
 		go callback(tcp, netipAddrPort)
