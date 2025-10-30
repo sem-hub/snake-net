@@ -155,6 +155,8 @@ func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) 
 func (udp *UdpTransport) CloseClient(addrPort netip.AddrPort) error {
 	udp.packetBufLock.Lock()
 	defer udp.packetBufLock.Unlock()
+	// Unblock any Receive waiting on this client
+	udp.packetBufCond.Broadcast()
 	delete(udp.clientAddr, addrPort)
 	delete(udp.packetBuf, addrPort)
 	return nil
