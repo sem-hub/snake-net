@@ -24,12 +24,14 @@ func getDstIP(packet []byte) (netip.Addr, bool) {
 // Find real client and send data to it in background
 func sendDataToClient(addr netip.AddrPort, data []byte) {
 	c := FindClient(addr)
-	go func(cl *Client) {
-		err := cl.Write(&data, NoneCmd)
-		if err != nil {
-			logger.Error("Route write", "error", err)
-		}
-	}(c)
+	if c != nil {
+		go func(cl *Client) {
+			err := cl.Write(&data, NoneCmd)
+			if err != nil {
+				logger.Error("Route write", "error", err)
+			}
+		}(c)
+	}
 }
 
 func Route(data []byte) bool {
