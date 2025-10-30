@@ -64,8 +64,8 @@ func ProcessTun(mode string, c *clients.Client) {
 	logger := configs.GetLogger()
 	wg := sync.WaitGroup{}
 	// local tun interface read and write channel.
-	rCh := make(chan []byte)
-	wCh := make(chan []byte)
+	rCh := make(chan []byte, 64)
+	wCh := make(chan []byte, 64)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
