@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/netip"
 	"sync"
-	"time"
 )
 
 type UdpTransport struct {
@@ -15,11 +14,19 @@ type UdpTransport struct {
 	clientAddr    map[netip.AddrPort]net.Addr
 	packetBuf     map[netip.AddrPort][][]byte
 	packetBufLock *sync.Mutex
+	packetBufCond *sync.Cond
 }
 
 func NewUdpTransport(logger *slog.Logger) *UdpTransport {
-	return &UdpTransport{TransportData: *NewTransport(logger), mainConn: nil, clientAddr: make(map[netip.AddrPort]net.Addr),
-		packetBuf: make(map[netip.AddrPort][][]byte), packetBufLock: &sync.Mutex{}}
+	udpTransport := UdpTransport{
+		TransportData: *NewTransport(logger),
+		mainConn:      nil,
+		clientAddr:    make(map[netip.AddrPort]net.Addr),
+		packetBuf:     make(map[netip.AddrPort][][]byte),
+		packetBufLock: &sync.Mutex{},
+	}
+	udpTransport.packetBufCond = sync.NewCond(udpTransport.packetBufLock)
+	return &udpTransport
 }
 
 func (udp *UdpTransport) GetName() string {
@@ -81,6 +88,8 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 		}
 		udp.packetBuf[netipAddrPort] = append(udp.packetBuf[netipAddrPort], buf[:l])
 		udp.packetBufLock.Unlock()
+		// Ready to process
+		udp.packetBufCond.Broadcast()
 		logger.Debug("UDP Listen put into buffer", "len", l, "from", addr, "len(packetBuf)", len(udp.packetBuf[netipAddrPort]))
 
 		if newConnection {
@@ -117,21 +126,15 @@ func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) 
 	var bufArray [][]byte
 
 	logger.Debug("UDP Receive waiting for data", "fromAddr", addrPort.String())
-	for {
-		udp.packetBufLock.Lock()
-		var ok bool
-		if bufArray, ok = udp.packetBuf[addrPort]; ok && len(bufArray) > 0 {
-			udp.packetBufLock.Unlock()
-			break
-		}
-		udp.packetBufLock.Unlock()
-		time.Sleep(1 * time.Millisecond)
-	}
 	udp.packetBufLock.Lock()
+	var ok bool
+	for bufArray, ok = udp.packetBuf[addrPort]; !ok || len(bufArray) == 0; bufArray, ok = udp.packetBuf[addrPort] {
+		udp.packetBufCond.Wait()
+	}
 	// Refresh bufArray in case it changed
 	bufArray = udp.packetBuf[addrPort]
 	buf := bufArray[0]
-	//logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addrPort.String())
+	logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addrPort.String())
 
 	if len(bufArray) > 1 {
 		udp.packetBuf[addrPort] = bufArray[1:]
