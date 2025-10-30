@@ -21,7 +21,7 @@ type State int
 type Cmd byte
 
 const (
-	BUFSIZE = 65535
+	BUFSIZE = 131070
 	HEADER  = 9                      // 2 bytes size + 2 bytes sequence number + 1 byte flags + 4 bytes CRC32
 	ADDSIZE = HEADER + crypt.SIGNLEN // 9+64=73
 )
@@ -165,13 +165,14 @@ func (c *Client) RunNetLoop(address netip.AddrPort) {
 		for {
 			logger.Debug("client NetLoop waiting for data", "address", address.String())
 			msg, n, err := c.t.Receive(address)
-			logger.Debug("client NetLoop after Receive", "len", n, "err", err)
+			logger.Debug("client NetLoop after Receive", "len", n, "address", address.String())
 			if err != nil {
 				logger.Error("client NetLoop Receive error", "err", err)
 				return
 			}
 			c.bufLock.Lock()
 			// Write to the end of the buffer
+			logger.Debug("client NetLoop put in buf", "len", n, "bufSize", c.bufSize, "address", address.String())
 			copy(c.buf[c.bufSize:], msg[:n])
 			c.bufSize += n
 			if n > 0 {
@@ -190,9 +191,15 @@ func (c *Client) lookInBufferForSeq(seq int) bool {
 		if c.bufSize-offset < ADDSIZE {
 			return false
 		}
+		crc := uint32(int(c.buf[offset+5])<<24 | int(c.buf[offset+6])<<16 | int(c.buf[offset+7])<<8 | int(c.buf[offset+8]))
+		if crc != crc32.ChecksumIEEE(c.buf[offset:offset+5]) {
+			logger.Debug("lookInBufferForSeq CRC32", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(c.buf[offset:offset+5]))
+			return false
+		}
 		// Get data size and sequence number
 		n := int(c.buf[offset])<<8 | int(c.buf[offset+1])
 		packetSeq := int(c.buf[offset+2])<<8 | int(c.buf[offset+3])
+		logger.Debug("lookInBufferForSeq packet in buffer", "seq", packetSeq, "size", n, "address", c.address.String())
 		if packetSeq == seq {
 			c.bufOffset = offset
 			return true
@@ -202,33 +209,50 @@ func (c *Client) lookInBufferForSeq(seq int) bool {
 	return false
 }
 
+// Under lock
+func (c *Client) removeThePacketFromBuffer(n int) {
+	copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
+	c.bufSize -= n + ADDSIZE
+}
+
 // Executed under lock
 func (c *Client) processOOOP(n int, seq int) (transport.Message, error) {
 	if seq > c.seqIn {
 		if c.lookInBufferForSeq(c.seqIn) {
 			// Found in buffer, process it
-			logger.Debug("client ReadBuf: found out of order packet in buffer", "address", c.address.String(), "seq", seq)
+			logger.Debug("client ReadBuf: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
 			c.bufLock.Unlock()
+			return c.ReadBuf()
+		}
+		// Did not find any packet in buffer. We lost it. Ask for resend.
+		seq = c.seqIn
+		// Ask for resend only once. XXX We don't process massive lost.
+		if c.oooPackets == 1 || c.oooPackets == 5 || c.oooPackets == 10 {
+			c.bufLock.Unlock()
+			err := c.AskForResend(seq)
+			if err != nil {
+				logger.Error("OOOP processing: Error when ask a packet for retransmittion", "error", err)
+			}
+			c.oooPackets++
 			return c.ReadBuf()
 		}
 		// OutOfOrder leave packet in buffer and restart reading
 		c.oooPackets++
-		if c.oooPackets > 10 {
+		if c.oooPackets > 30 {
 			// Too many out of order packets, reset buffer
-			logger.Error("client ReadBuf: too many out of order packets, reset buffer", "address", c.address.String())
-			seq = c.seqIn
+			logger.Error("client ReadBuf: too many out of order packets, ignore the sequence number", "oooPackets", c.oooPackets, "address", c.address.String())
+			c.seqIn++
+			if c.seqIn > 65535 {
+				c.seqIn = 0
+			}
 			c.bufLock.Unlock()
-			c.AskForResend(seq)
 			return nil, errors.New("too many out of order packets")
 		}
-		// Go to next packet
+		// Go to next packet. Leave the packet in buffer.
 		c.bufOffset += n + ADDSIZE
 	} else {
 		logger.Error("client ReadBuf: duplicate. Drop.")
-		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
-		c.bufSize -= n + ADDSIZE
-		c.bufLock.Unlock()
-		return c.ReadBuf()
+		c.removeThePacketFromBuffer(n)
 	}
 	c.bufLock.Unlock()
 	return c.ReadBuf()
@@ -257,16 +281,19 @@ func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Messag
 		})
 		if ok {
 			buf := dataSend.([]byte)
+			seqNum := int(buf[2])<<8 | int(buf[3])
+			logger.Debug("client ReadBuf resend for", "address", c.address.String(), "seq", seqNum)
 			err := c.t.Send(c.address, &buf)
 			if err != nil {
 				logger.Error("client ReadBuf resend failed", "address", c.address.String(), "seq", askSeq, "error", err)
 			}
+			// Hold on the client a little
+			time.Sleep(10 * time.Millisecond)
 		} else {
 			logger.Error("client ReadBuf resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
 		}
-		// Drop the packet
-		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
-		c.bufSize -= n + ADDSIZE
+		// Remove the packet from buffer
+		c.removeThePacketFromBuffer(n)
 
 		c.bufLock.Unlock()
 		return c.ReadBuf()
@@ -304,6 +331,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	crc := uint32(int(data[5])<<24 | int(data[6])<<16 | int(data[7])<<8 | int(data[8]))
 	if crc != crc32.ChecksumIEEE(data[:5]) {
 		logger.Debug("Write CRC32", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(data[:5]))
+		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
 
@@ -312,6 +340,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	}
 	n := int(data[0])<<8 | int(data[1])
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
+		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
 
@@ -329,23 +358,18 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	if !c.secrets.Verify(c.buf[c.bufOffset:c.bufOffset+HEADER+n], c.buf[c.bufOffset+HEADER+n:c.bufOffset+n+ADDSIZE]) {
 		logger.Error("cleint Readbuf: invalid signature")
 		// Drop the packet
-		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
-		c.bufSize = lastSize
+		c.removeThePacketFromBuffer(n)
+
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid signature")
 	}
 	seq := int(data[2])<<8 | int(data[3])
 	flags := Cmd(data[4])
-	if flags != NoneCmd {
-		logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", flags)
-		return c.processCommand(flags, data, n)
-	}
 
 	//logger.Debug("client ReadBuf flags", "address", c.address, "flags", flags)
 	logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
-		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
-		c.bufSize -= n + ADDSIZE
+		c.removeThePacketFromBuffer(n)
 
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid message size")
@@ -354,8 +378,8 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 
 	if seq != c.seqIn {
 		logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
-			"expected", c.seqIn, "address", c.address)
-		// We still hold lock here
+			"expected", c.seqIn, "address", c.address, "oooPackets", c.oooPackets)
+		// We still hold lock here. Unlock inside the function.
 		return c.processOOOP(n, seq)
 	} else {
 		// In order, reset bufOffset and oooPackets counter
@@ -369,12 +393,16 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		c.seqIn = 0
 	}
 
+	if flags != NoneCmd {
+		logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", flags)
+		return c.processCommand(flags, data, n)
+	}
+
 	msg := make([]byte, n+ADDSIZE)
 	copy(msg, c.buf[c.bufOffset:c.bufOffset+n+ADDSIZE])
 
 	/* Remove the packet from buffer */
-	copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
-	c.bufSize -= n + ADDSIZE
+	c.removeThePacketFromBuffer(n)
 	if needResetOffset {
 		logger.Debug("client ReadBuf: reset bufOffset to 0", "address", c.address.String())
 		c.bufOffset = 0
@@ -397,7 +425,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 }
 
 func (c *Client) AskForResend(seq int) error {
-	logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq)
+	logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
 
 	buf := make([]byte, 2)
 	buf[0] = byte(seq >> 8)
@@ -411,9 +439,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 
 	n := len(*msg)
 	logger.Debug("client Write data", "len", n, "address", c.address.String())
-	// First 2 bytes are size
-	// Next 2 bytes are sequence number
-	// Next n bytes are message
+
 	if n+ADDSIZE > BUFSIZE {
 		return errors.New("invalid message size")
 	}
@@ -449,6 +475,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	copy(buf[n+HEADER:], signature)
 	err := c.t.Send(c.address, &buf)
 	if err != nil {
+		logger.Debug("client Write send error", "error", err, "address", c.address, "seq", seq)
 		return err
 	}
 	logger.Debug("client Write sent", "len", len(buf), "address", c.address.String(), "seq", seq)
