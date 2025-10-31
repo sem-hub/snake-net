@@ -6,26 +6,27 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
+	"golang.zx2c4.com/wireguard/tun"
 )
 
 const MTU = 1420
-
-var tun *water.Interface
+var tunDev tun.Device
 
 func SetUpTUN(c *configs.Config) error {
 	var err error
-	tun, err = water.New(water.Config{
-		DeviceType: water.TUN,
-	})
+	tunDev, err = tun.CreateTUN("snake", MTU)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("Interface Name: %s\n", tun.Name())
+	tunName, err := tunDev.Name()
+	if err != nil {
+		panic("Get tun name")
+	}
+	log.Printf("Interface Name: %s\n", tunName)
 
-	link, err := netlink.LinkByName(tun.Name())
+	link, err := netlink.LinkByName(tunName)
 	if err != nil {
 		return err
 	}
@@ -70,24 +71,26 @@ func ProcessTun(mode string, c *clients.Client) {
 	go func() {
 		defer wg.Done()
 		for {
-			buf, err := c.ReadBuf()
-			if err != nil {
-				logger.Error("Error reading from net buffer", "error", err)
-				// Ignore bad packet
-				continue
-			}
-			logger.Debug("TUN: Read from net", "len", len(buf))
+			if c != nil {
+				buf, err := c.ReadBuf()
+				if err != nil {
+					logger.Error("Error reading from net buffer", "error", err)
+					// Ignore bad packet
+					continue
+				}
+				logger.Debug("TUN: Read from net", "len", len(buf))
 
-			// send to all clients except the sender
-			if mode == "server" {
-				found := clients.Route(buf)
-				// if no client found, write into local tun interface channel.
-				if !found {
+				// send to all clients except the sender
+				if mode == "server" {
+					found := clients.Route(buf)
+					// if no client found, write into local tun interface channel.
+					if !found {
+						wCh <- buf
+					}
+				} else {
+					// write into local tun interface channel.
 					wCh <- buf
 				}
-			} else {
-				// write into local tun interface channel.
-				wCh <- buf
 			}
 		}
 	}()
@@ -124,15 +127,20 @@ func ProcessTun(mode string, c *clients.Client) {
 	go func() {
 		defer wg.Done()
 		for {
-			buf := make([]byte, MTU)
-			var n int
+			batchSize := 1 // 128
+			bufs := make([][]byte, batchSize)
+			sizes := make([]int, batchSize)
+
+			var count int
 			var err error
 
-			if n, err = tun.Read(buf); err != nil {
+			bufs[0] = make([]byte, MTU)
+			sizes[0] = MTU
+			if count, err = tunDev.Read(bufs, sizes, 0); err != nil {
 				panic(err)
 			}
-			buf = buf[:n]
-			logger.Debug("TUN: Read from tun", "len", n)
+			buf := bufs[0][:sizes[0]]
+			logger.Debug("TUN: Read from tun", "count", count, "sizes", sizes[0])
 			rCh <- buf
 		}
 	}()
@@ -141,9 +149,15 @@ func ProcessTun(mode string, c *clients.Client) {
 	go func() {
 		defer wg.Done()
 		for {
+			//batchSize := 128
+			bufs := make([][]byte, 1)
 			buf := <-wCh
+			// 16 for additional header will work always. But really for Windows it must be 0, for BSD must be 4, for Linux is 14.
+			// XXX It'll be work but not beautiful
+			bufs[0] = make([]byte, len(buf)+16)
+			copy(bufs[0][16:], buf[:])
 			logger.Debug("TUN: Write into tun", "len", len(buf))
-			if _, err := tun.Write(buf); err != nil {
+			if _, err := tunDev.Write(bufs, 16); err != nil {
 				panic(err)
 			}
 		}
