@@ -11,6 +11,7 @@ import (
 )
 
 const MTU = 1420
+
 var tunDev tun.Device
 
 func SetUpTUN(c *configs.Config) error {

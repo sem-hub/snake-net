@@ -3,11 +3,9 @@ package clients
 import (
 	"hash/crc32"
 	"log/slog"
-	"math/rand"
 	"net"
 	"net/netip"
 	"sync"
-	"time"
 
 	"errors"
 
@@ -32,12 +30,6 @@ const (
 	Authenticated
 	Ready
 	HasData
-)
-
-const (
-	NoneCmd         Cmd = iota
-	AskForResendCmd     = 0xfe
-	ShutdownCmd         = 0xff
 )
 
 type Client struct {
@@ -215,92 +207,6 @@ func (c *Client) removeThePacketFromBuffer(n int) {
 	c.bufSize -= n + ADDSIZE
 }
 
-// Executed under lock
-func (c *Client) processOOOP(n int, seq int) (transport.Message, error) {
-	if seq > c.seqIn {
-		if c.lookInBufferForSeq(c.seqIn) {
-			// Found in buffer, process it
-			logger.Debug("client ReadBuf: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
-			c.bufLock.Unlock()
-			return c.ReadBuf()
-		}
-		// Did not find any packet in buffer. We lost it. Ask for resend.
-		seq = c.seqIn
-		// Ask for resend only once. XXX We don't process massive lost.
-		if c.oooPackets == 1 || c.oooPackets == 5 || c.oooPackets == 10 {
-			c.bufLock.Unlock()
-			err := c.AskForResend(seq)
-			if err != nil {
-				logger.Error("OOOP processing: Error when ask a packet for retransmittion", "error", err)
-			}
-			c.oooPackets++
-			return c.ReadBuf()
-		}
-		// OutOfOrder leave packet in buffer and restart reading
-		c.oooPackets++
-		if c.oooPackets > 30 {
-			// Too many out of order packets, reset buffer
-			logger.Error("client ReadBuf: too many out of order packets, ignore the sequence number", "oooPackets", c.oooPackets, "address", c.address.String())
-			c.seqIn++
-			if c.seqIn > 65535 {
-				c.seqIn = 0
-			}
-			c.bufLock.Unlock()
-			return nil, errors.New("too many out of order packets")
-		}
-		// Go to next packet. Leave the packet in buffer.
-		c.bufOffset += n + ADDSIZE
-	} else {
-		logger.Error("client ReadBuf: duplicate. Drop.")
-		c.removeThePacketFromBuffer(n)
-	}
-	c.bufLock.Unlock()
-	return c.ReadBuf()
-}
-
-func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Message, error) {
-	if flags == ShutdownCmd {
-		logger.Debug("client ReadBuf shutdown command, closing connection", "address", c.address.String())
-		c.bufLock.Unlock()
-		c.SetClientState(NotFound)
-		c.Close()
-		time.Sleep(5 * time.Second)
-		RemoveClient(c.address)
-
-		return nil, errors.New("connection closed by peer")
-	}
-	if flags == AskForResendCmd {
-		// Find in sentBuffer and resend
-		askSeq := int(data[HEADER])<<8 | int(data[HEADER+1])
-		logger.Debug("client ReadBuf asked for resend command", "address", c.address.String(), "seq", askSeq)
-
-		dataSend, ok := c.sentBuffer.Find(func(index interface{}) bool {
-			buf := index.([]byte)
-			seqNum := int(buf[2])<<8 | int(buf[3])
-			return seqNum == askSeq
-		})
-		if ok {
-			buf := dataSend.([]byte)
-			seqNum := int(buf[2])<<8 | int(buf[3])
-			logger.Debug("client ReadBuf resend for", "address", c.address.String(), "seq", seqNum)
-			err := c.t.Send(c.address, &buf)
-			if err != nil {
-				logger.Error("client ReadBuf resend failed", "address", c.address.String(), "seq", askSeq, "error", err)
-			}
-			// Hold on the client a little
-			time.Sleep(10 * time.Millisecond)
-		} else {
-			logger.Error("client ReadBuf resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
-		}
-		// Remove the packet from buffer
-		c.removeThePacketFromBuffer(n)
-
-		c.bufLock.Unlock()
-		return c.ReadBuf()
-	}
-	return nil, errors.New("unknown command")
-}
-
 func (c *Client) ReadBuf() (transport.Message, error) {
 	logger.Debug("client ReadBuf", "address", c.address.String(), "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	// If we need to wait for data
@@ -320,11 +226,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid buffer size")
 	}
-	/*data, err := c.secrets.CryptDecrypt(c.buf[c.bufOffset : c.bufOffset+HEADER])
-	if err != nil {
-		c.bufLock.Unlock()
-		return nil, err
-	}*/
+
 	data := make([]byte, c.bufSize-c.bufOffset)
 	copy(data, c.buf[c.bufOffset:c.bufSize])
 
@@ -355,19 +257,11 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		//return nil, errors.New("incomplete message")
 		return c.ReadBuf()
 	}
-	if !c.secrets.Verify(c.buf[c.bufOffset:c.bufOffset+HEADER+n], c.buf[c.bufOffset+HEADER+n:c.bufOffset+n+ADDSIZE]) {
-		logger.Error("cleint Readbuf: invalid signature")
-		// Drop the packet
-		c.removeThePacketFromBuffer(n)
-
-		c.bufLock.Unlock()
-		return nil, errors.New("invalid signature")
-	}
 	seq := int(data[2])<<8 | int(data[3])
 	flags := Cmd(data[4])
 
-	//logger.Debug("client ReadBuf flags", "address", c.address, "flags", flags)
 	logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
+	// Sanity check of "n"
 	if n <= 0 || n+ADDSIZE > BUFSIZE {
 		c.removeThePacketFromBuffer(n)
 
@@ -376,6 +270,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	}
 	needResetOffset := false
 
+	// Out of order or lost packets processing
 	if seq != c.seqIn {
 		logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
 			"expected", c.seqIn, "address", c.address, "oooPackets", c.oooPackets)
@@ -393,7 +288,7 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		c.seqIn = 0
 	}
 
-	if flags != NoneCmd {
+	if flags != NoneCmd && flags != NoEncryptionCmd {
 		logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", flags)
 		return c.processCommand(flags, data, n)
 	}
@@ -412,25 +307,28 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 		c.bufSize = 0
 		return nil, errors.New("invalid buffer size")
 	}
+	// Finished working with buf, unlock
 	c.bufLock.Unlock()
 
-	/*data, err = c.secrets.CryptDecrypt(msg[0 : n+HEADER])
-	if err != nil {
-		c.bufLock.Unlock()
-		return nil, err
+	// Check signature for the packet
+	if !c.secrets.Verify(msg[:HEADER+n], msg[HEADER+n:HEADER+n+crypt.SIGNLEN]) {
+		logger.Error("client Readbuf: invalid signature. The packet is dropped", "address", c.address.String())
+
+		return nil, errors.New("invalid signature")
 	}
-	copy(msg, data)*/
 
-	return msg[HEADER : n+HEADER], nil
-}
+	// decrypt the packet
+	/*
+		if flags != NoEncryptionCmd {
+			data, err := c.secrets.CryptDecrypt(msg[:HEADER+n])
+			if err != nil {
+				logger.Error("client Readbuf: decrypt error", "address", c.address.String(), "error", err)
+				return nil, err
+			}
+			copy(msg, data)
+		}*/
 
-func (c *Client) AskForResend(seq int) error {
-	logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
-
-	buf := make([]byte, 2)
-	buf[0] = byte(seq >> 8)
-	buf[1] = byte(seq & 0xff)
-	return c.Write(&buf, AskForResendCmd)
+	return msg[HEADER : HEADER+n], nil
 }
 
 func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
@@ -464,15 +362,19 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	buf[8] = byte(crc & 0xff)
 	// Copy message
 	logger.Debug("client Write", "address", c.address, "seq", seq)
+	// Encrypt the message
 	copy(buf[HEADER:n+HEADER], *msg)
-	/*data, err := c.secrets.CryptDecrypt(buf[:n+HEADER])
-	if err != nil {
-		return err
-	}
-	copy(buf[:n+HEADER], data)*/
+	/*
+		if cmd != NoEncryptionCmd {
+			data, err := c.secrets.CryptDecrypt(buf[HEADER : HEADER+n])
+			if err != nil {
+				return err
+			}
+			copy(buf[HEADER:HEADER+n], data)
+		}*/
 
-	signature := c.secrets.Sign(buf[:n+HEADER])
-	copy(buf[n+HEADER:], signature)
+	signature := c.secrets.Sign(buf[:HEADER+n])
+	copy(buf[HEADER+n:], signature)
 	err := c.t.Send(c.address, &buf)
 	if err != nil {
 		logger.Debug("client Write send error", "error", err, "address", c.address, "seq", seq)
@@ -481,27 +383,6 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	logger.Debug("client Write sent", "len", len(buf), "address", c.address.String(), "seq", seq)
 	c.sentBuffer.Push(buf)
 	return nil
-}
-
-func (c *Client) WriteWithXORAndPadding(msg []byte, needXOR bool) error {
-	paddingSize := rand.Intn(64)
-	buf := make([]byte, len(msg)+paddingSize)
-	copy(buf, msg)
-	padding := make([]byte, paddingSize)
-	for i := 0; i < paddingSize; i++ {
-		padding[i] = byte(rand.Intn(256))
-	}
-	// 0 byte to separate message and padding
-	copy(buf[len(msg):], padding)
-	if needXOR {
-		c.XOR(&buf)
-	}
-	logger.Debug("client WriteWithPadding", "len", len(buf), "data", len(msg), "paddingSize", paddingSize, "address", c.address)
-	return c.Write(&buf, NoneCmd)
-}
-
-func (c *Client) XOR(data *[]byte) {
-	c.secrets.XOR(data)
 }
 
 func (c *Client) Close() error {
