@@ -29,8 +29,8 @@ func (c *Client) ECDH() error {
 		return errors.New("marshaling ecdh public key: " + err.Error())
 	}
 
-	logger.Debug("ECDH: Write public key", "len", len(buf), "buf", buf)
-	err = c.Write(&buf, NoneCmd)
+	logger.Debug("ECDH: Write public key", "len", len(buf), "buf", hex.EncodeToString(buf))
+	err = c.Write(&buf, NoEncryptionCmd)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func (c *Client) ECDH() error {
 	if err != nil {
 		return err
 	}
-	logger.Debug("ECDH: Read public key", "len", len(buf), "buf", buf)
+	logger.Debug("ECDH: Read public key", "len", len(buf), "buf", hex.EncodeToString(buf))
 
 	publicKey, err := x509.ParsePKIXPublicKey(buf)
 	if err != nil {
