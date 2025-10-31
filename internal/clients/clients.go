@@ -318,15 +318,15 @@ func (c *Client) ReadBuf() (transport.Message, error) {
 	}
 
 	// decrypt the packet
-	/*
-		if flags != NoEncryptionCmd {
-			data, err := c.secrets.CryptDecrypt(msg[:HEADER+n])
-			if err != nil {
-				logger.Error("client Readbuf: decrypt error", "address", c.address.String(), "error", err)
-				return nil, err
-			}
-			copy(msg, data)
-		}*/
+	if flags != NoEncryptionCmd {
+		logger.Debug("client ReadBuf decrypting", "address", c.address.String())
+		data, err := c.secrets.CryptDecrypt(msg[HEADER : HEADER+n])
+		if err != nil {
+			logger.Error("client Readbuf: decrypt error", "address", c.address.String(), "error", err)
+			return nil, err
+		}
+		copy(msg[HEADER:], data)
+	}
 
 	return msg[HEADER : HEADER+n], nil
 }
@@ -364,14 +364,15 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	logger.Debug("client Write", "address", c.address, "seq", seq)
 	// Encrypt the message
 	copy(buf[HEADER:n+HEADER], *msg)
-	/*
-		if cmd != NoEncryptionCmd {
-			data, err := c.secrets.CryptDecrypt(buf[HEADER : HEADER+n])
-			if err != nil {
-				return err
-			}
-			copy(buf[HEADER:HEADER+n], data)
-		}*/
+
+	if cmd != NoEncryptionCmd {
+		logger.Debug("client Write encrypting", "address", c.address, "seq", seq)
+		data, err := c.secrets.CryptDecrypt(buf[HEADER : HEADER+n])
+		if err != nil {
+			return err
+		}
+		copy(buf[HEADER:HEADER+n], data)
+	}
 
 	signature := c.secrets.Sign(buf[:HEADER+n])
 	copy(buf[HEADER+n:], signature)

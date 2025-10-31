@@ -55,12 +55,12 @@ func (s *Secrets) GetSharedSecret() []byte {
 }
 
 func (s *Secrets) Verify(msg []byte, sig []byte) bool {
-	//configs.GetLogger().Debug("Verify", "msg len", len(msg), "sig len", len(sig))
+	//configs.GetLogger().Debug("Verify", "msg len", len(msg), "siglen", len(sig))
 	return ed25519.Verify(s.SessionPublicKey, msg, sig)
 }
 
 func (s *Secrets) Sign(msg []byte) []byte {
-	//configs.GetLogger().Debug("Sign", "msg len", len(msg))
+	//configs.GetLogger().Debug("Sign", "msglen", len(msg))
 	return ed25519.Sign(s.SessionPrivateKey, msg)
 }
 
@@ -72,7 +72,7 @@ func (s *Secrets) XOR(data *[]byte) {
 
 func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
 	buf := slices.Clone(data)
-	//configs.GetLogger().Debug("CryptDecrypt", "data len", len(data))
+	//configs.GetLogger().Debug("CryptDecrypt", "datalen", len(data), "sharedsecret", hex.EncodeToString(s.SharedSecret))
 	bReader := bytes.NewReader(data)
 	block, err := aes.NewCipher(s.SharedSecret)
 	if err != nil {
@@ -86,6 +86,7 @@ func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
 	if _, err := io.Copy(buf1, reader); err != nil {
 		return nil, err
 	}
+	//configs.GetLogger().Debug("CryptDecrypt", "encryptedlen", len(data))
 	copy(buf, []byte(buf1.String()))
 	return buf, nil
 }
