@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"encoding/hex"
 	"errors"
 	"net"
 	"net/netip"
@@ -145,7 +146,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 		return
 	}
 	copy(s.XORKey, buf[:crypt.XORKEYLEN])
-	logger.Debug("ProcessNewClient: Received XOR key", "XORKey", s.XORKey)
+	logger.Debug("ProcessNewClient: Received XOR key", "XORKey", hex.EncodeToString(s.XORKey))
 	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
 		logger.Debug("Failed to write OK message", "error", err)
 		clients.RemoveClient(addr)
@@ -200,7 +201,7 @@ func ProcessServer(t transport.Transport, address string, port string) {
 	c.RunNetLoop(addr)
 
 	// Send XOR key to server
-	logger.Debug("ProcessServer: Send XOR key", "XORKey", s.XORKey)
+	logger.Debug("ProcessServer: Send XOR key", "XORKey", hex.EncodeToString(s.XORKey))
 	err := c.WriteWithXORAndPadding(s.XORKey, false)
 	if err != nil {
 		logger.Debug("Failed to write XOR key", "error", err)
