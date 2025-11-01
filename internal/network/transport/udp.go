@@ -10,7 +10,7 @@ import (
 
 type UdpTransport struct {
 	TransportData
-	mainConn      net.PacketConn
+	mainConn      *net.UDPConn
 	clientAddr    map[netip.AddrPort]netip.AddrPort
 	packetBuf     map[netip.AddrPort][][]byte
 	packetBufLock *sync.Mutex
@@ -60,7 +60,7 @@ func (udp *UdpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 		if err != nil {
 			return err
 		}
-		udp.mainConn = conn
+		udp.mainConn = conn.(*net.UDPConn)
 	}
 	go udp.runReadLoop(callback)
 
@@ -71,40 +71,36 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 	for {
 		newConnection := false
 		buf := make([]byte, NETBUFSIZE)
-		l, addr, err := udp.mainConn.ReadFrom(buf)
+		l, addrPort, err := udp.mainConn.ReadFromUDPAddrPort(buf)
 		if err != nil {
 			logger.Error("UDP ReadFrom", "error", err)
 			break
 		}
 
-		var netipAddr netip.Addr
-		if addr.(*net.UDPAddr).IP.To4() != nil {
-			netipAddr = netip.AddrFrom4([4]byte(addr.(*net.UDPAddr).IP.To4()))
-		} else {
-			netipAddr = netip.AddrFrom16([16]byte(addr.(*net.UDPAddr).IP.To16()))
-		}
-		netipAddrPort := netip.AddrPortFrom(netipAddr, uint16(addr.(*net.UDPAddr).Port))
-		logger.Debug("UDP read from connection", "len", l, "from", netipAddrPort.String())
+		// We must use unmaped address for consistency
+		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
+
+		logger.Debug("UDP read from connection", "len", l, "from", addrPort.String())
 
 		udp.packetBufLock.Lock()
-		if _, ok := udp.clientAddr[netipAddrPort]; !ok {
+		if _, ok := udp.clientAddr[addrPort]; !ok {
 			newConnection = true
-			udp.clientAddr[netipAddrPort] = netipAddrPort
+			udp.clientAddr[addrPort] = addrPort
 		} else {
 			newConnection = false
 		}
-		udp.packetBuf[netipAddrPort] = append(udp.packetBuf[netipAddrPort], buf[:l])
+		udp.packetBuf[addrPort] = append(udp.packetBuf[addrPort], buf[:l])
 		udp.packetBufLock.Unlock()
 		// Ready to process
 		udp.packetBufCond.Broadcast()
-		logger.Debug("UDP put into buffer", "len", l, "from", netipAddrPort.String(), "len(packetBuf)", len(udp.packetBuf[netipAddrPort]))
+		logger.Debug("UDP put into buffer", "len", l, "from", addrPort.String(), "len(packetBuf)", len(udp.packetBuf[addrPort]))
 
 		if newConnection {
 			if callback == nil {
 				logger.Error("UDP Listen: No callback for client connection")
 				continue
 			}
-			go callback(udp, netipAddrPort)
+			go callback(udp, addrPort)
 		}
 	}
 	return nil
@@ -114,11 +110,7 @@ func (udp *UdpTransport) Send(addrPort netip.AddrPort, msg *Message) error {
 	n := len(*msg)
 
 	logger.Debug("UDP Send data", "len", n, "to", addrPort.String())
-	udpAddr := &net.UDPAddr{
-		IP:   addrPort.Addr().AsSlice(), // Преобразуем в net.IP
-		Port: int(addrPort.Port()),      // uint16 -> int
-	}
-	l, err := udp.mainConn.WriteTo(*msg, udpAddr)
+	l, err := udp.mainConn.WriteToUDPAddrPort(*msg, addrPort)
 	if err != nil {
 		return err
 	}
