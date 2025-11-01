@@ -11,8 +11,8 @@ import (
 type UdpTransport struct {
 	TransportData
 	mainConn      *net.UDPConn
-	clientAddr    map[netip.AddrPort]netip.AddrPort
-	packetBuf     map[netip.AddrPort][][]byte
+	clientAddr    map[netip.AddrPort]netip.AddrPort // This field is used to track active clients
+	packetBuf     map[netip.AddrPort][][]byte       // A client buffer removed when empty. Track connections with clientAddr
 	packetBufLock *sync.Mutex
 	packetBufCond *sync.Cond
 }
