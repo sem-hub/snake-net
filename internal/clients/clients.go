@@ -176,31 +176,6 @@ func (c *Client) RunNetLoop(address netip.AddrPort) {
 	}()
 }
 
-// Executed under lock
-func (c *Client) lookInBufferForSeq(seq int) bool {
-	offset := 0
-	for offset < c.bufSize {
-		if c.bufSize-offset < ADDSIZE {
-			return false
-		}
-		crc := uint32(int(c.buf[offset+5])<<24 | int(c.buf[offset+6])<<16 | int(c.buf[offset+7])<<8 | int(c.buf[offset+8]))
-		if crc != crc32.ChecksumIEEE(c.buf[offset:offset+5]) {
-			logger.Debug("lookInBufferForSeq CRC32", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(c.buf[offset:offset+5]))
-			return false
-		}
-		// Get data size and sequence number
-		n := int(c.buf[offset])<<8 | int(c.buf[offset+1])
-		packetSeq := int(c.buf[offset+2])<<8 | int(c.buf[offset+3])
-		logger.Debug("lookInBufferForSeq packet in buffer", "seq", packetSeq, "size", n, "address", c.address.String())
-		if packetSeq == seq {
-			c.bufOffset = offset
-			return true
-		}
-		offset += n + ADDSIZE
-	}
-	return false
-}
-
 // Under lock
 func (c *Client) removeThePacketFromBuffer(n int) {
 	copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n+ADDSIZE:c.bufSize])
