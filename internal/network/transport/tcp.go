@@ -59,7 +59,7 @@ func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 }
 
 func (tcp *TcpTransport) listen(addr string, port string, callback func(Transport, netip.AddrPort)) error {
-	logger.Debug("Listen for connection")
+	logger.Debug("Listen for connection", "on", addr+":"+port)
 	listen, err := net.Listen("tcp", addr+":"+port)
 	if err != nil {
 		return err
@@ -74,10 +74,12 @@ func (tcp *TcpTransport) listen(addr string, port string, callback func(Transpor
 		tcpconn := conn.(*net.TCPConn)
 		tcpconn.SetNoDelay(true)
 		tcpconn.SetLinger(0)
-		netipAddrPort := tcpconn.RemoteAddr().(*net.TCPAddr).AddrPort()
-		logger.Debug("New TCP connection from", "addr", netipAddrPort.String())
-		tcp.conn.Store(netipAddrPort, tcpconn)
-		go callback(tcp, netipAddrPort)
+		addrPort := tcpconn.RemoteAddr().(*net.TCPAddr).AddrPort()
+		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
+
+		logger.Debug("New TCP connection from", "addr", addrPort.String())
+		tcp.conn.Store(addrPort, tcpconn)
+		go callback(tcp, addrPort)
 	}
 	err = listen.Close()
 	if err != nil {

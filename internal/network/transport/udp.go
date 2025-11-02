@@ -49,7 +49,7 @@ func (udp *UdpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 		if err != nil {
 			return err
 		}
-
+		logger.Debug("Listen for connection", "on", lAddr+":"+lPort)
 		conn, err := net.ListenUDP("udp", udpLocal)
 		if err != nil {
 			return err

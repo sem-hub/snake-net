@@ -17,12 +17,13 @@ import (
 	"github.com/sem-hub/snake-net/internal/protocol"
 )
 
+type cidrs []string
+
 var (
-	cfg        *configs.Config
+	cfg        *configs.ConfigFile
 	configFile string
 	isServer   bool
-	tunAddr    string
-	tunAddr6   string
+	tunAddr    cidrs
 	debug      bool
 )
 
@@ -30,16 +31,29 @@ var flagAlias = map[string]string{
 	"server": "s",
 	"config": "c",
 	"tun":    "t",
-	"tun6":   "t6",
 	"debug":  "d",
 }
 
+func (i *cidrs) String() string {
+	return fmt.Sprint(*i)
+}
+
+func (i *cidrs) Set(value string) error {
+	for _, addrStr := range strings.Split(value, ",") {
+		_, _, err := net.ParseCIDR(addrStr)
+		if err != nil {
+			return err
+		}
+		*i = append(*i, addrStr)
+	}
+	return nil
+}
+
 func init() {
-	cfg = configs.GetConfig()
+	cfg = configs.GetConfigFile()
 	flag.StringVar(&configFile, "config", "", "Path to config file.")
 	flag.BoolVar(&isServer, "server", false, "Run as server.")
-	flag.StringVar(&tunAddr, "tun", "", "Address (CIDR) for Tun interface.")
-	flag.StringVar(&tunAddr6, "tun6", "", "Address (CIDR) for Tun interface (IPv6).")
+	flag.Var(&tunAddr, "tun", "Comma separated IPv4 and IPv6 Addresses (CIDR) for Tun interface.")
 	flag.BoolVar(&debug, "debug", false, "Enable debug mode.")
 
 	for from, to := range flagAlias {
@@ -47,6 +61,7 @@ func init() {
 		flag.Var(flagSet.Value, to, fmt.Sprintf("alias to %s", flagSet.Name))
 	}
 }
+
 func main() {
 	flag.Parse()
 	if flag.NArg() == 0 && configFile == "" {
@@ -71,9 +86,14 @@ func main() {
 
 	var addr string
 	if configFile == "" {
+		if isServer {
+			cfg.Mode = "server"
+		} else {
+			cfg.Mode = "client"
+		}
 		addr = strings.ToLower(flag.Arg(0))
 	} else {
-		isServer = (cfg.Mode == "server")
+		isServer = (strings.ToLower(cfg.Mode) == "server")
 		if isServer {
 			addr = strings.ToLower(cfg.Protocol + "://" + cfg.LocalAddr + ":" + cfg.LocalPort)
 		} else {
@@ -101,55 +121,37 @@ func main() {
 		if isServer {
 			host = "0.0.0.0"
 		} else {
-			log.Fatal("Remote Address is mandatory for client")
+			log.Fatal("Server Address is mandatory for client")
 		}
 	}
 	logger.Debug("URI", "Protocol", cfg.Protocol, "Peer", host, "port", port)
 
-	if configFile == "" {
-		cfg.TunAddr = tunAddr
-		cfg.TunAddr6 = tunAddr6
-	}
-
-	if cfg.TunAddr == "" || cfg.TunAddr6 == "" {
-		log.Fatal("Tun and Tun6 Addresses are mandatory")
-	}
-
-	if strings.HasPrefix((host), "[") && strings.HasSuffix(host, "]") {
-		host = host[1 : len(host)-1]
-	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		ips, err := net.LookupIP(host)
-		if err != nil {
-			log.Fatalf("Error resolving host: %s", err)
-			os.Exit(1)
-		}
-
-		ip = ips[0]
-	}
-	logger.Debug("", "ip", ip)
-
-	if !isServer {
-		cfg.Mode = "client"
-		if len(ip) == 16 {
-			cfg.RemoteAddr = "[" + ip.String() + "]"
-		} else {
-			cfg.RemoteAddr = ip.String()
-		}
-		cfg.RemotePort = port
+	if isServer {
+		cfg.LocalPort = port
 
 	} else {
-		cfg.Mode = "server"
-		if len(ip) == 16 {
-			cfg.LocalAddr = "[" + ip.String() + "]"
-		} else {
-			cfg.LocalAddr = ip.String()
-		}
-		cfg.LocalPort = port
+		cfg.RemotePort = port
 	}
 
-	err := network.SetUpTUN(cfg)
+	if configFile != "" {
+		for _, cidrStr := range strings.Split(cfg.TunAddrStr, ",") {
+			_, _, err := net.ParseCIDR(cidrStr)
+			if err != nil {
+				log.Fatalln("Parse error", "CIDR", cidrStr)
+			}
+			tunAddr = append(tunAddr, cidrStr)
+		}
+	} else {
+		cfg.TunAddrStr = strings.Join(tunAddr, ",")
+	}
+
+	if len(tunAddr) == 0 {
+		log.Fatal("At least one TUN address (CIDR) is mandatory")
+	}
+
+	logger.Debug("TUN Addresses", "addrs", tunAddr)
+
+	tunif, err := network.NewTUN("snake", tunAddr, 0)
 	if err != nil {
 		log.Fatalf("Error creating tun interface: %s", err)
 	}
@@ -165,25 +167,8 @@ func main() {
 	default:
 		log.Fatalf("Unknown Protocol: %s", cfg.Protocol)
 	}
-	if isServer {
-		err = t.Init("server", cfg.RemoteAddr, cfg.RemotePort, cfg.LocalAddr, cfg.LocalPort, protocol.ProcessNewClient)
-		if err != nil {
-			log.Fatalf("Transport init error %s", err)
-		}
 
-		forever := make(chan bool)
-		logger.Info("Start server", "addr", cfg.LocalAddr, "port", cfg.LocalPort)
-		<-forever
-	} else {
-		// No callback for client mode
-		err = t.Init("client", cfg.RemoteAddr, cfg.RemotePort, cfg.LocalAddr, cfg.LocalPort, nil)
-		if err != nil {
-			log.Fatalf("Transport init error %s", err)
-		}
-
-		logger.Info("Connect to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
-
-		protocol.ProcessServer(t, cfg.RemoteAddr, cfg.RemotePort)
-	}
+	// Exit only on disconnect or fatal error
+	protocol.ResolveAndProcess(t, tunif, host)
 	t.Close()
 }

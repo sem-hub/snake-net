@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"net"
 	"net/netip"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -51,37 +50,28 @@ func Route(data []byte) bool {
 	// XXX read route table
 	found := false
 	for _, c := range clientsCopy {
-		logger.Debug("Route", "address", address, "tun", c.tunAddr, "tun6", c.tunAddr6, "clientState", c.GetClientState())
-		if c.tunAddr != nil && c.tunAddr.String() == address.String() {
-			if c.GetClientState() == Ready {
-				sendDataToClient(c.address, data)
+		for _, tunAddr := range c.tunAddrs {
+			logger.Debug("Route", "address", address, "cidrIP", tunAddr.IP, "cidrNetwork", tunAddr.Network, "clientState", c.GetClientState())
+			if tunAddr.IP == address {
+				if c.GetClientState() == Ready {
+					sendDataToClient(c.address, data)
+				}
+				found = true
+				break
 			}
-			found = true
-			break
-		}
-		if c.tunAddr6 != nil && c.tunAddr6.String() == address.String() {
-			if c.GetClientState() == Ready {
-				sendDataToClient(c.address, data)
-			}
-			found = true
-			break
 		}
 	}
-	myIP, _, err := net.ParseCIDR(configs.GetConfig().TunAddr)
-	if err != nil {
-		logger.Error("Route", "error", err)
-		return true
-	}
-	myIP6, _, err := net.ParseCIDR(configs.GetConfig().TunAddr6)
-	if err != nil {
-		logger.Error("Route", "error", err)
-		return true
-	}
-	if !found && !myIP.Equal(address.AsSlice()) && myIP6.Equal(address.AsSlice()) {
-		logger.Debug("Route: no matching client found. Send to all clients")
-		for _, c := range clientsCopy {
-			if c.GetClientState() == Ready {
-				sendDataToClient(c.address, data)
+	// Check if address is in server's own CIDRs
+	if !found {
+		myIPs := configs.GetConfig().TunAddrs
+		for _, cidr := range myIPs {
+			if cidr.IP != address {
+				logger.Debug("Route: no matching client found. Send to all clients")
+				for _, c := range clientsCopy {
+					if c.GetClientState() == Ready {
+						sendDataToClient(c.address, data)
+					}
+				}
 			}
 		}
 	}

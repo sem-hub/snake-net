@@ -2,26 +2,65 @@ package network
 
 import (
 	"log"
+	"log/slog"
+	"net"
+	"net/netip"
+	"os"
 	"sync"
 
 	"github.com/sem-hub/snake-net/internal/clients"
-	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/utils"
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const MTU = 1420
+const defaultMTU = 1420
 
-var tunDev tun.Device
+type TunInterface struct {
+	tunDev tun.Device
+	cidrs  []utils.Cidr
+	mtu    int
+	logger *slog.Logger
+}
 
-func SetUpTUN(c *configs.Config) error {
+var tunIf *TunInterface
+
+func NewTUN(name string, cidrs []string, mtu int) (*TunInterface, error) {
+	logger := slog.New(
+		slog.NewTextHandler(
+			os.Stderr,
+			&slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			},
+		),
+	)
+	slog.SetDefault(logger)
+
+	iface := TunInterface{}
+	iface.logger = logger
 	var err error
-	tunDev, err = tun.CreateTUN("snake", MTU)
+	if mtu == 0 {
+		mtu = defaultMTU
+	}
+	iface.mtu = mtu
+
+	for _, cidrStr := range cidrs {
+		ip, net, err := net.ParseCIDR(cidrStr)
+		if err != nil {
+			return nil, err
+		}
+		netipAddr, _ := netip.AddrFromSlice(ip)
+		netipAddr = netipAddr.Unmap()
+		logger.Info("Add CIDR to TUN", "cidr", cidrStr, "ip", netipAddr.String())
+		iface.cidrs = append(iface.cidrs, utils.Cidr{IP: netipAddr, Network: net})
+	}
+
+	iface.tunDev, err = tun.CreateTUN(name, mtu)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	tunName, err := tunDev.Name()
+	tunName, err := iface.tunDev.Name()
 	if err != nil {
 		panic("Get tun name")
 	}
@@ -29,41 +68,42 @@ func SetUpTUN(c *configs.Config) error {
 
 	link, err := netlink.LinkByName(tunName)
 	if err != nil {
-		return err
-	}
-	addr, err := netlink.ParseAddr(c.TunAddr)
-	if err != nil {
-		return err
-	}
-	configs.GetLogger().Info("SetUpTUN", "addr", addr)
-	err = netlink.AddrAdd(link, addr)
-	if err != nil {
-		return err
-	}
-	addr6, err := netlink.ParseAddr(c.TunAddr6)
-	if err != nil {
-		return err
-	}
-	configs.GetLogger().Info("SetUpTUN", "addr6", addr6)
-	err = netlink.AddrAdd(link, addr6)
-	if err != nil {
-		return err
+		return nil, err
 	}
 
-	err = netlink.LinkSetMTU(link, MTU)
-	if err != nil {
-		return err
+	for _, cidr := range iface.cidrs {
+		nladdr, err := netlink.ParseAddr(cidr.String())
+		if err != nil {
+			return nil, err
+		}
+		mask, _ := cidr.Network.Mask.Size()
+		logger.Info("Set address for TUN", "addr", cidr.IP.String(), "mask", mask)
+		err = netlink.AddrAdd(link, nladdr)
+		if err != nil {
+			return nil, err
+		}
 	}
+	/*err = netlink.LinkSetMTU(link, mtu)
+	if err != nil {
+		return nil, err
+	}*/
 	err = netlink.LinkSetUp(link)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	tunIf = &iface
+	return &iface, nil
 }
 
 func ProcessTun(mode string, c *clients.Client) {
-	logger := configs.GetLogger()
+	if tunIf == nil {
+		log.Fatal("TUN interface not initialized")
+	}
+	tunIf.Process(mode, c)
+}
+
+func (iface *TunInterface) Process(mode string, c *clients.Client) {
 	wg := sync.WaitGroup{}
 	// local tun interface read and write channel.
 	rCh := make(chan []byte, 64)
@@ -75,11 +115,11 @@ func ProcessTun(mode string, c *clients.Client) {
 			if c != nil {
 				buf, err := c.ReadBuf()
 				if err != nil {
-					logger.Error("Error reading from net buffer", "error", err)
+					iface.logger.Error("Error reading from net buffer", "error", err)
 					// Ignore bad packet
 					continue
 				}
-				logger.Debug("TUN: Read from net", "len", len(buf))
+				iface.logger.Debug("TUN: Read from net", "len", len(buf), "mode", mode)
 
 				// send to all clients except the sender
 				if mode == "server" {
@@ -101,25 +141,25 @@ func ProcessTun(mode string, c *clients.Client) {
 		defer wg.Done()
 		for {
 			data := <-rCh
-			logger.Debug("TUN: Write to net", "len", len(data))
+			iface.logger.Debug("TUN: Write to net", "len", len(data), "mode", mode)
 			if mode == "server" {
 				clients.Route(data)
 			} else {
 				// Do not send data if client not authenticated
 				c := clients.FindClient(c.GetClientAddr())
 				if c.GetClientState() != clients.Ready {
-					logger.Debug("Client not ready, drop packet", "addr", c.GetClientAddr())
+					iface.logger.Debug("Client not ready, drop packet", "addr", c.GetClientAddr())
 					continue
 				}
 				if err := c.Write(&data, clients.NoneCmd); err != nil {
-					logger.Error("Write to net", "error", err)
+					iface.logger.Error("Write to net", "error", err)
 					break
 				}
 			}
 		}
 		err := c.Close()
 		if err != nil {
-			logger.Error("Close client", "error", err)
+			iface.logger.Error("Close client", "error", err)
 		}
 	}()
 
@@ -135,13 +175,13 @@ func ProcessTun(mode string, c *clients.Client) {
 			var count int
 			var err error
 
-			bufs[0] = make([]byte, MTU)
-			sizes[0] = MTU
-			if count, err = tunDev.Read(bufs, sizes, 0); err != nil {
+			bufs[0] = make([]byte, iface.mtu)
+			sizes[0] = iface.mtu
+			if count, err = iface.tunDev.Read(bufs, sizes, 0); err != nil {
 				panic(err)
 			}
 			buf := bufs[0][:sizes[0]]
-			logger.Debug("TUN: Read from tun", "count", count, "sizes", sizes[0])
+			iface.logger.Debug("TUN: Read from tun", "count", count, "sizes", sizes[0])
 			rCh <- buf
 		}
 	}()
@@ -157,8 +197,8 @@ func ProcessTun(mode string, c *clients.Client) {
 			// XXX It'll be work but not beautiful
 			bufs[0] = make([]byte, len(buf)+16)
 			copy(bufs[0][16:], buf[:])
-			logger.Debug("TUN: Write into tun", "len", len(buf))
-			if _, err := tunDev.Write(bufs, 16); err != nil {
+			iface.logger.Debug("TUN: Write into tun", "len", len(buf))
+			if _, err := iface.tunDev.Write(bufs, 16); err != nil {
 				panic(err)
 			}
 		}

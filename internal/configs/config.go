@@ -2,10 +2,15 @@ package configs
 
 import (
 	"log/slog"
+	"net"
+	"net/netip"
 	"os"
+	"strings"
+
+	"github.com/sem-hub/snake-net/internal/utils"
 )
 
-type Config struct {
+type ConfigFile struct {
 	Mode       string `toml:"mode"`
 	Debug      bool   `toml:"debug"`
 	Protocol   string `toml:"protocol"`
@@ -13,18 +18,59 @@ type Config struct {
 	RemotePort string `toml:"remote_port"`
 	LocalAddr  string `toml:"local_addr"`
 	LocalPort  string `toml:"local_port"`
-	TunAddr    string `toml:"tun_addr"`
-	TunAddr6   string `toml:"tun_addr6"`
+	TunAddrStr string `toml:"tun_addr"`
+}
+
+type RuntimeConfig struct {
+	Mode       string
+	Debug      bool
+	Protocol   string
+	RemoteAddr string
+	RemotePort string
+	LocalAddr  string
+	LocalPort  string
+	TunAddrs   []utils.Cidr
+	LogLevel   slog.Level
 }
 
 var (
-	logger *slog.Logger
-	config *Config = nil
+	logger     *slog.Logger
+	config     *RuntimeConfig = nil
+	configFile *ConfigFile    = nil
 )
 
-func GetConfig() *Config {
+func GetConfigFile() *ConfigFile {
+	if configFile == nil {
+		configFile = &ConfigFile{}
+	}
+	return configFile
+}
+
+func GetConfig() *RuntimeConfig {
 	if config == nil {
-		config = &Config{}
+		config = &RuntimeConfig{
+			Mode:       configFile.Mode,
+			Debug:      configFile.Debug,
+			Protocol:   configFile.Protocol,
+			RemoteAddr: configFile.RemoteAddr,
+			RemotePort: configFile.RemotePort,
+			LocalAddr:  configFile.LocalAddr,
+			LocalPort:  configFile.LocalPort,
+			TunAddrs:   []utils.Cidr{},
+			LogLevel:   slog.LevelInfo,
+		}
+		if configFile.TunAddrStr != "" {
+			for _, addr := range strings.Split(configFile.TunAddrStr, ",") {
+				logger.Debug("Adding TUN address from config file", "addr", addr)
+				ip, network, _ := net.ParseCIDR(addr)
+				netIP, _ := netip.AddrFromSlice(ip)
+				config.TunAddrs = append(config.TunAddrs,
+					utils.Cidr{
+						IP:      netIP.Unmap(),
+						Network: network,
+					})
+			}
+		}
 	}
 	return config
 }

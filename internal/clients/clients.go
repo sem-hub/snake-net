@@ -3,7 +3,6 @@ package clients
 import (
 	"hash/crc32"
 	"log/slog"
-	"net"
 	"net/netip"
 	"sync"
 
@@ -34,8 +33,7 @@ const (
 
 type Client struct {
 	address       netip.AddrPort
-	tunAddr       net.Addr
-	tunAddr6      net.Addr
+	tunAddrs      []utils.Cidr
 	t             transport.Transport
 	state         State
 	secrets       *crypt.Secrets
@@ -62,13 +60,16 @@ func (c *Client) GetClientAddr() netip.AddrPort {
 	return c.address
 }
 
+func (c *Client) GetTunAddrs() []utils.Cidr {
+	return c.tunAddrs
+}
+
 func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 	logger = configs.GetLogger()
 	logger.Debug("AddClient", "address", address)
 	client := Client{
 		address:       address,
-		tunAddr:       nil,
-		tunAddr6:      nil,
+		tunAddrs:      nil,
 		t:             t,
 		state:         Connected,
 		secrets:       nil,
@@ -95,10 +96,8 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 	return &client
 }
 
-func (c *Client) AddTunAddressToClient(tunAddr net.Addr, tunAddr6 net.Addr) {
-	logger.Debug("AddTunAddressToClient", "addr", tunAddr, "addr6", tunAddr6)
-	c.tunAddr = tunAddr
-	c.tunAddr6 = tunAddr6
+func (c *Client) AddTunAddressesToClient(cidrs []utils.Cidr) {
+	c.tunAddrs = append(c.tunAddrs, cidrs...)
 }
 
 func (c *Client) AddSecretsToClient(s *crypt.Secrets) {

@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/netip"
+	"strconv"
 	"strings"
 
 	"github.com/sem-hub/snake-net/internal/clients"
@@ -15,7 +16,15 @@ import (
 
 func Identification(c *clients.Client) error {
 	logger := configs.GetLogger()
-	msg := []byte("Hello " + configs.GetConfig().TunAddr + " " + configs.GetConfig().TunAddr6 + "\x00")
+	msg := []byte("Hello")
+	for _, addr := range configs.GetConfig().TunAddrs {
+		logger.Debug("Adding TUN address to identification", "addr", addr)
+		msg = append(msg, ' ')
+		prefLen, _ := addr.Network.Mask.Size()
+		msg = append(msg, []byte(addr.IP.Unmap().String()+"/"+strconv.Itoa(prefLen))...)
+	}
+	msg = append(msg, '\x00')
+
 	logger.Debug("Identification", "msg", string(msg))
 	err := c.WriteWithXORAndPadding(msg, true)
 	if err != nil {
@@ -38,7 +47,7 @@ func Identification(c *clients.Client) error {
 	return nil
 }
 
-func ProcessServer(t transport.Transport, address string, port string) {
+func ProcessServer(t transport.Transport, address string, port string, tunIf *network.TunInterface) {
 	logger := configs.GetLogger()
 	addr := netip.MustParseAddrPort(address + ":" + port)
 	// Well, really it's server but we call it client here
@@ -95,6 +104,5 @@ func ProcessServer(t transport.Transport, address string, port string) {
 
 	c.SetClientState(clients.Ready)
 
-	//fmt.Println("Session public key: ", c.GetPublicKey())
-	network.ProcessTun("client", c)
+	tunIf.Process("client", c)
 }
