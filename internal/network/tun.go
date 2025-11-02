@@ -17,10 +17,11 @@ import (
 const defaultMTU = 1420
 
 type TunInterface struct {
-	tunDev tun.Device
-	cidrs  []utils.Cidr
-	mtu    int
-	logger *slog.Logger
+	tunDev    tun.Device
+	cidrs     []utils.Cidr
+	mtu       int
+	logger    *slog.Logger
+	readBuffs [][]byte
 }
 
 var tunIf *TunInterface
@@ -168,17 +169,30 @@ func (iface *TunInterface) Process(mode string, c *clients.Client) {
 	go func() {
 		defer wg.Done()
 		for {
-			batchSize := 1 // 128
+			if len(iface.readBuffs) > 0 {
+				buf := iface.readBuffs[0]
+				iface.readBuffs = iface.readBuffs[1:]
+				iface.logger.Debug("TUN: Read from tun (from buffer)", "len", len(buf))
+				rCh <- buf
+				continue
+			}
+			batchSize := 32
 			bufs := make([][]byte, batchSize)
 			sizes := make([]int, batchSize)
+			for i := 0; i < batchSize; i++ {
+				bufs[i] = make([]byte, iface.mtu+100)
+				sizes[i] = iface.mtu
+			}
 
 			var count int
 			var err error
 
-			bufs[0] = make([]byte, iface.mtu)
-			sizes[0] = iface.mtu
 			if count, err = iface.tunDev.Read(bufs, sizes, 0); err != nil {
 				panic(err)
+			}
+			if count != 1 {
+				iface.logger.Debug("TUN: Read multiple buffers", "count", count)
+				iface.readBuffs = append(iface.readBuffs, bufs[1:count]...)
 			}
 			buf := bufs[0][:sizes[0]]
 			iface.logger.Debug("TUN: Read from tun", "count", count, "sizes", sizes[0])
@@ -196,7 +210,7 @@ func (iface *TunInterface) Process(mode string, c *clients.Client) {
 			// 16 for additional header will work always. But really for Windows it must be 0, for BSD must be 4, for Linux is 14.
 			// XXX It'll be work but not beautiful
 			bufs[0] = make([]byte, len(buf)+16)
-			copy(bufs[0][16:], buf[:])
+			copy(bufs[0][16:], buf)
 			iface.logger.Debug("TUN: Write into tun", "len", len(buf))
 			if _, err := iface.tunDev.Write(bufs, 16); err != nil {
 				panic(err)
