@@ -79,7 +79,7 @@ func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	var iv [aes.BlockSize]byte
-	stream := cipher.NewOFB(block, iv[:])
+	stream := cipher.NewCTR(block, iv[:])
 
 	reader := &cipher.StreamReader{S: stream, R: bReader}
 	buf1 := new(strings.Builder)
