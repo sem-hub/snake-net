@@ -47,7 +47,7 @@ func Identification(c *clients.Client) error {
 	return nil
 }
 
-func ProcessServer(t transport.Transport, address string, port string, tunIf *network.TunInterface) {
+func ProcessServer(t transport.Transport, address string, port string) {
 	logger := configs.GetLogger()
 	addr := netip.MustParseAddrPort(address + ":" + port)
 	// Well, really it's server but we call it client here
@@ -104,5 +104,6 @@ func ProcessServer(t transport.Transport, address string, port string, tunIf *ne
 
 	c.SetClientState(clients.Ready)
 
-	tunIf.Process("client", c)
+	c.RunReadLoop("client")
+	network.ProcessTun("client", c)
 }

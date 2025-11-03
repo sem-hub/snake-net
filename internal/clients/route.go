@@ -77,3 +77,52 @@ func Route(data []byte) bool {
 	}
 	return found
 }
+
+// Read from NET, write to TUN
+func (c *Client) RunReadLoop(mode string) {
+	go func() {
+		for {
+			if c != nil {
+				buf, err := c.ReadBuf()
+				if err != nil {
+					logger.Error("Error reading from net buffer", "error", err)
+					// Ignore bad packet
+					continue
+				}
+				logger.Debug("TUN: Read from net", "len", len(buf), "mode", mode)
+
+				// send to all clients except the sender
+				if mode == "server" {
+					if Route(buf) {
+						continue
+					}
+					// if no client found, write into local tun interface channel.
+				}
+				// write into local tun interface channel.
+				if tunIf != nil {
+					tunIf.WriteTun(buf)
+				} else {
+					logger.Debug("RunReadLoop: ignore packet. Did not initialized yet")
+				}
+			}
+		}
+	}()
+}
+
+// Got from TUN, write to NET
+func (c *Client) ProcessMessageFromTun(mode string, data []byte) {
+	logger := configs.GetLogger()
+	logger.Debug("TUN: Write to net", "len", len(data), "mode", mode)
+	if mode == "server" {
+		Route(data)
+	} else {
+		// Do not send data if client not authenticated
+		cl := FindClient(c.GetClientAddr())
+		if cl.GetClientState() != Ready {
+			logger.Debug("Client not ready, drop packet", "addr", c.GetClientAddr())
+		}
+		if err := c.Write(&data, NoneCmd); err != nil {
+			logger.Error("Write to net", "error", err)
+		}
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
@@ -149,12 +150,15 @@ func main() {
 		log.Fatal("At least one TUN address (CIDR) is mandatory")
 	}
 
+	// Set up TUN interface
 	logger.Debug("TUN Addresses", "addrs", tunAddr)
 
-	tunif, err := network.NewTUN("snake", tunAddr, 0)
+	tunIf, err := network.NewTUN("snake", tunAddr, 0)
 	if err != nil {
 		log.Fatalf("Error creating tun interface: %s", err)
 	}
+
+	clients.SetTunInterface(tunIf)
 
 	var t transport.Transport = nil
 	switch cfg.Protocol {
@@ -169,6 +173,6 @@ func main() {
 	}
 
 	// Exit only on disconnect or fatal error
-	protocol.ResolveAndProcess(t, tunif, host)
+	protocol.ResolveAndProcess(t, host)
 	t.Close()
 }

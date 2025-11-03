@@ -10,6 +10,7 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
+	"github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 	"github.com/sem-hub/snake-net/internal/utils"
 )
@@ -54,7 +55,12 @@ var (
 	clients     = []*Client{} // XXX make map
 	clientsLock sync.Mutex
 	logger      *slog.Logger
+	tunIf       interfaces.TunInterface
 )
+
+func SetTunInterface(tun interfaces.TunInterface) {
+	tunIf = tun
+}
 
 func (c *Client) GetClientAddr() netip.AddrPort {
 	return c.address

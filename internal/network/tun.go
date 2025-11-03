@@ -1,14 +1,15 @@
 package network
 
 import (
+	"errors"
 	"log"
 	"log/slog"
 	"net"
 	"net/netip"
 	"os"
-	"sync"
 
 	"github.com/sem-hub/snake-net/internal/clients"
+	"github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/utils"
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/tun"
@@ -17,6 +18,8 @@ import (
 const defaultMTU = 1420
 
 type TunInterface struct {
+	interfaces.TunInterface
+
 	tunDev    tun.Device
 	cidrs     []utils.Cidr
 	mtu       int
@@ -26,7 +29,7 @@ type TunInterface struct {
 
 var tunIf *TunInterface
 
-func NewTUN(name string, cidrs []string, mtu int) (*TunInterface, error) {
+func NewTUN(name string, cidrs []string, mtu int) (interfaces.TunInterface, error) {
 	logger := slog.New(
 		slog.NewTextHandler(
 			os.Stderr,
@@ -97,125 +100,72 @@ func NewTUN(name string, cidrs []string, mtu int) (*TunInterface, error) {
 	return &iface, nil
 }
 
+func (tunIf *TunInterface) WriteTun(buf []byte) error {
+	if tunIf == nil {
+		slog.Debug("WriteTun: did not initialized yet")
+		return errors.New("did not initialized")
+	}
+	bufs := make([][]byte, 1)
+	// 16 for additional header will work always
+	bufs[0] = make([]byte, len(buf)+16)
+	copy(bufs[0][16:], buf)
+	tunIf.logger.Debug("TUN: Write into tun", "len", len(buf))
+	if _, err := tunIf.tunDev.Write(bufs, 16); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Read from TUN and pass to client
 func ProcessTun(mode string, c *clients.Client) {
 	if tunIf == nil {
 		log.Fatal("TUN interface not initialized")
 	}
-	tunIf.Process(mode, c)
+	for {
+		buf := ReadTun()
+		tunIf.logger.Debug("TUN: Read from tun", "len", len(buf))
+		// send to all clients except the sender
+		if mode == "server" {
+			found := clients.Route(buf)
+			// if no client found, write into local tun interface channel.
+			if !found {
+				c.ProcessMessageFromTun(mode, buf)
+			}
+		} else {
+			// write into local tun interface channel.
+			c.ProcessMessageFromTun(mode, buf)
+		}
+	}
 }
 
-func (iface *TunInterface) Process(mode string, c *clients.Client) {
-	wg := sync.WaitGroup{}
-	// local tun interface read and write channel.
-	rCh := make(chan []byte, 64)
-	wCh := make(chan []byte, 64)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			if c != nil {
-				buf, err := c.ReadBuf()
-				if err != nil {
-					iface.logger.Error("Error reading from net buffer", "error", err)
-					// Ignore bad packet
-					continue
-				}
-				iface.logger.Debug("TUN: Read from net", "len", len(buf), "mode", mode)
+func ReadTun() []byte {
+	if len(tunIf.readBuffs) > 0 {
+		buf := tunIf.readBuffs[0]
+		tunIf.readBuffs = tunIf.readBuffs[1:]
+		tunIf.logger.Debug("TUN: Read from tun (from buffer)", "len", len(buf))
+		return buf
+	}
 
-				// send to all clients except the sender
-				if mode == "server" {
-					found := clients.Route(buf)
-					// if no client found, write into local tun interface channel.
-					if !found {
-						wCh <- buf
-					}
-				} else {
-					// write into local tun interface channel.
-					wCh <- buf
-				}
-			}
-		}
-	}()
-	// read from local tun interface channel, and write into remote net channel.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			data := <-rCh
-			iface.logger.Debug("TUN: Write to net", "len", len(data), "mode", mode)
-			if mode == "server" {
-				clients.Route(data)
-			} else {
-				// Do not send data if client not authenticated
-				c := clients.FindClient(c.GetClientAddr())
-				if c.GetClientState() != clients.Ready {
-					iface.logger.Debug("Client not ready, drop packet", "addr", c.GetClientAddr())
-					continue
-				}
-				if err := c.Write(&data, clients.NoneCmd); err != nil {
-					iface.logger.Error("Write to net", "error", err)
-					break
-				}
-			}
-		}
-		err := c.Close()
-		if err != nil {
-			iface.logger.Error("Close client", "error", err)
-		}
-	}()
+	// Allocate batch buffers
+	batchSize := 32
+	bufs := make([][]byte, batchSize)
+	sizes := make([]int, batchSize)
+	for i := 0; i < batchSize; i++ {
+		bufs[i] = make([]byte, tunIf.mtu+100)
+		sizes[i] = tunIf.mtu
+	}
 
-	// read data from tun into rCh channel.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			if len(iface.readBuffs) > 0 {
-				buf := iface.readBuffs[0]
-				iface.readBuffs = iface.readBuffs[1:]
-				iface.logger.Debug("TUN: Read from tun (from buffer)", "len", len(buf))
-				rCh <- buf
-				continue
-			}
-			batchSize := 32
-			bufs := make([][]byte, batchSize)
-			sizes := make([]int, batchSize)
-			for i := 0; i < batchSize; i++ {
-				bufs[i] = make([]byte, iface.mtu+100)
-				sizes[i] = iface.mtu
-			}
+	var count int
+	var err error
 
-			var count int
-			var err error
-
-			if count, err = iface.tunDev.Read(bufs, sizes, 0); err != nil {
-				panic(err)
-			}
-			if count != 1 {
-				iface.logger.Debug("TUN: Read multiple buffers", "count", count)
-				iface.readBuffs = append(iface.readBuffs, bufs[1:count]...)
-			}
-			buf := bufs[0][:sizes[0]]
-			iface.logger.Debug("TUN: Read from tun", "count", count, "sizes", sizes[0])
-			rCh <- buf
-		}
-	}()
-	// write data into tun from wCh channel.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			//batchSize := 128
-			bufs := make([][]byte, 1)
-			buf := <-wCh
-			// 16 for additional header will work always. But really for Windows it must be 0, for BSD must be 4, for Linux is 14.
-			// XXX It'll be work but not beautiful
-			bufs[0] = make([]byte, len(buf)+16)
-			copy(bufs[0][16:], buf)
-			iface.logger.Debug("TUN: Write into tun", "len", len(buf))
-			if _, err := iface.tunDev.Write(bufs, 16); err != nil {
-				panic(err)
-			}
-		}
-	}()
-	wg.Wait()
+	if count, err = tunIf.tunDev.Read(bufs, sizes, 0); err != nil {
+		panic(err)
+	}
+	if count != 1 {
+		tunIf.logger.Debug("TUN: Read multiple buffers", "count", count)
+		tunIf.readBuffs = append(tunIf.readBuffs, bufs[1:count]...)
+	}
+	buf := bufs[0][:sizes[0]]
+	tunIf.logger.Debug("TUN: Read from tun", "count", count, "sizes", sizes[0])
+	return buf
 }

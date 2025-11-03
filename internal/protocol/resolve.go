@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
@@ -28,7 +27,7 @@ func NewLogger(level slog.Level) *slog.Logger {
 	return logger
 }
 
-func ResolveAndProcess(t transport.Transport, tunif *network.TunInterface, host string) {
+func ResolveAndProcess(t transport.Transport, host string) {
 	logger = NewLogger(slog.LevelInfo)
 	cfg = configs.GetConfig()
 
@@ -59,9 +58,7 @@ func ResolveAndProcess(t transport.Transport, tunif *network.TunInterface, host 
 			log.Fatalf("Transport init error %s", err)
 		}
 
-		forever := make(chan bool)
 		logger.Info("Start server", "addr", cfg.LocalAddr, "port", cfg.LocalPort)
-		<-forever
 	} else {
 		if len(ip) == 16 {
 			cfg.RemoteAddr = "[" + ip.String() + "]"
@@ -77,6 +74,9 @@ func ResolveAndProcess(t transport.Transport, tunif *network.TunInterface, host 
 
 		logger.Info("Connect to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
 
-		ProcessServer(t, cfg.RemoteAddr, cfg.RemotePort, tunif)
+		ProcessServer(t, cfg.RemoteAddr, cfg.RemotePort)
 	}
+	forever := make(chan bool)
+	<-forever
+
 }

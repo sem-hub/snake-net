@@ -35,7 +35,10 @@ func (tcp *TcpTransport) IsEncrypted() bool {
 func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
 	callback func(Transport, netip.AddrPort)) error {
 	if mode == "server" {
-		tcp.listen(lAddr, lPort, callback)
+		// Do not block
+		go func() {
+			tcp.listen(lAddr, lPort, callback)
+		}()
 	} else {
 		family := "tcp"
 		if strings.Contains(rAddr, ":") {
