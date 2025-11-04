@@ -122,7 +122,11 @@ func ProcessTun(mode string, c *clients.Client) {
 		log.Fatal("TUN interface not initialized")
 	}
 	for {
-		buf := ReadTun()
+		buf, err := ReadTun()
+		if err != nil {
+			tunIf.logger.Error("ReadTun", "error", err)
+			return
+		}
 		tunIf.logger.Debug("TUN: Read from tun", "len", len(buf))
 		// send to all clients except the sender
 		if mode == "server" {
@@ -138,12 +142,12 @@ func ProcessTun(mode string, c *clients.Client) {
 	}
 }
 
-func ReadTun() []byte {
+func ReadTun() ([]byte, error) {
 	if len(tunIf.readBuffs) > 0 {
 		buf := tunIf.readBuffs[0]
 		tunIf.readBuffs = tunIf.readBuffs[1:]
 		tunIf.logger.Debug("TUN: Read from tun (from buffer)", "len", len(buf))
-		return buf
+		return buf, nil
 	}
 
 	// Allocate batch buffers
@@ -159,7 +163,7 @@ func ReadTun() []byte {
 	var err error
 
 	if count, err = tunIf.tunDev.Read(bufs, sizes, 0); err != nil {
-		panic(err)
+		return nil, err
 	}
 	if count != 1 {
 		tunIf.logger.Debug("TUN: Read multiple buffers", "count", count)
@@ -167,5 +171,5 @@ func ReadTun() []byte {
 	}
 	buf := bufs[0][:sizes[0]]
 	tunIf.logger.Debug("TUN: Read from tun", "count", count, "sizes", sizes[0])
-	return buf
+	return buf, nil
 }
