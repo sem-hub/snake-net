@@ -71,6 +71,7 @@ func (tcp *TcpTransport) listen(addr string, port string, callback func(Transpor
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
+			logger.Error("listen", "error", err)
 			break
 		}
 
@@ -86,7 +87,7 @@ func (tcp *TcpTransport) listen(addr string, port string, callback func(Transpor
 	}
 	err = listen.Close()
 	if err != nil {
-		logger.Error("listen", "error", err)
+		logger.Error("listen Close", "error", err)
 	}
 	return nil
 }
