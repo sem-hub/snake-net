@@ -19,7 +19,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	logger := configs.GetLogger()
 	cidrs := make([]utils.Cidr, 0)
 
-	buf, err := c.ReadBuf()
+	buf, err := c.ReadBuf(1)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 		return nil, err
 	}
 
-	buf, err = c.ReadBuf()
+	buf, err = c.ReadBuf(1)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	c.RunNetLoop(addr)
 
 	// Get XOR key from client
-	buf, err := c.ReadBuf()
+	buf, err := c.ReadBuf(1)
 	if err != nil {
 		logger.Debug("Failed to read XOR key", "error", err)
 		clients.RemoveClient(addr)
@@ -145,7 +145,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	}
 
 	// Wait for OK from client after ECDH
-	buf, err = c.ReadBuf()
+	buf, err = c.ReadBuf(1)
 	if err != nil {
 		logger.Debug("Failed to read response message", "error", err)
 		clients.RemoveClient(addr)

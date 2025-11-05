@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/ed25519"
 	"crypto/rand"
+	"errors"
 	"io"
 	"slices"
 	"strings"
@@ -70,7 +71,28 @@ func (s *Secrets) XOR(data *[]byte) {
 	}
 }
 
-func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
+func (s *Secrets) MinimalSize() int {
+	return 64
+}
+
+func (s *Secrets) EncryptAndSeal(data []byte) ([]byte, error) {
+	signature := s.Sign(data)
+	buf, err := s.cryptDecrypt(data)
+	buf = append(buf, signature...)
+
+	return buf, err
+}
+
+func (s *Secrets) DecryptAndVerify(data []byte) ([]byte, error) {
+	signatureStart := len(data) - s.MinimalSize()
+	buf, err := s.cryptDecrypt(data[:signatureStart])
+	if !s.Verify(buf, data[signatureStart:]) {
+		return nil, errors.New("verify error")
+	}
+	return buf, err
+}
+
+func (s *Secrets) cryptDecrypt(data []byte) ([]byte, error) {
 	buf := slices.Clone(data)
 	//configs.GetLogger().Debug("CryptDecrypt", "datalen", len(data), "sharedsecret", hex.EncodeToString(s.SharedSecret))
 	bReader := bytes.NewReader(data)

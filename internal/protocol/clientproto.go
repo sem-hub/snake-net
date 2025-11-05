@@ -31,7 +31,7 @@ func Identification(c *clients.Client) error {
 		return err
 	}
 
-	msg1, err := c.ReadBuf()
+	msg1, err := c.ReadBuf(1)
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func ProcessServer(t transport.Transport, address string, port string) {
 		return
 	}
 
-	buf, err := c.ReadBuf()
+	buf, err := c.ReadBuf(1)
 	if err != nil {
 		logger.Debug("Failed to read response message", "error", err)
 		clients.RemoveClient(addr)

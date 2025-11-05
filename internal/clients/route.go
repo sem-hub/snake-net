@@ -74,7 +74,7 @@ func (c *Client) RunReadLoop(mode string) {
 	go func() {
 		for {
 			if c != nil {
-				buf, err := c.ReadBuf()
+				buf, err := c.ReadBuf(1)
 				if err != nil {
 					logger.Error("Error reading from net buffer", "error", err)
 					// Ignore bad packet

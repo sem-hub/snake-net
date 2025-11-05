@@ -9,13 +9,13 @@ import (
 
 // Process special out-of-order packets received from the client
 // Executed under bufLock
-func (c *Client) processOOOP(n int, seq int) (transport.Message, error) {
+func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 	if seq > c.seqIn {
 		if c.lookInBufferForSeq(c.seqIn) {
 			// Found in buffer, process it
 			logger.Debug("client ReadBuf: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
 			c.bufLock.Unlock()
-			return c.ReadBuf()
+			return c.ReadBuf(1)
 		}
 		// Did not find any packet in buffer. We lost it. Ask for resend.
 		seq = c.seqIn
@@ -27,7 +27,7 @@ func (c *Client) processOOOP(n int, seq int) (transport.Message, error) {
 				logger.Error("OOOP processing: Error when ask a packet for retransmittion", "error", err)
 			}
 			c.oooPackets++
-			return c.ReadBuf()
+			return c.ReadBuf(1)
 		}
 		// OutOfOrder leave packet in buffer and restart reading
 		c.oooPackets++
@@ -35,48 +35,45 @@ func (c *Client) processOOOP(n int, seq int) (transport.Message, error) {
 			// Too many out of order packets, reset buffer
 			logger.Error("client ReadBuf: too many out of order packets, ignore the sequence number", "oooPackets", c.oooPackets, "address", c.address.String())
 			c.seqIn++
-			if c.seqIn > 65535 {
-				c.seqIn = 0
-			}
 			c.bufLock.Unlock()
 			return nil, errors.New("too many out of order packets")
 		}
 		// Go to next packet. Leave the packet in buffer.
-		c.bufOffset += n + ADDSIZE
+		c.bufOffset += HEADER + n
 	} else {
 		logger.Error("client ReadBuf: duplicate. Drop.")
-		c.removeThePacketFromBuffer(n)
+		c.removeThePacketFromBuffer(HEADER + n)
 	}
 	c.bufLock.Unlock()
-	return c.ReadBuf()
+	return c.ReadBuf(1)
 }
 
 // Executed under lock
-func (c *Client) lookInBufferForSeq(seq int) bool {
+func (c *Client) lookInBufferForSeq(seq uint32) bool {
 	offset := 0
 	for offset < c.bufSize {
-		if c.bufSize-offset < ADDSIZE {
+		if c.bufSize-offset < HEADER+c.secrets.MinimalSize() {
 			return false
 		}
-		crc := uint32(int(c.buf[offset+5])<<24 | int(c.buf[offset+6])<<16 | int(c.buf[offset+7])<<8 | int(c.buf[offset+8]))
+		crc := uint32(c.buf[offset+5])<<24 | uint32(c.buf[offset+6])<<16 | uint32(c.buf[offset+7])<<8 | uint32(c.buf[offset+8])
 		if crc != crc32.ChecksumIEEE(c.buf[offset:offset+5]) {
-			logger.Debug("lookInBufferForSeq CRC32", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(c.buf[offset:offset+5]))
+			logger.Debug("lookInBufferForSeq CRC32 error", "address", c.address, "offset", offset, "crc", crc,
+				"calculated", crc32.ChecksumIEEE(c.buf[offset:offset+5]))
 			return false
 		}
 		// Get data size and sequence number
 		n := int(c.buf[offset])<<8 | int(c.buf[offset+1])
-		packetSeq := int(c.buf[offset+2])<<8 | int(c.buf[offset+3])
-		logger.Debug("lookInBufferForSeq packet in buffer", "seq", packetSeq, "size", n, "address", c.address.String())
+		packetSeq := uint32(c.buf[offset+2])<<8 | uint32(c.buf[offset+3])
 		if packetSeq == seq {
 			c.bufOffset = offset
 			return true
 		}
-		offset += n + ADDSIZE
+		offset += HEADER + n
 	}
 	return false
 }
 
-func (c *Client) AskForResend(seq int) error {
+func (c *Client) AskForResend(seq uint32) error {
 	logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
 
 	buf := make([]byte, 2)

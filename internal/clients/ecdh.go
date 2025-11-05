@@ -36,7 +36,7 @@ func (c *Client) ECDH() error {
 	}
 
 	// Read peer's public key
-	buf, err = c.ReadBuf()
+	buf, err = c.ReadBuf(1)
 	if err != nil {
 		return err
 	}

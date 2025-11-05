@@ -28,18 +28,23 @@ func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Messag
 		return nil, errors.New("connection closed by peer")
 	}
 	if flags == AskForResendCmd {
+		dataDecrypted, err := c.secrets.DecryptAndVerify(data[HEADER : HEADER+n])
+		if err != nil {
+			logger.Error("client Readbuf: decrypt&verify error", "address", c.address.String(), "error", err)
+			return nil, err
+		}
 		// Find in sentBuffer and resend
-		askSeq := int(data[HEADER])<<8 | int(data[HEADER+1])
+		askSeq := uint32(dataDecrypted[0])<<8 | uint32(dataDecrypted[1])
 		logger.Debug("client ReadBuf asked for resend command", "address", c.address.String(), "seq", askSeq)
 
 		dataSend, ok := c.sentBuffer.Find(func(index interface{}) bool {
 			buf := index.([]byte)
-			seqNum := int(buf[2])<<8 | int(buf[3])
+			seqNum := uint32(buf[2])<<8 | uint32(buf[3])
 			return seqNum == askSeq
 		})
 		if ok {
 			buf := dataSend.([]byte)
-			seqNum := int(buf[2])<<8 | int(buf[3])
+			seqNum := uint32(buf[2])<<8 | uint32(buf[3])
 			logger.Debug("client ReadBuf resend for", "address", c.address.String(), "seq", seqNum)
 			err := c.t.Send(c.address, &buf)
 			if err != nil {
@@ -51,10 +56,10 @@ func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Messag
 			logger.Error("client ReadBuf resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
 		}
 		// Remove the packet from buffer
-		c.removeThePacketFromBuffer(n)
+		c.removeThePacketFromBuffer(HEADER + n)
 
 		c.bufLock.Unlock()
-		return c.ReadBuf()
+		return c.ReadBuf(1)
 	}
 	return nil, errors.New("unknown command: " + string(flags))
 }
