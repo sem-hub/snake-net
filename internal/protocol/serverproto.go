@@ -161,5 +161,5 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 
 	c.SetClientState(clients.Ready)
 	c.RunReadLoop("server")
-	network.ProcessTun("server", c)
+	network.ProcessTun()
 }

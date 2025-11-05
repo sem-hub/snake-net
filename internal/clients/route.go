@@ -2,8 +2,6 @@ package clients
 
 import (
 	"net/netip"
-
-	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 func getDstIP(packet []byte) (netip.Addr, bool) {
@@ -23,7 +21,7 @@ func getDstIP(packet []byte) (netip.Addr, bool) {
 // Find real client and send data to it in background
 func sendDataToClient(addr netip.AddrPort, data []byte) {
 	c := FindClient(addr)
-	if c != nil {
+	if c != nil && c.GetClientState() == Ready {
 		go func(cl *Client) {
 			err := cl.Write(&data, NoneCmd)
 			if err != nil {
@@ -50,29 +48,22 @@ func Route(data []byte) bool {
 	// XXX read route table
 	found := false
 	for _, c := range clientsCopy {
+		logger.Debug("Route loop", "address", c.address, "tunAddrs", c.tunAddrs)
 		for _, tunAddr := range c.tunAddrs {
 			logger.Debug("Route", "address", address, "cidrIP", tunAddr.IP, "cidrNetwork", tunAddr.Network, "clientState", c.GetClientState())
 			if tunAddr.IP == address {
-				if c.GetClientState() == Ready {
-					sendDataToClient(c.address, data)
-				}
+				sendDataToClient(c.address, data)
 				found = true
 				break
 			}
 		}
 	}
+	logger.Debug("Route", "found", found)
 	// Check if address is in server's own CIDRs
 	if !found {
-		myIPs := configs.GetConfig().TunAddrs
-		for _, cidr := range myIPs {
-			if cidr.IP != address {
-				logger.Debug("Route: no matching client found. Send to all clients")
-				for _, c := range clientsCopy {
-					if c.GetClientState() == Ready {
-						sendDataToClient(c.address, data)
-					}
-				}
-			}
+		logger.Debug("Route: no matching client found. Send to all clients")
+		for _, c := range clientsCopy {
+			sendDataToClient(c.address, data)
 		}
 	}
 	return found
@@ -107,22 +98,4 @@ func (c *Client) RunReadLoop(mode string) {
 			}
 		}
 	}()
-}
-
-// Got from TUN, write to NET
-func (c *Client) ProcessMessageFromTun(mode string, data []byte) {
-	logger := configs.GetLogger()
-	logger.Debug("TUN: Write to net", "len", len(data), "mode", mode)
-	if mode == "server" {
-		Route(data)
-	} else {
-		// Do not send data if client not authenticated
-		cl := FindClient(c.GetClientAddr())
-		if cl.GetClientState() != Ready {
-			logger.Debug("Client not ready, drop packet", "addr", c.GetClientAddr())
-		}
-		if err := c.Write(&data, NoneCmd); err != nil {
-			logger.Error("Write to net", "error", err)
-		}
-	}
 }

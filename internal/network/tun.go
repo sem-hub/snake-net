@@ -117,32 +117,27 @@ func (tunIf *TunInterface) WriteTun(buf []byte) error {
 }
 
 // Read from TUN and pass to client
-func ProcessTun(mode string, c *clients.Client) {
+func ProcessTun() {
 	if tunIf == nil {
 		log.Fatal("TUN interface not initialized")
 	}
 	for {
-		buf, err := ReadTun()
+		buf, err := tunIf.ReadTun()
 		if err != nil {
 			tunIf.logger.Error("ReadTun", "error", err)
 			return
 		}
 		tunIf.logger.Debug("TUN: Read from tun", "len", len(buf))
 		// send to all clients except the sender
-		if mode == "server" {
-			found := clients.Route(buf)
-			// if no client found, write into local tun interface channel.
-			if !found {
-				c.ProcessMessageFromTun(mode, buf)
-			}
-		} else {
-			// write into local tun interface channel.
-			c.ProcessMessageFromTun(mode, buf)
+		found := clients.Route(buf)
+		// if no client found, write into local tun interface channel.
+		if !found {
+			tunIf.WriteTun(buf)
 		}
 	}
 }
 
-func ReadTun() ([]byte, error) {
+func (tunIf *TunInterface) ReadTun() ([]byte, error) {
 	if len(tunIf.readBuffs) > 0 {
 		buf := tunIf.readBuffs[0]
 		tunIf.readBuffs = tunIf.readBuffs[1:]

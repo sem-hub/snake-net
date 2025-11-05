@@ -105,5 +105,5 @@ func ProcessServer(t transport.Transport, address string, port string) {
 	c.SetClientState(clients.Ready)
 
 	c.RunReadLoop("client")
-	network.ProcessTun("client", c)
+	network.ProcessTun()
 }
