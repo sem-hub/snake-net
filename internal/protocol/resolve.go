@@ -27,9 +27,25 @@ func NewLogger(level slog.Level) *slog.Logger {
 	return logger
 }
 
-func ResolveAndProcess(t transport.Transport, host string) {
+func ResolveAndProcess(t transport.Transport, host string, port string) {
 	logger = NewLogger(slog.LevelInfo)
 	cfg = configs.GetConfig()
+
+	if host == "" {
+		if cfg.Mode == "server" {
+			host = "0.0.0.0"
+		} else {
+			log.Fatal("Server Address is mandatory for client")
+		}
+	}
+	logger.Debug("URI", "Protocol", cfg.Protocol, "Peer", host, "port", port)
+
+	if cfg.Mode == "server" {
+		cfg.LocalPort = port
+
+	} else {
+		cfg.RemotePort = port
+	}
 
 	if strings.HasPrefix((host), "[") && strings.HasSuffix(host, "]") {
 		host = host[1 : len(host)-1]

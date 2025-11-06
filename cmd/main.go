@@ -118,22 +118,6 @@ func main() {
 	host := m[2]
 	port := m[3]
 
-	if host == "" {
-		if isServer {
-			host = "0.0.0.0"
-		} else {
-			log.Fatal("Server Address is mandatory for client")
-		}
-	}
-	logger.Debug("URI", "Protocol", cfg.Protocol, "Peer", host, "port", port)
-
-	if isServer {
-		cfg.LocalPort = port
-
-	} else {
-		cfg.RemotePort = port
-	}
-
 	if configFile != "" {
 		for _, cidrStr := range strings.Split(cfg.TunAddrStr, ",") {
 			_, _, err := net.ParseCIDR(cidrStr)
@@ -173,6 +157,6 @@ func main() {
 	}
 
 	// Exit only on disconnect or fatal error
-	protocol.ResolveAndProcess(t, host)
+	protocol.ResolveAndProcess(t, host, port)
 	t.Close()
 }
