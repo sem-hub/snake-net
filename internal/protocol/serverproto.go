@@ -74,7 +74,15 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	}
 
 	logger.Debug("IdentifyClient OK", "addr", c.GetClientAddr().String())
-	if err := c.WriteWithXORAndPadding([]byte("Welcome"), true); err != nil {
+	msg := []byte("Welcome")
+	for _, cidr := range configs.GetConfig().TunAddrs {
+		msg = append(msg, ' ')
+		msg = append(msg, []byte(cidr.IP.Unmap().String())...)
+	}
+	msg = append(msg, '\x00')
+	logger.Debug("Welcome message", "msg", msg)
+
+	if err := c.WriteWithXORAndPadding(msg, true); err != nil {
 		logger.Debug("Failed to write Welcome message", "error", err)
 		return nil, err
 	}
