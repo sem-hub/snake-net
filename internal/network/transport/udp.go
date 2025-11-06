@@ -11,8 +11,8 @@ import (
 type UdpTransport struct {
 	TransportData
 	mainConn      *net.UDPConn
-	clientAddr    map[netip.AddrPort]netip.AddrPort // This field is used to track active clients
-	packetBuf     map[netip.AddrPort][][]byte       // A client buffer removed when empty. Track connections with clientAddr
+	clientAddr    map[netip.AddrPort]bool     // This field is used to track active clients
+	packetBuf     map[netip.AddrPort][][]byte // A client buffer removed when empty. Track connections with clientAddr
 	packetBufLock *sync.Mutex
 	packetBufCond *sync.Cond
 }
@@ -21,7 +21,7 @@ func NewUdpTransport(logger *slog.Logger) *UdpTransport {
 	udpTransport := UdpTransport{
 		TransportData: *NewTransport(logger),
 		mainConn:      nil,
-		clientAddr:    make(map[netip.AddrPort]netip.AddrPort),
+		clientAddr:    make(map[netip.AddrPort]bool),
 		packetBuf:     make(map[netip.AddrPort][][]byte),
 		packetBufLock: &sync.Mutex{},
 	}
@@ -85,7 +85,7 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 		udp.packetBufLock.Lock()
 		if _, ok := udp.clientAddr[addrPort]; !ok {
 			newConnection = true
-			udp.clientAddr[addrPort] = addrPort
+			udp.clientAddr[addrPort] = true
 		} else {
 			newConnection = false
 		}

@@ -13,11 +13,17 @@ import (
 type TcpTransport struct {
 	TransportData
 	mainConn *net.TCPConn
-	conn     sync.Map // [netip.AddrPort]net.TCPConn
+	conn     map[netip.AddrPort]*net.TCPConn
+	connLock *sync.RWMutex
 }
 
 func NewTcpTransport(logger *slog.Logger) *TcpTransport {
-	return &TcpTransport{TransportData: *NewTransport(logger), mainConn: nil, conn: sync.Map{}}
+	return &TcpTransport{
+		TransportData: *NewTransport(logger),
+		mainConn:      nil,
+		conn:          make(map[netip.AddrPort]*net.TCPConn),
+		connLock:      &sync.RWMutex{},
+	}
 }
 
 func (tcp *TcpTransport) GetName() string {
@@ -53,7 +59,9 @@ func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 			return errors.New("DialTCP error: " + err.Error())
 		}
 		tcp.mainConn = conn
-		tcp.conn.Store(conn.RemoteAddr().(*net.TCPAddr).AddrPort(), conn)
+		tcp.connLock.Lock()
+		tcp.conn[conn.RemoteAddr().(*net.TCPAddr).AddrPort()] = conn
+		tcp.connLock.Lock()
 		logAddr := conn.LocalAddr().String()
 		logger.Info("Connected to server", "addr", rAddr, "port", rPort, "from", logAddr)
 	}
@@ -82,7 +90,9 @@ func (tcp *TcpTransport) listen(addr string, port string, callback func(Transpor
 		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
 
 		logger.Debug("New TCP connection from", "addr", addrPort.String())
-		tcp.conn.Store(addrPort, tcpconn)
+		tcp.connLock.Lock()
+		tcp.conn[addrPort] = tcpconn
+		tcp.connLock.Lock()
 		go callback(tcp, addrPort)
 	}
 	err = listen.Close()
@@ -93,11 +103,12 @@ func (tcp *TcpTransport) listen(addr string, port string, callback func(Transpor
 }
 
 func (tcp *TcpTransport) Send(addr netip.AddrPort, buf *Message) error {
-	val, ok := tcp.conn.Load(addr)
+	tcp.connLock.RLock()
+	tcpconn, ok := tcp.conn[addr]
+	tcp.connLock.RUnlock()
 	if !ok {
 		return errors.New("No such client connection: " + addr.String())
 	}
-	tcpconn := val.(*net.TCPConn)
 
 	n := len(*buf)
 	logger.Debug("Send data to network", "len", n)
@@ -112,11 +123,12 @@ func (tcp *TcpTransport) Send(addr netip.AddrPort, buf *Message) error {
 }
 
 func (tcp *TcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
-	val, ok := tcp.conn.Load(addr)
+	tcp.connLock.RLock()
+	tcpconn, ok := tcp.conn[addr]
+	tcp.connLock.RUnlock()
 	if !ok {
 		return nil, 0, errors.New("No such client connection: " + addr.String())
 	}
-	tcpconn := val.(*net.TCPConn)
 
 	b := make([]byte, NETBUFSIZE)
 	l, err := tcpconn.Read(b)
@@ -130,17 +142,18 @@ func (tcp *TcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 }
 
 func (tcp *TcpTransport) CloseClient(addr netip.AddrPort) error {
-	val, ok := tcp.conn.Load(addr)
+	tcp.connLock.RLock()
+	tcpconn, ok := tcp.conn[addr]
+	tcp.connLock.RUnlock()
 	if !ok {
 		return errors.New("No such client connection: " + addr.String())
 	}
-	tcpconn := val.(*net.TCPConn)
 
 	err := tcpconn.Close()
 	if err != nil {
 		return err
 	}
-	tcp.conn.Delete(addr)
+	delete(tcp.conn, addr)
 	return nil
 }
 
