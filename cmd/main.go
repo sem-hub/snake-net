@@ -35,6 +35,7 @@ var flagAlias = map[string]string{
 	"debug":  "d",
 }
 
+// cidrs type for flag parsing
 func (i *cidrs) String() string {
 	return fmt.Sprint(*i)
 }
