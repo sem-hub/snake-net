@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -76,7 +77,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		debug = cfg.Debug
+		debug = cfg.Main.Debug
 	}
 
 	var level slog.Level = slog.LevelInfo
@@ -89,17 +90,19 @@ func main() {
 	var addr string
 	if configFile == "" {
 		if isServer {
-			cfg.Mode = "server"
+			cfg.Main.Mode = "server"
 		} else {
-			cfg.Mode = "client"
+			cfg.Main.Mode = "client"
 		}
 		addr = strings.ToLower(flag.Arg(0))
 	} else {
-		isServer = (strings.ToLower(cfg.Mode) == "server")
+		isServer = (strings.ToLower(cfg.Main.Mode) == "server")
 		if isServer {
-			addr = strings.ToLower(cfg.Protocol + "://" + cfg.LocalAddr + ":" + cfg.LocalPort)
+			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.LocalAddr) + ":" +
+				strconv.Itoa(int(cfg.Main.LocalPort))
 		} else {
-			addr = strings.ToLower(cfg.Protocol + "://" + cfg.RemoteAddr + ":" + cfg.RemotePort)
+			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.RemoteAddr) + ":" +
+				strconv.Itoa(int(cfg.Main.RemotePort))
 		}
 		logger.Info(addr)
 	}
@@ -115,12 +118,15 @@ func main() {
 	}
 
 	m := re.FindStringSubmatch(addr)
-	cfg.Protocol = m[1]
+	cfg.Main.Protocol = m[1]
 	host := m[2]
-	port := m[3]
+	port, err := strconv.Atoi(m[3])
+	if err != nil {
+		log.Fatalln("Wrong port number", "port", m[3])
+	}
 
 	if configFile != "" {
-		for _, cidrStr := range strings.Split(cfg.TunAddrStr, ",") {
+		for _, cidrStr := range cfg.Main.TunAddrStr {
 			_, _, err := net.ParseCIDR(cidrStr)
 			if err != nil {
 				log.Fatalln("Parse error", "CIDR", cidrStr)
@@ -128,7 +134,7 @@ func main() {
 			tunAddr = append(tunAddr, cidrStr)
 		}
 	} else {
-		cfg.TunAddrStr = strings.Join(tunAddr, ",")
+		cfg.Main.TunAddrStr = tunAddr
 	}
 
 	if len(tunAddr) == 0 {
@@ -146,7 +152,7 @@ func main() {
 	clients.SetTunInterface(tunIf)
 
 	var t transport.Transport = nil
-	switch cfg.Protocol {
+	switch cfg.Main.Protocol {
 	case "udp":
 		logger.Debug("Using UDP Transport.")
 		t = transport.NewUdpTransport(logger)
@@ -154,10 +160,10 @@ func main() {
 		logger.Debug("Using TCP Transport.")
 		t = transport.NewTcpTransport(logger)
 	default:
-		log.Fatalf("Unknown Protocol: %s", cfg.Protocol)
+		log.Fatalf("Unknown Protocol: %s", cfg.Main.Protocol)
 	}
 
 	// Exit only on disconnect or fatal error
-	protocol.ResolveAndProcess(t, host, port)
+	protocol.ResolveAndProcess(t, host, uint32(port))
 	t.Close()
 }

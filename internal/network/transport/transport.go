@@ -9,9 +9,9 @@ type Message = []byte
 
 type Transport interface {
 	// Init data, connect to server or listen for clients (depend on "mode")
-	// Arguments: mode (client|server), remoteAddr, remotePort, localAddr, localPort
+	// Arguments: mode (client|server), remoteAddr:remotePort, localAddr:localPort
 	//            and Callback for new connection processing
-	Init(string, string, string, string, string, func(Transport, netip.AddrPort)) error
+	Init(string, string, string, func(Transport, netip.AddrPort)) error
 	// Send/Receive data
 	Send(netip.AddrPort, *Message) error
 	Receive(netip.AddrPort) (Message, int, error)

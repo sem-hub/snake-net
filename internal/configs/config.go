@@ -5,20 +5,31 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"strings"
 
 	"github.com/sem-hub/snake-net/internal/utils"
 )
 
 type ConfigFile struct {
-	Mode       string `toml:"mode"`
-	Debug      bool   `toml:"debug"`
-	Protocol   string `toml:"protocol"`
-	RemoteAddr string `toml:"remote_addr"`
-	RemotePort string `toml:"remote_port"`
-	LocalAddr  string `toml:"local_addr"`
-	LocalPort  string `toml:"local_port"`
-	TunAddrStr string `toml:"tun_addr"`
+	Main Main `toml:"main"`
+	Log  Log  `toml:"log"`
+}
+
+type Main struct {
+	Mode       string   `toml:"mode"`
+	Debug      bool     `toml:"debug"`
+	Protocol   string   `toml:"protocol"`
+	RemoteAddr string   `toml:"remote_addr"`
+	RemotePort uint32   `toml:"remote_port"`
+	LocalAddr  string   `toml:"local_addr"`
+	LocalPort  uint32   `toml:"local_port"`
+	TunAddrStr []string `toml:"tun_addr"`
+}
+
+type Log struct {
+	Protocol string `toml:"protocol"`
+	Network  string `toml:"network"`
+	Crypt    string `toml:"crypt"`
+	Clients  string `toml:"clients"`
 }
 
 type RuntimeConfig struct {
@@ -26,9 +37,9 @@ type RuntimeConfig struct {
 	Debug      bool
 	Protocol   string
 	RemoteAddr string
-	RemotePort string
+	RemotePort uint32
 	LocalAddr  string
-	LocalPort  string
+	LocalPort  uint32
 	TunAddrs   []utils.Cidr
 	LogLevel   slog.Level
 }
@@ -49,18 +60,18 @@ func GetConfigFile() *ConfigFile {
 func GetConfig() *RuntimeConfig {
 	if config == nil {
 		config = &RuntimeConfig{
-			Mode:       configFile.Mode,
-			Debug:      configFile.Debug,
-			Protocol:   configFile.Protocol,
-			RemoteAddr: configFile.RemoteAddr,
-			RemotePort: configFile.RemotePort,
-			LocalAddr:  configFile.LocalAddr,
-			LocalPort:  configFile.LocalPort,
+			Mode:       configFile.Main.Mode,
+			Debug:      configFile.Main.Debug,
+			Protocol:   configFile.Main.Protocol,
+			RemoteAddr: configFile.Main.RemoteAddr,
+			RemotePort: configFile.Main.RemotePort,
+			LocalAddr:  configFile.Main.LocalAddr,
+			LocalPort:  configFile.Main.LocalPort,
 			TunAddrs:   []utils.Cidr{},
 			LogLevel:   slog.LevelInfo,
 		}
-		if configFile.TunAddrStr != "" {
-			for _, addr := range strings.Split(configFile.TunAddrStr, ",") {
+		if len(configFile.Main.TunAddrStr) > 0 {
+			for _, addr := range configFile.Main.TunAddrStr {
 				logger.Debug("Adding TUN address from config file", "addr", addr)
 				ip, network, _ := net.ParseCIDR(addr)
 				netIP, _ := netip.AddrFromSlice(ip)

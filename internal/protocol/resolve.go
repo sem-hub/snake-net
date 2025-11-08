@@ -4,7 +4,9 @@ import (
 	"log"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -27,8 +29,8 @@ func NewLogger(level slog.Level) *slog.Logger {
 	return logger
 }
 
-func ResolveAndProcess(t transport.Transport, host string, port string) {
-	logger = NewLogger(slog.LevelInfo)
+func ResolveAndProcess(t transport.Transport, host string, port uint32) {
+	logger = NewLogger(slog.LevelDebug)
 	cfg = configs.GetConfig()
 
 	if host == "" {
@@ -60,7 +62,7 @@ func ResolveAndProcess(t transport.Transport, host string, port string) {
 
 		ip = ips[0]
 	}
-	logger.Debug("", "ip", ip)
+	logger.Debug("", "ip", ip, "mode", cfg.Mode)
 
 	if cfg.Mode == "server" {
 		if len(ip) == 16 {
@@ -69,7 +71,8 @@ func ResolveAndProcess(t transport.Transport, host string, port string) {
 			cfg.LocalAddr = ip.String()
 		}
 
-		err := t.Init("server", cfg.RemoteAddr, cfg.RemotePort, cfg.LocalAddr, cfg.LocalPort, ProcessNewClient)
+		err := t.Init("server", cfg.RemoteAddr+":"+strconv.Itoa(int(cfg.RemotePort)),
+			cfg.LocalAddr+":"+strconv.Itoa(int(cfg.LocalPort)), ProcessNewClient)
 		if err != nil {
 			log.Fatalf("Transport init error %s", err)
 		}
@@ -83,14 +86,16 @@ func ResolveAndProcess(t transport.Transport, host string, port string) {
 		}
 
 		// No callback for client mode
-		err := t.Init("client", cfg.RemoteAddr, cfg.RemotePort, cfg.LocalAddr, cfg.LocalPort, nil)
+		rAddrPortStr := cfg.RemoteAddr + ":" + strconv.Itoa(int(cfg.RemotePort))
+		lAddrPortStr := cfg.LocalAddr + ":" + strconv.Itoa(int(cfg.LocalPort))
+		err := t.Init("client", rAddrPortStr, lAddrPortStr, nil)
 		if err != nil {
 			log.Fatalf("Transport init error %s", err)
 		}
 
-		logger.Info("Connect to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
+		logger.Info("Connected to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
 
-		ProcessServer(t, cfg.RemoteAddr, cfg.RemotePort)
+		ProcessServer(t, netip.MustParseAddrPort(rAddrPortStr))
 	}
 	forever := make(chan bool)
 	<-forever

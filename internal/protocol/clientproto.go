@@ -67,9 +67,8 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 	return cidrs, nil
 }
 
-func ProcessServer(t transport.Transport, address string, port string) {
+func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	logger := configs.GetLogger()
-	addr := netip.MustParseAddrPort(address + ":" + port)
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t)
 	s := crypt.NewSecrets()

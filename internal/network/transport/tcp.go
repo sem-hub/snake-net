@@ -38,22 +38,23 @@ func (tcp *TcpTransport) IsEncrypted() bool {
 	return false
 }
 
-func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr string, lPort string,
+func (tcp *TcpTransport) Init(mode string, rAddrPort string, lAddrPort string,
 	callback func(Transport, netip.AddrPort)) error {
 	if mode == "server" {
 		// Do not block
 		go func() {
-			tcp.listen(lAddr, lPort, callback)
+			tcp.listen(lAddrPort, callback)
 		}()
 	} else {
 		family := "tcp"
-		if strings.Contains(rAddr, ":") {
+		if strings.Contains(rAddrPort, "[") {
 			family = "tcp6"
 		}
-		tcpServer, err := net.ResolveTCPAddr(family, rAddr+":"+rPort)
+		tcpServer, err := net.ResolveTCPAddr(family, rAddrPort)
 		if err != nil {
 			return errors.New("ResolveTCPAddr error: " + err.Error())
 		}
+		logger.Debug("before DialTCP", "family", family, "rAddrPort", rAddrPort)
 		conn, err := net.DialTCP(family, nil, tcpServer)
 		if err != nil {
 			return errors.New("DialTCP error: " + err.Error())
@@ -61,17 +62,16 @@ func (tcp *TcpTransport) Init(mode string, rAddr string, rPort string, lAddr str
 		tcp.mainConn = conn
 		tcp.connLock.Lock()
 		tcp.conn[conn.RemoteAddr().(*net.TCPAddr).AddrPort()] = conn
-		tcp.connLock.Lock()
-		logAddr := conn.LocalAddr().String()
-		logger.Info("Connected to server", "addr", rAddr, "port", rPort, "from", logAddr)
+		tcp.connLock.Unlock()
+		logger.Info("Connected to server", "rAddrPort", rAddrPort, "from", conn.LocalAddr().String())
 	}
 
 	return nil
 }
 
-func (tcp *TcpTransport) listen(addr string, port string, callback func(Transport, netip.AddrPort)) error {
-	logger.Debug("Listen for connection", "on", addr+":"+port)
-	listen, err := net.Listen("tcp", addr+":"+port)
+func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.AddrPort)) error {
+	logger.Debug("Listen for connection", "on", addrPort)
+	listen, err := net.Listen("tcp", addrPort)
 	if err != nil {
 		return err
 	}
@@ -87,12 +87,13 @@ func (tcp *TcpTransport) listen(addr string, port string, callback func(Transpor
 		tcpconn.SetNoDelay(true)
 		tcpconn.SetLinger(0)
 		addrPort := tcpconn.RemoteAddr().(*net.TCPAddr).AddrPort()
+		// unmap this AddrPort
 		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
 
 		logger.Debug("New TCP connection from", "addr", addrPort.String())
 		tcp.connLock.Lock()
 		tcp.conn[addrPort] = tcpconn
-		tcp.connLock.Lock()
+		tcp.connLock.Unlock()
 		go callback(tcp, addrPort)
 	}
 	err = listen.Close()
