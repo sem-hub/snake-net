@@ -68,7 +68,7 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort string, lAddrPort string,
 }
 
 func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.AddrPort)) error {
-	tcp.logger.Debug("Listen for connection", "on", addrPort)
+	tcp.logger.Info("Listen for connection", "on", addrPort)
 	listen, err := net.Listen("tcp", addrPort)
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.
 		// unmap this AddrPort
 		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
 
-		tcp.logger.Debug("New TCP connection from", "addr", addrPort.String())
+		tcp.logger.Info("New TCP connection from", "addr", addrPort.String())
 		tcp.connLock.Lock()
 		tcp.conn[addrPort] = tcpconn
 		tcp.connLock.Unlock()

@@ -93,7 +93,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 	client.seqOut.Store(1)
 
 	if len(clients) != 0 && FindClient(address) != nil {
-		logger.Error("Client already exists", "address", address)
+		logger.Info("Client already exists", "address", address)
 	} else {
 		clientsLock.Lock()
 		clients = append(clients, &client)
@@ -162,7 +162,6 @@ func (c *Client) RunNetLoop(address netip.AddrPort) {
 		for {
 			c.logger.Debug("client NetLoop waiting for data", "address", address.String())
 			msg, n, err := c.t.Receive(address)
-			c.logger.Debug("client NetLoop after Receive", "len", n, "address", address.String())
 			if err != nil {
 				c.logger.Error("client NetLoop Receive error", "err", err)
 				return
@@ -205,23 +204,19 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// Next 4 bytes are CRC32 of the header (of 5 bytes)
 	// Next n bytes are message finished with 64 bytes signature
 	c.logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
-	if c.bufSize-c.bufOffset < HEADER+c.secrets.MinimalSize() {
-		c.bufLock.Unlock()
-		return nil, errors.New("invalid buffer size")
-	}
 
 	data := make([]byte, c.bufSize-c.bufOffset)
 	copy(data, c.buf[c.bufOffset:c.bufSize])
 
 	crc := uint32(data[5])<<24 | uint32(data[6])<<16 | uint32(data[7])<<8 | uint32(data[8])
 	if crc != crc32.ChecksumIEEE(data[:5]) {
-		c.logger.Debug("ReadBuf CRC32", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(data[:5]))
+		c.logger.Error("ReadBuf CRC32 error", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(data[:5]))
 		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
 
 		c.bufLock.Unlock()
-		return nil, errors.New("invalid CRC32")
+		return nil, errors.New("CRC32 error")
 	}
 	n := int(data[0])<<8 | int(data[1])
 	if n <= 0 || HEADER+n > BUFSIZE {
@@ -273,6 +268,12 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		return c.processCommand(flags, data, n)
 	}
 
+	if n == 0 {
+		c.logger.Error("Only header in packet and it's not command. Ignore it", "address", c.address.String())
+		c.removeThePacketFromBuffer(HEADER)
+		return nil, errors.New("plain header and not command. Ignore")
+	}
+
 	msg := make([]byte, HEADER+n)
 	copy(msg, c.buf[c.bufOffset:c.bufOffset+HEADER+n])
 
@@ -285,7 +286,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	if c.bufSize < 0 {
 		c.logger.Error("client ReadBuf: ", "address", c.address.String(), "bufSize", c.bufSize)
 		c.bufSize = 0
-		return nil, errors.New("invalid buffer size")
+		return nil, errors.New("bad buffer size (<0)")
 	}
 	// Finished working with buf, unlock
 	c.bufLock.Unlock()
@@ -302,6 +303,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		copy(msg[HEADER:], data)
 	} else {
 		if !c.secrets.Verify(msg[HEADER:HEADER+n-c.secrets.MinimalSize()], msg[HEADER+n-c.secrets.MinimalSize():]) {
+			c.logger.Error("client Readbuf: verify error", "address", c.address.String())
 			return nil, errors.New("verify error")
 		}
 		// Remove the signature
@@ -316,28 +318,36 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	c.orderSendLock.Lock()
 	defer c.orderSendLock.Unlock()
 
-	n := len(*msg)
-	c.logger.Debug("client Write data", "len", n, "address", c.address.String())
+	var n int = 0
+	if msg == nil {
+		c.logger.Debug("client Write: no data. Send a command only", "address", c.address.String())
+	} else {
+		n = len(*msg)
+		c.logger.Debug("client Write data", "len", n, "address", c.address.String())
 
-	if HEADER+n+c.secrets.MinimalSize() > BUFSIZE {
-		return errors.New("invalid message size")
+		if HEADER+n+c.secrets.MinimalSize() > BUFSIZE {
+			return errors.New("invalid message size")
+		}
 	}
 	// Copy message
 	c.logger.Debug("client Write", "address", c.address, "seq", c.seqOut.Load())
 
 	buf := make([]byte, HEADER)
 
-	if cmd != NoEncryptionCmd {
-		c.logger.Debug("client Write encrypting", "address", c.address, "seq", c.seqOut.Load())
-		data, err := c.secrets.EncryptAndSeal(*msg)
-		if err != nil {
-			return err
+	if msg != nil {
+		if cmd != NoEncryptionCmd {
+			c.logger.Debug("client Write encrypting and sign", "address", c.address, "seq", c.seqOut.Load())
+			data, err := c.secrets.EncryptAndSeal(*msg)
+			if err != nil {
+				return err
+			}
+			buf = append(buf, data...)
+		} else {
+			c.logger.Debug("client Write sign only", "address", c.address, "seq", c.seqOut.Load())
+			buf = append(buf, *msg...)
+			signature := c.secrets.Sign(*msg)
+			buf = append(buf, signature...)
 		}
-		buf = append(buf, data...)
-	} else {
-		buf = append(buf, *msg...)
-		signature := c.secrets.Sign(*msg)
-		buf = append(buf, signature...)
 	}
 
 	n = len(buf) - HEADER
@@ -360,7 +370,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	c.logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(buf))
 	err := c.t.Send(c.address, &buf)
 	if err != nil {
-		c.logger.Debug("client Write send error", "error", err, "address", c.address, "seq", seq)
+		c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", seq)
 		return err
 	}
 	c.logger.Debug("client Write sent", "len", len(buf), "address", c.address.String(), "seq", seq)

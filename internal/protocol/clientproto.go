@@ -34,7 +34,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 		return nil, err
 	}
 
-	msg1, err := c.ReadBuf(1)
+	msg1, err := c.ReadBuf(clients.HEADER)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 			ip, err := netip.ParseAddr(addr)
 			if err != nil {
 				// XXX send not OK to server
-				logger.Error("nvalid IP from welcome string", "addr", addr)
+				logger.Error("invalid IP from welcome string", "addr", addr)
 				return nil, errors.New("invalid IP from welcome string: " + addr)
 			}
 			cidrs = append(cidrs, utils.Cidr{IP: ip, Network: &net.IPNet{}})
@@ -78,32 +78,32 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	logger.Debug("ProcessServer: Send XOR key", "XORKey", hex.EncodeToString(s.XORKey))
 	err := c.WriteWithXORAndPadding(s.XORKey, false)
 	if err != nil {
-		logger.Debug("Failed to write XOR key", "error", err)
+		logger.Error("Failed to write XOR key", "error", err)
 		clients.RemoveClient(addr)
 		return
 	}
 
-	buf, err := c.ReadBuf(1)
+	buf, err := c.ReadBuf(clients.HEADER)
 	if err != nil {
-		logger.Debug("Failed to read response message", "error", err)
+		logger.Error("Failed to read response message", "error", err)
 		clients.RemoveClient(addr)
 		return
 	}
 
 	c.XOR(&buf)
 	if len(buf) < 2 || string(buf[:2]) != "OK" {
-		logger.Debug("Invalid server response", "len", len(buf), "msg", string(buf))
+		logger.Error("Invalid server response", "len", len(buf), "msg", string(buf))
 		clients.RemoveClient(addr)
 		return
 	}
 
 	serverIPs, err := Identification(c)
 	if err != nil {
-		logger.Debug("Identification Fails", "error", err)
+		logger.Error("Identification Fails", "error", err)
 		clients.RemoveClient(addr)
 		return
 	}
-	logger.Debug("Identification Success")
+	logger.Info("Identification Success")
 
 	c.AddTunAddressesToClient(serverIPs)
 
@@ -116,7 +116,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	}
 
 	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
-		logger.Debug("Failed to write OK message", "error", err)
+		logger.Error("Failed to write OK message", "error", err)
 		clients.RemoveClient(addr)
 		return
 	}

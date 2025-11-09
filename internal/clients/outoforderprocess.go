@@ -13,9 +13,9 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 	if seq > c.seqIn {
 		if c.lookInBufferForSeq(c.seqIn) {
 			// Found in buffer, process it
-			c.logger.Debug("client ReadBuf: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
+			c.logger.Debug("client OOOP: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
 			c.bufLock.Unlock()
-			return c.ReadBuf(1)
+			return c.ReadBuf(HEADER)
 		}
 		// Did not find any packet in buffer. We lost it. Ask for resend.
 		seq = c.seqIn
@@ -27,7 +27,7 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 				c.logger.Error("OOOP processing: Error when ask a packet for retransmittion", "error", err)
 			}
 			c.oooPackets++
-			return c.ReadBuf(1)
+			return c.ReadBuf(HEADER)
 		}
 		// OutOfOrder leave packet in buffer and restart reading
 		c.oooPackets++
@@ -45,7 +45,7 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 		c.removeThePacketFromBuffer(HEADER + n)
 	}
 	c.bufLock.Unlock()
-	return c.ReadBuf(1)
+	return c.ReadBuf(HEADER)
 }
 
 // Executed under lock
@@ -57,7 +57,7 @@ func (c *Client) lookInBufferForSeq(seq uint32) bool {
 		}
 		crc := uint32(c.buf[offset+5])<<24 | uint32(c.buf[offset+6])<<16 | uint32(c.buf[offset+7])<<8 | uint32(c.buf[offset+8])
 		if crc != crc32.ChecksumIEEE(c.buf[offset:offset+5]) {
-			c.logger.Debug("lookInBufferForSeq CRC32 error", "address", c.address, "offset", offset, "crc", crc,
+			c.logger.Error("lookInBufferForSeq CRC32 error", "address", c.address, "offset", offset, "crc", crc,
 				"calculated", crc32.ChecksumIEEE(c.buf[offset:offset+5]))
 			return false
 		}

@@ -48,7 +48,7 @@ func (udp *UdpTransport) Init(mode string, rAddrPort string, lAddrPort string,
 		if err != nil {
 			return err
 		}
-		udp.logger.Debug("Listen for connection", "on", lAddrPort)
+		udp.logger.Info("Listen for connection", "on", lAddrPort)
 		conn, err := net.ListenUDP("udp", udpLocal)
 		if err != nil {
 			return err
@@ -96,7 +96,7 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 
 		if newConnection {
 			if callback == nil {
-				udp.logger.Error("UDP Listen: No callback for client connection")
+				udp.logger.Debug("UDP Listen: No callback for client connection")
 				continue
 			}
 			go callback(udp, addrPort)

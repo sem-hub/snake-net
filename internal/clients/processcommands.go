@@ -9,23 +9,26 @@ import (
 
 const (
 	NoneCmd         Cmd = iota
+	ShutdownNotify      = 0xfc
 	NoEncryptionCmd     = 0xfd
 	AskForResendCmd     = 0xfe
-	ShutdownCmd         = 0xff
+	ShutdownRequest     = 0xff
 )
 
 // Process special commands received from the client
 // Executed under bufLock
 func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Message, error) {
-	if flags == ShutdownCmd {
-		c.logger.Debug("client ReadBuf shutdown command, closing connection", "address", c.address.String())
+	if flags == ShutdownRequest {
 		c.bufLock.Unlock()
+		c.logger.Info("client got shutdown command, closing connection", "address", c.address.String())
+
+		c.Write(nil, ShutdownNotify)
 		c.SetClientState(NotFound)
 		c.Close()
 		time.Sleep(5 * time.Second)
 		RemoveClient(c.address)
 
-		return nil, errors.New("connection closed by peer")
+		return nil, errors.New("connection closed by server")
 	}
 	if flags == AskForResendCmd {
 		dataDecrypted, err := c.secrets.DecryptAndVerify(data[HEADER : HEADER+n])
@@ -59,7 +62,7 @@ func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Messag
 		c.removeThePacketFromBuffer(HEADER + n)
 
 		c.bufLock.Unlock()
-		return c.ReadBuf(1)
+		return c.ReadBuf(HEADER)
 	}
 	return nil, errors.New("unknown command: " + string(flags))
 }

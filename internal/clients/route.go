@@ -44,7 +44,7 @@ func Route(data []byte) bool {
 
 	address, ok := getDstIP(data)
 	if !ok {
-		logger.Debug("Route: no destination IP found. Ignore.")
+		logger.Error("Route: no destination IP found. Ignore.")
 		return false
 	}
 	logger.Debug("Route", "address", address, "data len", len(data), "clientsCopy", len(clientsCopy), "clients", len(clients))
@@ -77,7 +77,7 @@ func (c *Client) RunReadLoop(mode string) {
 	go func() {
 		for {
 			if c != nil {
-				buf, err := c.ReadBuf(1)
+				buf, err := c.ReadBuf(HEADER)
 				if err != nil {
 					c.logger.Error("Error reading from net buffer", "error", err)
 					// Ignore bad packet

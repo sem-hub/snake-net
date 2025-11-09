@@ -47,7 +47,7 @@ func NewTUN(name string, cidrs []string, mtu int) (interfaces.TunInterface, erro
 		}
 		netipAddr, _ := netip.AddrFromSlice(ip)
 		netipAddr = netipAddr.Unmap()
-		logger.Info("Add CIDR to TUN", "cidr", cidrStr, "ip", netipAddr.String())
+		logger.Debug("Add CIDR to TUN", "cidr", cidrStr, "ip", netipAddr.String())
 		iface.cidrs = append(iface.cidrs, utils.Cidr{IP: netipAddr, Network: net})
 	}
 
