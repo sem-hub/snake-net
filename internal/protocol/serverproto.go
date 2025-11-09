@@ -16,7 +16,6 @@ import (
 )
 
 func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
-	logger := configs.GetLogger()
 	cidrs := make([]utils.Cidr, 0)
 
 	buf, err := c.ReadBuf(1)
@@ -66,7 +65,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	} else {
 		logger.Debug("IdentifyClient: invalid first word", "word", h)
 		if err := c.WriteWithXORAndPadding([]byte("Error"), true); err != nil {
-			configs.GetLogger().Debug("Failed to write Error message", "error", err)
+			logger.Debug("Failed to write Error message", "error", err)
 			return nil, err
 		}
 
@@ -104,7 +103,6 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 }
 
 func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
-	logger := configs.GetLogger()
 	logger.Debug("ProcessNewClient", "gotAddr", addr.String())
 
 	c := clients.NewClient(addr, t)
@@ -136,7 +134,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	if err != nil {
 		logger.Debug("Identification failed", "error", err)
 		if err := c.WriteWithXORAndPadding([]byte("Error"), true); err != nil {
-			configs.GetLogger().Debug("Failed to write Error message", "error", err)
+			logger.Debug("Failed to write Error message", "error", err)
 		}
 		clients.RemoveClient(addr)
 		return

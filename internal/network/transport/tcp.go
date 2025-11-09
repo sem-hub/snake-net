@@ -2,7 +2,6 @@ package transport
 
 import (
 	"errors"
-	"log/slog"
 	"net"
 	"net/netip"
 	"strconv"
@@ -17,9 +16,9 @@ type TcpTransport struct {
 	connLock *sync.RWMutex
 }
 
-func NewTcpTransport(logger *slog.Logger) *TcpTransport {
+func NewTcpTransport() *TcpTransport {
 	return &TcpTransport{
-		TransportData: *NewTransport(logger),
+		TransportData: *NewTransport(),
 		mainConn:      nil,
 		conn:          make(map[netip.AddrPort]*net.TCPConn),
 		connLock:      &sync.RWMutex{},
@@ -54,7 +53,6 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort string, lAddrPort string,
 		if err != nil {
 			return errors.New("ResolveTCPAddr error: " + err.Error())
 		}
-		logger.Debug("before DialTCP", "family", family, "rAddrPort", rAddrPort)
 		conn, err := net.DialTCP(family, nil, tcpServer)
 		if err != nil {
 			return errors.New("DialTCP error: " + err.Error())
@@ -63,14 +61,14 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort string, lAddrPort string,
 		tcp.connLock.Lock()
 		tcp.conn[conn.RemoteAddr().(*net.TCPAddr).AddrPort()] = conn
 		tcp.connLock.Unlock()
-		logger.Info("Connected to server", "rAddrPort", rAddrPort, "from", conn.LocalAddr().String())
+		tcp.logger.Info("Connected to server", "rAddrPort", rAddrPort, "from", conn.LocalAddr().String())
 	}
 
 	return nil
 }
 
 func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.AddrPort)) error {
-	logger.Debug("Listen for connection", "on", addrPort)
+	tcp.logger.Debug("Listen for connection", "on", addrPort)
 	listen, err := net.Listen("tcp", addrPort)
 	if err != nil {
 		return err
@@ -79,7 +77,7 @@ func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
-			logger.Error("listen", "error", err)
+			tcp.logger.Error("listen", "error", err)
 			break
 		}
 
@@ -90,7 +88,7 @@ func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.
 		// unmap this AddrPort
 		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
 
-		logger.Debug("New TCP connection from", "addr", addrPort.String())
+		tcp.logger.Debug("New TCP connection from", "addr", addrPort.String())
 		tcp.connLock.Lock()
 		tcp.conn[addrPort] = tcpconn
 		tcp.connLock.Unlock()
@@ -98,7 +96,7 @@ func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.
 	}
 	err = listen.Close()
 	if err != nil {
-		logger.Error("listen Close", "error", err)
+		tcp.logger.Error("listen Close", "error", err)
 	}
 	return nil
 }
@@ -112,7 +110,7 @@ func (tcp *TcpTransport) Send(addr netip.AddrPort, buf *Message) error {
 	}
 
 	n := len(*buf)
-	logger.Debug("Send data to network", "len", n)
+	tcp.logger.Debug("Send data to network", "len", n)
 	l, err := tcpconn.Write(*buf)
 	if err != nil {
 		return err
@@ -137,7 +135,7 @@ func (tcp *TcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 		return nil, 0, err
 	}
 
-	logger.Debug("Got data", "len", l, "from", addr.String())
+	tcp.logger.Debug("Got data", "len", l, "from", addr.String())
 	msg := Message(b)[:l]
 	return msg, l, nil
 }

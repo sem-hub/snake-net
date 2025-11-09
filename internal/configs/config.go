@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/sem-hub/snake-net/internal/utils"
 )
@@ -26,10 +27,13 @@ type Main struct {
 }
 
 type Log struct {
+	Main     string `toml:"main"`
 	Protocol string `toml:"protocol"`
 	Network  string `toml:"network"`
 	Crypt    string `toml:"crypt"`
 	Clients  string `toml:"clients"`
+	Tun      string `toml:"tun"`
+	Route    string `toml:"route"`
 }
 
 type RuntimeConfig struct {
@@ -41,11 +45,9 @@ type RuntimeConfig struct {
 	LocalAddr  string
 	LocalPort  uint32
 	TunAddrs   []utils.Cidr
-	LogLevel   slog.Level
 }
 
 var (
-	logger     *slog.Logger
 	config     *RuntimeConfig = nil
 	configFile *ConfigFile    = nil
 )
@@ -68,11 +70,9 @@ func GetConfig() *RuntimeConfig {
 			LocalAddr:  configFile.Main.LocalAddr,
 			LocalPort:  configFile.Main.LocalPort,
 			TunAddrs:   []utils.Cidr{},
-			LogLevel:   slog.LevelInfo,
 		}
 		if len(configFile.Main.TunAddrStr) > 0 {
 			for _, addr := range configFile.Main.TunAddrStr {
-				logger.Debug("Adding TUN address from config file", "addr", addr)
 				ip, network, _ := net.ParseCIDR(addr)
 				netIP, _ := netip.AddrFromSlice(ip)
 				config.TunAddrs = append(config.TunAddrs,
@@ -94,8 +94,49 @@ func removeTime(groups []string, a slog.Attr) slog.Attr {
 	return a
 }*/
 
-func InitLogger(level slog.Level) {
-	logger = slog.New(
+func getLevelByString(levelStr string) slog.Level {
+	switch strings.ToLower(levelStr) {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelError
+	}
+}
+
+func getLenvelByModule(module string) slog.Level {
+	switch module {
+	case "main":
+		return getLevelByString(configFile.Log.Main)
+	case "network":
+		return getLevelByString(configFile.Log.Network)
+	case "tun":
+		return getLevelByString(configFile.Log.Tun)
+	case "route":
+		return getLevelByString(configFile.Log.Route)
+	case "protocol":
+		return getLevelByString(configFile.Log.Protocol)
+	case "clients":
+		return getLevelByString(configFile.Log.Clients)
+	case "crypt":
+		return getLevelByString(configFile.Log.Crypt)
+	default:
+		if configFile.Main.Debug {
+			return slog.LevelDebug
+		} else {
+			return slog.LevelInfo
+		}
+	}
+}
+
+func InitLogger(module string) *slog.Logger {
+	level := getLenvelByModule(module)
+	logger := slog.New(
 		slog.NewTextHandler(
 			os.Stderr,
 			&slog.HandlerOptions{
@@ -104,9 +145,5 @@ func InitLogger(level slog.Level) {
 			},
 		),
 	)
-	slog.SetDefault(logger)
-}
-
-func GetLogger() *slog.Logger {
 	return logger
 }

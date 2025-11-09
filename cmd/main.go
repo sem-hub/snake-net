@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"log/slog"
 	"net"
 	"os"
 	"regexp"
@@ -78,14 +77,18 @@ func main() {
 			log.Fatal(err)
 		}
 		debug = cfg.Main.Debug
+	} else {
+		cfg.Main.Debug = debug
+		cfg.Log.Main = "Debug"
+		cfg.Log.Clients = "Debug"
+		cfg.Log.Network = "Debug"
+		cfg.Log.Tun = "Debug"
+		cfg.Log.Crypt = "Debug"
+		cfg.Log.Protocol = "Debug"
+		cfg.Log.Route = "Debug"
 	}
 
-	var level slog.Level = slog.LevelInfo
-	if debug {
-		level = slog.LevelDebug
-	}
-	configs.InitLogger(level)
-	logger := configs.GetLogger()
+	logger := configs.InitLogger("main")
 
 	var addr string
 	if configFile == "" {
@@ -104,7 +107,7 @@ func main() {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.RemoteAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.RemotePort))
 		}
-		logger.Info(addr)
+		logger.Debug(addr)
 	}
 
 	proto_regex := `(tcp|udp)://`
@@ -138,11 +141,11 @@ func main() {
 	}
 
 	if len(tunAddr) == 0 {
-		log.Fatal("At least one TUN address (CIDR) is mandatory")
+		log.Fatalln("At least one TUN address (CIDR) is mandatory")
 	}
 
 	// Set up TUN interface
-	logger.Debug("TUN Addresses", "addrs", tunAddr)
+	logger.Info("TUN Addresses", "addrs", tunAddr)
 
 	tunIf, err := network.NewTUN("snake", tunAddr, 0)
 	if err != nil {
@@ -154,11 +157,11 @@ func main() {
 	var t transport.Transport = nil
 	switch cfg.Main.Protocol {
 	case "udp":
-		logger.Debug("Using UDP Transport.")
-		t = transport.NewUdpTransport(logger)
+		logger.Info("Using UDP Transport.")
+		t = transport.NewUdpTransport()
 	case "tcp":
-		logger.Debug("Using TCP Transport.")
-		t = transport.NewTcpTransport(logger)
+		logger.Info("Using TCP Transport.")
+		t = transport.NewTcpTransport()
 	default:
 		log.Fatalf("Unknown Protocol: %s", cfg.Main.Protocol)
 	}

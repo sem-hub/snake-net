@@ -17,7 +17,6 @@ import (
 )
 
 func Identification(c *clients.Client) ([]utils.Cidr, error) {
-	logger := configs.GetLogger()
 	cidrs := make([]utils.Cidr, 0)
 
 	msg := []byte("Hello")
@@ -68,7 +67,6 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 }
 
 func ProcessServer(t transport.Transport, addr netip.AddrPort) {
-	logger := configs.GetLogger()
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t)
 	s := crypt.NewSecrets()

@@ -2,6 +2,8 @@ package clients
 
 import (
 	"net/netip"
+
+	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 func getDstIP(packet []byte) (netip.Addr, bool) {
@@ -25,13 +27,14 @@ func sendDataToClient(addr netip.AddrPort, data []byte) {
 		go func(cl *Client) {
 			err := cl.Write(&data, NoneCmd)
 			if err != nil {
-				logger.Error("Route write", "error", err)
+				c.logger.Error("Route write", "error", err)
 			}
 		}(c)
 	}
 }
 
 func Route(data []byte) bool {
+	logger := configs.InitLogger("route")
 	clientsLock.Lock()
 	clientsCopy := make([]Client, len(clients))
 	for i, c := range clients {
@@ -76,11 +79,11 @@ func (c *Client) RunReadLoop(mode string) {
 			if c != nil {
 				buf, err := c.ReadBuf(1)
 				if err != nil {
-					logger.Error("Error reading from net buffer", "error", err)
+					c.logger.Error("Error reading from net buffer", "error", err)
 					// Ignore bad packet
 					continue
 				}
-				logger.Debug("TUN: Read from net", "len", len(buf), "mode", mode)
+				c.logger.Debug("TUN: Read from net", "len", len(buf), "mode", mode)
 
 				// send to all clients except the sender
 				if mode == "server" {
@@ -93,7 +96,7 @@ func (c *Client) RunReadLoop(mode string) {
 				if tunIf != nil {
 					tunIf.WriteTun(buf)
 				} else {
-					logger.Debug("RunReadLoop: ignore packet. Did not initialized yet")
+					c.logger.Debug("RunReadLoop: ignore packet. Did not initialized yet")
 				}
 			}
 		}

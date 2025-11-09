@@ -18,7 +18,7 @@ const (
 // Executed under bufLock
 func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Message, error) {
 	if flags == ShutdownCmd {
-		logger.Debug("client ReadBuf shutdown command, closing connection", "address", c.address.String())
+		c.logger.Debug("client ReadBuf shutdown command, closing connection", "address", c.address.String())
 		c.bufLock.Unlock()
 		c.SetClientState(NotFound)
 		c.Close()
@@ -30,12 +30,12 @@ func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Messag
 	if flags == AskForResendCmd {
 		dataDecrypted, err := c.secrets.DecryptAndVerify(data[HEADER : HEADER+n])
 		if err != nil {
-			logger.Error("client Readbuf: decrypt&verify error", "address", c.address.String(), "error", err)
+			c.logger.Error("client Readbuf: decrypt&verify error", "address", c.address.String(), "error", err)
 			return nil, err
 		}
 		// Find in sentBuffer and resend
 		askSeq := uint32(dataDecrypted[0])<<8 | uint32(dataDecrypted[1])
-		logger.Debug("client ReadBuf asked for resend command", "address", c.address.String(), "seq", askSeq)
+		c.logger.Debug("client ReadBuf asked for resend command", "address", c.address.String(), "seq", askSeq)
 
 		dataSend, ok := c.sentBuffer.Find(func(index interface{}) bool {
 			buf := index.([]byte)
@@ -45,15 +45,15 @@ func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Messag
 		if ok {
 			buf := dataSend.([]byte)
 			seqNum := uint32(buf[2])<<8 | uint32(buf[3])
-			logger.Debug("client ReadBuf resend for", "address", c.address.String(), "seq", seqNum)
+			c.logger.Debug("client ReadBuf resend for", "address", c.address.String(), "seq", seqNum)
 			err := c.t.Send(c.address, &buf)
 			if err != nil {
-				logger.Error("client ReadBuf resend failed", "address", c.address.String(), "seq", askSeq, "error", err)
+				c.logger.Error("client ReadBuf resend failed", "address", c.address.String(), "seq", askSeq, "error", err)
 			}
 			// Hold on the client a little
 			time.Sleep(10 * time.Millisecond)
 		} else {
-			logger.Error("client ReadBuf resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
+			c.logger.Error("client ReadBuf resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
 		}
 		// Remove the packet from buffer
 		c.removeThePacketFromBuffer(HEADER + n)

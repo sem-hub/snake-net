@@ -3,6 +3,8 @@ package transport
 import (
 	"log/slog"
 	"net/netip"
+
+	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 type Message = []byte
@@ -26,16 +28,13 @@ type Transport interface {
 }
 
 type TransportData struct {
-	Logger *slog.Logger
+	logger *slog.Logger
 }
 
 const NETBUFSIZE = 9000
 
-var logger *slog.Logger
-
-func NewTransport(loggerHandler *slog.Logger) *TransportData {
-	logger = loggerHandler
-	return &TransportData{
-		Logger: logger,
-	}
+func NewTransport() *TransportData {
+	t := &TransportData{}
+	t.logger = configs.InitLogger("transport")
+	return t
 }

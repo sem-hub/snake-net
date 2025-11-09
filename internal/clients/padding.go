@@ -16,7 +16,7 @@ func (c *Client) WriteWithXORAndPadding(msg []byte, needXOR bool) error {
 	if needXOR {
 		c.XOR(&buf)
 	}
-	logger.Debug("client WriteWithPadding", "buflen", len(buf), "datalen", len(msg), "paddingSize", paddingSize, "address", c.address)
+	c.logger.Debug("client WriteWithPadding", "buflen", len(buf), "datalen", len(msg), "paddingSize", paddingSize, "address", c.address)
 	return c.Write(&buf, NoEncryptionCmd)
 }
 

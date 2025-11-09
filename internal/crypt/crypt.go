@@ -6,10 +6,14 @@ import (
 	"crypto/cipher"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"io"
+	"log/slog"
 	"slices"
 	"strings"
+
+	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
@@ -19,6 +23,7 @@ const SIGNLEN = 64
 const XORKEYLEN = 32
 
 type Secrets struct {
+	logger            *slog.Logger
 	SharedSecret      []byte
 	SessionPrivateKey ed25519.PrivateKey
 	SessionPublicKey  ed25519.PublicKey
@@ -27,6 +32,7 @@ type Secrets struct {
 
 func NewSecrets() *Secrets {
 	s := Secrets{}
+	s.logger = configs.InitLogger("crypt")
 
 	s.SharedSecret = make([]byte, 32)
 	copy(s.SharedSecret, []byte(FIRSTSECRET))
@@ -56,12 +62,12 @@ func (s *Secrets) GetSharedSecret() []byte {
 }
 
 func (s *Secrets) Verify(msg []byte, sig []byte) bool {
-	//configs.GetLogger().Debug("Verify", "msg len", len(msg), "siglen", len(sig))
+	s.logger.Debug("Verify", "msg len", len(msg), "siglen", len(sig))
 	return ed25519.Verify(s.SessionPublicKey, msg, sig)
 }
 
 func (s *Secrets) Sign(msg []byte) []byte {
-	//configs.GetLogger().Debug("Sign", "msglen", len(msg))
+	s.logger.Debug("Sign", "msglen", len(msg))
 	return ed25519.Sign(s.SessionPrivateKey, msg)
 }
 
@@ -94,7 +100,7 @@ func (s *Secrets) DecryptAndVerify(data []byte) ([]byte, error) {
 
 func (s *Secrets) cryptDecrypt(data []byte) ([]byte, error) {
 	buf := slices.Clone(data)
-	//configs.GetLogger().Debug("CryptDecrypt", "datalen", len(data), "sharedsecret", hex.EncodeToString(s.SharedSecret))
+	s.logger.Debug("CryptDecrypt", "datalen", len(data), "sharedsecret", hex.EncodeToString(s.SharedSecret))
 	bReader := bytes.NewReader(data)
 	block, err := aes.NewCipher(s.SharedSecret)
 	if err != nil {
@@ -108,7 +114,7 @@ func (s *Secrets) cryptDecrypt(data []byte) ([]byte, error) {
 	if _, err := io.Copy(buf1, reader); err != nil {
 		return nil, err
 	}
-	//configs.GetLogger().Debug("CryptDecrypt", "encryptedlen", len(data))
+	s.logger.Debug("CryptDecrypt", "encryptedlen", len(data))
 	copy(buf, []byte(buf1.String()))
 	return buf, nil
 }

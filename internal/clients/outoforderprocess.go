@@ -13,7 +13,7 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 	if seq > c.seqIn {
 		if c.lookInBufferForSeq(c.seqIn) {
 			// Found in buffer, process it
-			logger.Debug("client ReadBuf: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
+			c.logger.Debug("client ReadBuf: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
 			c.bufLock.Unlock()
 			return c.ReadBuf(1)
 		}
@@ -24,7 +24,7 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 			c.bufLock.Unlock()
 			err := c.AskForResend(seq)
 			if err != nil {
-				logger.Error("OOOP processing: Error when ask a packet for retransmittion", "error", err)
+				c.logger.Error("OOOP processing: Error when ask a packet for retransmittion", "error", err)
 			}
 			c.oooPackets++
 			return c.ReadBuf(1)
@@ -33,7 +33,7 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 		c.oooPackets++
 		if c.oooPackets > 30 {
 			// Too many out of order packets, reset buffer
-			logger.Error("client ReadBuf: too many out of order packets, ignore the sequence number", "oooPackets", c.oooPackets, "address", c.address.String())
+			c.logger.Error("client ReadBuf: too many out of order packets, ignore the sequence number", "oooPackets", c.oooPackets, "address", c.address.String())
 			c.seqIn++
 			c.bufLock.Unlock()
 			return nil, errors.New("too many out of order packets")
@@ -41,7 +41,7 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 		// Go to next packet. Leave the packet in buffer.
 		c.bufOffset += HEADER + n
 	} else {
-		logger.Error("client ReadBuf: duplicate. Drop.")
+		c.logger.Error("client ReadBuf: duplicate. Drop.")
 		c.removeThePacketFromBuffer(HEADER + n)
 	}
 	c.bufLock.Unlock()
@@ -57,7 +57,7 @@ func (c *Client) lookInBufferForSeq(seq uint32) bool {
 		}
 		crc := uint32(c.buf[offset+5])<<24 | uint32(c.buf[offset+6])<<16 | uint32(c.buf[offset+7])<<8 | uint32(c.buf[offset+8])
 		if crc != crc32.ChecksumIEEE(c.buf[offset:offset+5]) {
-			logger.Debug("lookInBufferForSeq CRC32 error", "address", c.address, "offset", offset, "crc", crc,
+			c.logger.Debug("lookInBufferForSeq CRC32 error", "address", c.address, "offset", offset, "crc", crc,
 				"calculated", crc32.ChecksumIEEE(c.buf[offset:offset+5]))
 			return false
 		}
@@ -74,7 +74,7 @@ func (c *Client) lookInBufferForSeq(seq uint32) bool {
 }
 
 func (c *Client) AskForResend(seq uint32) error {
-	logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
+	c.logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
 
 	buf := make([]byte, 2)
 	buf[0] = byte(seq >> 8)

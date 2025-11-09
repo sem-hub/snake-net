@@ -33,6 +33,7 @@ const (
 )
 
 type Client struct {
+	logger        *slog.Logger
 	address       netip.AddrPort
 	tunAddrs      []utils.Cidr
 	t             transport.Transport
@@ -53,7 +54,6 @@ type Client struct {
 var (
 	clients     = []*Client{} // XXX make map
 	clientsLock sync.Mutex
-	logger      *slog.Logger
 	tunIf       interfaces.TunInterface
 )
 
@@ -70,9 +70,10 @@ func (c *Client) GetTunAddrs() []utils.Cidr {
 }
 
 func NewClient(address netip.AddrPort, t transport.Transport) *Client {
-	logger = configs.GetLogger()
+	logger := configs.InitLogger("client")
 	logger.Debug("AddClient", "address", address)
 	client := Client{
+		logger:        logger,
 		address:       address,
 		tunAddrs:      nil,
 		t:             t,
@@ -115,7 +116,7 @@ func RemoveClient(address netip.AddrPort) {
 	for i, c := range clients {
 		if c.address == address {
 			c.Close()
-			logger.Debug("RemoveClient", "address", address)
+			c.logger.Debug("RemoveClient", "address", address)
 			clients = append(clients[:i], clients[i+1:]...)
 			break
 		}
@@ -141,7 +142,7 @@ func (c *Client) GetClientState() State {
 
 func (c *Client) SetClientState(state State) {
 	c.state = state
-	logger.Debug("SetClientState", "address", c.address.String(), "state", state)
+	c.logger.Debug("SetClientState", "address", c.address.String(), "state", state)
 }
 
 func GetClientCount() int {
@@ -153,29 +154,29 @@ func GetClientCount() int {
 }
 
 func (c *Client) RunNetLoop(address netip.AddrPort) {
-	logger.Debug("RunNetLoop", "address", address)
+	c.logger.Debug("RunNetLoop", "address", address)
 	// read data from network into c.buf
 	// when data is available, send signal to c.bufSignal
 	// main loop will read data from c.buf
 	go func() {
 		for {
-			logger.Debug("client NetLoop waiting for data", "address", address.String())
+			c.logger.Debug("client NetLoop waiting for data", "address", address.String())
 			msg, n, err := c.t.Receive(address)
-			logger.Debug("client NetLoop after Receive", "len", n, "address", address.String())
+			c.logger.Debug("client NetLoop after Receive", "len", n, "address", address.String())
 			if err != nil {
-				logger.Error("client NetLoop Receive error", "err", err)
+				c.logger.Error("client NetLoop Receive error", "err", err)
 				return
 			}
 			c.bufLock.Lock()
 			// Write to the end of the buffer
-			logger.Debug("client NetLoop put in buf", "len", n, "bufSize", c.bufSize, "address", address.String())
+			c.logger.Debug("client NetLoop put in buf", "len", n, "bufSize", c.bufSize, "address", address.String())
 			copy(c.buf[c.bufSize:], msg[:n])
 			c.bufSize += n
 			if n > 0 {
 				c.bufSignal.Signal()
 			}
 			c.bufLock.Unlock()
-			logger.Debug("client NetLoop put", "len", n, "from", address.String())
+			c.logger.Debug("client NetLoop put", "len", n, "from", address.String())
 		}
 	}()
 }
@@ -189,7 +190,7 @@ func (c *Client) removeThePacketFromBuffer(n int) {
 
 // reqSize - minimal size to read
 func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
-	logger.Debug("client ReadBuf", "address", c.address.String(), "bufSize", c.bufSize, "bufOffset", c.bufOffset,
+	c.logger.Debug("client ReadBuf", "address", c.address.String(), "bufSize", c.bufSize, "bufOffset", c.bufOffset,
 		"reqSize", reqSize)
 	// If we need to wait for data
 	c.bufLock.Lock()
@@ -203,7 +204,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// Next 1 byte is flags
 	// Next 4 bytes are CRC32 of the header (of 5 bytes)
 	// Next n bytes are message finished with 64 bytes signature
-	logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
+	c.logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 	if c.bufSize-c.bufOffset < HEADER+c.secrets.MinimalSize() {
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid buffer size")
@@ -214,7 +215,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 
 	crc := uint32(data[5])<<24 | uint32(data[6])<<16 | uint32(data[7])<<8 | uint32(data[8])
 	if crc != crc32.ChecksumIEEE(data[:5]) {
-		logger.Debug("ReadBuf CRC32", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(data[:5]))
+		c.logger.Debug("ReadBuf CRC32", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(data[:5]))
 		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
@@ -232,17 +233,17 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		return nil, errors.New("invalid message size")
 	}
 
-	logger.Debug("client ReadBuf size", "address", c.address.String(), "n", n)
+	c.logger.Debug("client ReadBuf size", "address", c.address.String(), "n", n)
 	if HEADER+n > c.bufSize-c.bufOffset {
 		c.bufLock.Unlock()
-		logger.Error("client Readbuf: incomplete message", "address", c.address.String(), "needed", HEADER+n, "have", c.bufSize-c.bufOffset)
+		c.logger.Error("client Readbuf: incomplete message", "address", c.address.String(), "needed", HEADER+n, "have", c.bufSize-c.bufOffset)
 		//return nil, errors.New("incomplete message")
 		return c.ReadBuf(HEADER + n)
 	}
 	seq := uint32(data[2])<<8 | uint32(data[3])
 	flags := Cmd(data[4])
 
-	logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
+	c.logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	// Sanity check of "n"
 	if n <= 0 || HEADER+n > BUFSIZE {
 		c.removeThePacketFromBuffer(HEADER + n)
@@ -254,7 +255,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 
 	// Out of order or lost packets processing
 	if seq != c.seqIn {
-		logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
+		c.logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
 			"expected", c.seqIn, "address", c.address, "oooPackets", c.oooPackets)
 		// We still hold lock here. Unlock inside the function.
 		return c.processOOOP(n, seq)
@@ -268,7 +269,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	c.seqIn++
 
 	if flags != NoneCmd && flags != NoEncryptionCmd {
-		logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", flags)
+		c.logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", flags)
 		return c.processCommand(flags, data, n)
 	}
 
@@ -278,11 +279,11 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	/* Remove the packet from buffer */
 	c.removeThePacketFromBuffer(HEADER + n)
 	if needResetOffset {
-		logger.Debug("client ReadBuf: reset bufOffset to 0", "address", c.address.String())
+		c.logger.Debug("client ReadBuf: reset bufOffset to 0", "address", c.address.String())
 		c.bufOffset = 0
 	}
 	if c.bufSize < 0 {
-		logger.Error("client ReadBuf: ", "address", c.address.String(), "bufSize", c.bufSize)
+		c.logger.Error("client ReadBuf: ", "address", c.address.String(), "bufSize", c.bufSize)
 		c.bufSize = 0
 		return nil, errors.New("invalid buffer size")
 	}
@@ -291,13 +292,13 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 
 	// decrypt and verify the packet or just verify if NoEncryptionCmd flag set
 	if flags != NoEncryptionCmd {
-		logger.Debug("client ReadBuf decrypting", "address", c.address.String())
+		c.logger.Debug("client ReadBuf decrypting", "address", c.address.String())
 		data, err := c.secrets.DecryptAndVerify(msg[HEADER : HEADER+n])
 		if err != nil {
-			logger.Error("client Readbuf: decrypt&verify error", "address", c.address.String(), "error", err)
+			c.logger.Error("client Readbuf: decrypt&verify error", "address", c.address.String(), "error", err)
 			return nil, err
 		}
-		logger.Debug("After decryption", "datalen", len(data), "msglen", len(msg))
+		c.logger.Debug("After decryption", "datalen", len(data), "msglen", len(msg))
 		copy(msg[HEADER:], data)
 	} else {
 		if !c.secrets.Verify(msg[HEADER:HEADER+n-c.secrets.MinimalSize()], msg[HEADER+n-c.secrets.MinimalSize():]) {
@@ -316,18 +317,18 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	defer c.orderSendLock.Unlock()
 
 	n := len(*msg)
-	logger.Debug("client Write data", "len", n, "address", c.address.String())
+	c.logger.Debug("client Write data", "len", n, "address", c.address.String())
 
 	if HEADER+n+c.secrets.MinimalSize() > BUFSIZE {
 		return errors.New("invalid message size")
 	}
 	// Copy message
-	logger.Debug("client Write", "address", c.address, "seq", c.seqOut.Load())
+	c.logger.Debug("client Write", "address", c.address, "seq", c.seqOut.Load())
 
 	buf := make([]byte, HEADER)
 
 	if cmd != NoEncryptionCmd {
-		logger.Debug("client Write encrypting", "address", c.address, "seq", c.seqOut.Load())
+		c.logger.Debug("client Write encrypting", "address", c.address, "seq", c.seqOut.Load())
 		data, err := c.secrets.EncryptAndSeal(*msg)
 		if err != nil {
 			return err
@@ -350,19 +351,19 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	buf[4] = byte(cmd) // flags or command
 
 	crc := crc32.ChecksumIEEE(buf[:5])
-	logger.Debug("client Write", "crc", crc)
+	c.logger.Debug("client Write", "crc", crc)
 	buf[5] = byte(crc >> 24)
 	buf[6] = byte((crc >> 16) & 0xff)
 	buf[7] = byte((crc >> 8) & 0xff)
 	buf[8] = byte(crc & 0xff)
 
-	logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(buf))
+	c.logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(buf))
 	err := c.t.Send(c.address, &buf)
 	if err != nil {
-		logger.Debug("client Write send error", "error", err, "address", c.address, "seq", seq)
+		c.logger.Debug("client Write send error", "error", err, "address", c.address, "seq", seq)
 		return err
 	}
-	logger.Debug("client Write sent", "len", len(buf), "address", c.address.String(), "seq", seq)
+	c.logger.Debug("client Write sent", "len", len(buf), "address", c.address.String(), "seq", seq)
 	c.sentBuffer.Push(buf)
 	return nil
 }

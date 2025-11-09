@@ -16,21 +16,8 @@ import (
 var logger *slog.Logger
 var cfg *configs.RuntimeConfig = nil
 
-func NewLogger(level slog.Level) *slog.Logger {
-	logger := slog.New(
-		slog.NewTextHandler(
-			os.Stderr,
-			&slog.HandlerOptions{
-				Level: level,
-			},
-		),
-	)
-	slog.SetDefault(logger)
-	return logger
-}
-
 func ResolveAndProcess(t transport.Transport, host string, port uint32) {
-	logger = NewLogger(slog.LevelDebug)
+	logger = configs.InitLogger("protocol")
 	cfg = configs.GetConfig()
 
 	if host == "" {
@@ -99,5 +86,4 @@ func ResolveAndProcess(t transport.Transport, host string, port uint32) {
 	}
 	forever := make(chan bool)
 	<-forever
-
 }

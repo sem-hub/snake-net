@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
-	"os"
 
 	"github.com/sem-hub/snake-net/internal/clients"
+	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/utils"
 	"github.com/vishvananda/netlink"
@@ -30,15 +30,7 @@ type TunInterface struct {
 var tunIf *TunInterface
 
 func NewTUN(name string, cidrs []string, mtu int) (interfaces.TunInterface, error) {
-	logger := slog.New(
-		slog.NewTextHandler(
-			os.Stderr,
-			&slog.HandlerOptions{
-				Level: slog.LevelDebug,
-			},
-		),
-	)
-	slog.SetDefault(logger)
+	logger := configs.InitLogger("tun")
 
 	iface := TunInterface{}
 	iface.logger = logger
@@ -61,14 +53,14 @@ func NewTUN(name string, cidrs []string, mtu int) (interfaces.TunInterface, erro
 
 	iface.tunDev, err = tun.CreateTUN(name, mtu)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
 	tunName, err := iface.tunDev.Name()
 	if err != nil {
-		panic("Get tun name")
+		log.Fatalln("Get tun name")
 	}
-	log.Printf("Interface Name: %s\n", tunName)
+	logger.Info("Interface", "name", tunName)
 
 	link, err := netlink.LinkByName(tunName)
 	if err != nil {
