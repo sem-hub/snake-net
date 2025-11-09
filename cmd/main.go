@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/google/uuid"
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/network"
@@ -69,6 +70,12 @@ func main() {
 	if flag.NArg() == 0 && configFile == "" {
 		flag.Usage()
 		os.Exit(1)
+	}
+
+	if flag.Arg(0) == "uuid" {
+		uuid := uuid.New()
+		fmt.Println(uuid.String())
+		os.Exit(0)
 	}
 
 	if configFile != "" {
