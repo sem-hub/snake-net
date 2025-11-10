@@ -217,7 +217,7 @@ func main() {
 	case sig := <-sigChan:
 		logger.Info("Received signal", "signal", sig)
 		t.Close()
-		tunIf.SetExit()
+		tunIf.Close()
 		t = nil
 		cancel()
 		<-done // Wait for processing to finish

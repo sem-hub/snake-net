@@ -82,7 +82,6 @@ func (c *Client) RunReadLoop(mode string) {
 					c.logger.Error("Error reading from net buffer", "error", err)
 					// Check if the client closed
 					if c.IsClosed() {
-						tunIf.SetExit()
 						break
 					}
 					// Ignore bad packet

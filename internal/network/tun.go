@@ -39,7 +39,6 @@ func NewTUN(name string, cidrs []string, mtu int) (interfaces.TunInterface, erro
 		mtu:       defaultMTU,
 		logger:    logger,
 		readBuffs: make([][]byte, 0),
-		needExit:  false,
 	}
 
 	var err error
@@ -107,26 +106,14 @@ func ProcessTun() {
 		log.Fatal("TUN interface not initialized")
 	}
 	for {
-		if tunIf.needExit {
-			tunIf.logger.Debug("TUN: exit")
-			break
-		}
 		buf, err := tunIf.ReadTun()
 		if err != nil {
 			tunIf.logger.Error("ReadTun", "error", err)
 			break
 		}
 		tunIf.logger.Debug("TUN: Read from tun", "len", len(buf))
-		if tunIf.needExit {
-			tunIf.logger.Debug("TUN: exit")
-			break
-		}
 		// send to all clients except the sender
 		found := clients.Route(buf)
-		if tunIf.needExit {
-			tunIf.logger.Debug("TUN: exit")
-			break
-		}
 		// if no client found, write into local tun interface channel.
 		if !found {
 			tunIf.WriteTun(buf)
@@ -185,10 +172,12 @@ func (tunIf *TunInterface) WriteTun(buf []byte) error {
 	return nil
 }
 
-func (tunIf *TunInterface) SetExit() {
-	tunIf.needExit = true
+func (tunIf *TunInterface) Close() {
 	// Try to close underlying tun device to unblock Read
 	if tunIf.tunDev != nil {
-		_ = tunIf.tunDev.Close()
+		err := tunIf.tunDev.Close()
+		if err != nil {
+			tunIf.logger.Error("Close tun device", "error", err)
+		}
 	}
 }

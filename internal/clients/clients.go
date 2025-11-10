@@ -175,7 +175,7 @@ func (c *Client) RunNetLoop(address netip.AddrPort) {
 				c.SetClientState(NotFound)
 				RemoveClient(c.address)
 				if configs.GetConfig().Mode == "client" {
-					tunIf.SetExit()
+					tunIf.Close()
 				}
 				break
 			}
@@ -389,8 +389,6 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	err := c.t.Send(c.address, &buf)
 	if err != nil {
 		c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", seq)
-		// XXX
-		tunIf.SetExit()
 		return err
 	}
 	c.logger.Debug("client Write sent", "len", len(buf), "address", c.address.String(), "seq", seq)
