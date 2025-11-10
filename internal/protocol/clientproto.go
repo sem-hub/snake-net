@@ -84,6 +84,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	}
 
 	buf, err := c.ReadBuf(clients.HEADER)
+	logger.Debug("ProcessServer: Read response message from server", "len", len(buf))
 	if err != nil {
 		logger.Error("Failed to read response message", "error", err)
 		clients.RemoveClient(addr)
@@ -124,5 +125,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	c.SetClientState(clients.Ready)
 
 	c.RunReadLoop("client")
+	logger.Info("client started", "address", addr.String())
 	network.ProcessTun()
+	logger.Debug("client finished")
 }

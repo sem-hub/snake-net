@@ -9,20 +9,22 @@ import (
 
 type UdpTransport struct {
 	TransportData
-	mainConn      *net.UDPConn
-	clientAddr    map[netip.AddrPort]bool     // This field is used to track active clients
-	packetBuf     map[netip.AddrPort][][]byte // A client buffer removed when empty. Track connections with clientAddr
-	packetBufLock *sync.Mutex
-	packetBufCond *sync.Cond
+	mainConn        *net.UDPConn
+	clientMustClose map[netip.AddrPort]bool     // This field is used to track active clients
+	packetBuf       map[netip.AddrPort][][]byte // A client buffer removed when empty. Track connections with clientAddr
+	packetBufLock   *sync.Mutex
+	packetBufCond   *sync.Cond
+	errorHappened   bool
 }
 
 func NewUdpTransport() *UdpTransport {
 	udpTransport := UdpTransport{
-		TransportData: *NewTransport(),
-		mainConn:      nil,
-		clientAddr:    make(map[netip.AddrPort]bool),
-		packetBuf:     make(map[netip.AddrPort][][]byte),
-		packetBufLock: &sync.Mutex{},
+		TransportData:   *NewTransport(),
+		mainConn:        nil,
+		clientMustClose: make(map[netip.AddrPort]bool),
+		packetBuf:       make(map[netip.AddrPort][][]byte),
+		packetBufLock:   &sync.Mutex{},
+		errorHappened:   false,
 	}
 	udpTransport.packetBufCond = sync.NewCond(udpTransport.packetBufLock)
 	return &udpTransport
@@ -73,6 +75,8 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 		l, addrPort, err := udp.mainConn.ReadFromUDPAddrPort(buf)
 		if err != nil {
 			udp.logger.Error("UDP ReadFrom", "error", err)
+			udp.errorHappened = true
+			udp.packetBufCond.Broadcast()
 			break
 		}
 
@@ -82,9 +86,9 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 		udp.logger.Debug("UDP read from connection", "len", l, "from", addrPort.String())
 
 		udp.packetBufLock.Lock()
-		if _, ok := udp.clientAddr[addrPort]; !ok {
+		if _, ok := udp.clientMustClose[addrPort]; !ok {
 			newConnection = true
-			udp.clientAddr[addrPort] = true
+			udp.clientMustClose[addrPort] = false
 		} else {
 			newConnection = false
 		}
@@ -102,6 +106,7 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 			go callback(udp, addrPort)
 		}
 	}
+	udp.logger.Debug("UDP runReadLoop returns")
 	return nil
 }
 
@@ -125,9 +130,28 @@ func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) 
 
 	udp.logger.Debug("UDP Receive waiting for data", "fromAddr", addrPort.String())
 	udp.packetBufLock.Lock()
-	var ok bool
-	for bufArray, ok = udp.packetBuf[addrPort]; !ok || len(bufArray) == 0; bufArray, ok = udp.packetBuf[addrPort] {
+	for {
+		var ok bool
+		// If we don't have data in buffer for the client, wait for them
+		bufArray, ok = udp.packetBuf[addrPort]
+		// If transport-level error happened -> return error
+		if udp.errorHappened {
+			break
+		}
+		// If we have buffered packets -> proceed
+		if ok && len(bufArray) > 0 {
+			break
+		}
+		// If this client was marked to be closed, return error to unblock receiver
+		if mustClose, exists := udp.clientMustClose[addrPort]; exists && mustClose {
+			udp.packetBufLock.Unlock()
+			return nil, 0, errors.New("UDP client closed")
+		}
 		udp.packetBufCond.Wait()
+	}
+	if udp.errorHappened {
+		udp.packetBufLock.Unlock()
+		return nil, 0, errors.New("UDP transport error happened")
 	}
 	// Refresh bufArray in case it changed
 	bufArray = udp.packetBuf[addrPort]
@@ -144,12 +168,14 @@ func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) 
 }
 
 func (udp *UdpTransport) CloseClient(addrPort netip.AddrPort) error {
+	udp.logger.Debug("UDP CloseClient", "address", addrPort)
 	udp.packetBufLock.Lock()
-	defer udp.packetBufLock.Unlock()
 	// Unblock any Receive waiting on this client
+	udp.clientMustClose[addrPort] = true
 	udp.packetBufCond.Broadcast()
-	delete(udp.clientAddr, addrPort)
+	//delete(udp.clientMustClose, addrPort)
 	delete(udp.packetBuf, addrPort)
+	udp.packetBufLock.Unlock()
 	return nil
 }
 

@@ -64,7 +64,7 @@ func Route(data []byte) bool {
 	logger.Debug("Route", "found", found)
 	// Check if address is in server's own CIDRs
 	if !found {
-		logger.Debug("Route: no matching client found. Send to all clients")
+		logger.Debug("Route: no matching client found. Send to all clients", "len(clients)", len(clientsCopy))
 		for _, c := range clientsCopy {
 			sendDataToClient(c.address, data)
 		}
@@ -76,10 +76,15 @@ func Route(data []byte) bool {
 func (c *Client) RunReadLoop(mode string) {
 	go func() {
 		for {
-			if c != nil {
+			if c != nil && !c.IsClosed() {
 				buf, err := c.ReadBuf(HEADER)
 				if err != nil {
 					c.logger.Error("Error reading from net buffer", "error", err)
+					// Check if the client closed
+					if c.IsClosed() {
+						tunIf.SetExit()
+						break
+					}
 					// Ignore bad packet
 					continue
 				}
@@ -98,6 +103,8 @@ func (c *Client) RunReadLoop(mode string) {
 				} else {
 					c.logger.Debug("RunReadLoop: ignore packet. Did not initialized yet")
 				}
+			} else {
+				break
 			}
 		}
 	}()

@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/uuid"
@@ -83,16 +86,38 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		debug = cfg.Main.Debug
+		// We have both config and command line switch
+		// Command line has preference
+		if debug {
+			cfg.Log.Main = "Debug"
+			cfg.Log.Clients = "Debug"
+			cfg.Log.Network = "Debug"
+			cfg.Log.Tun = "Debug"
+			cfg.Log.Crypt = "Debug"
+			cfg.Log.Protocol = "Debug"
+			cfg.Log.Route = "Debug"
+		}
 	} else {
 		cfg.Main.Debug = debug
-		cfg.Log.Main = "Debug"
-		cfg.Log.Clients = "Debug"
-		cfg.Log.Network = "Debug"
-		cfg.Log.Tun = "Debug"
-		cfg.Log.Crypt = "Debug"
-		cfg.Log.Protocol = "Debug"
-		cfg.Log.Route = "Debug"
+		if debug {
+			cfg.Log.Main = "Debug"
+			cfg.Log.Clients = "Debug"
+			cfg.Log.Network = "Debug"
+			cfg.Log.Tun = "Debug"
+			cfg.Log.Crypt = "Debug"
+			cfg.Log.Protocol = "Debug"
+			cfg.Log.Route = "Debug"
+
+		} else {
+			cfg.Log.Main = "Info"
+			cfg.Log.Clients = "Info"
+			cfg.Log.Network = "Info"
+			cfg.Log.Tun = "Info"
+			cfg.Log.Crypt = "Info"
+			cfg.Log.Protocol = "Info"
+			cfg.Log.Route = "Info"
+		}
+
 	}
 
 	logger := configs.InitLogger("main")
@@ -173,7 +198,35 @@ func main() {
 		log.Fatalf("Unknown Protocol: %s", cfg.Main.Protocol)
 	}
 
-	// Exit only on disconnect or fatal error
-	protocol.ResolveAndProcess(t, host, uint32(port))
-	t.Close()
+	// Setup signal handling
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Create a context that will be cancelled on signal
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start processing in a goroutine
+	done := make(chan struct{})
+	go func() {
+		protocol.ResolveAndProcess(ctx, t, host, uint32(port))
+		close(done)
+	}()
+
+	// Wait for either signal or normal completion
+	select {
+	case sig := <-sigChan:
+		logger.Info("Received signal", "signal", sig)
+		t.Close()
+		tunIf.SetExit()
+		t = nil
+		cancel()
+		<-done // Wait for processing to finish
+	case <-done:
+		cancel() // Clean up context
+	}
+
+	logger.Info("Exit")
+	if t != nil {
+		t.Close()
+	}
 }

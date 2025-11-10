@@ -49,6 +49,7 @@ type Client struct {
 	oooPackets    int
 	sentBuffer    *utils.CircularBuffer
 	orderSendLock *sync.Mutex
+	closed        bool
 }
 
 var (
@@ -67,6 +68,10 @@ func (c *Client) GetClientAddr() netip.AddrPort {
 
 func (c *Client) GetTunAddrs() []utils.Cidr {
 	return c.tunAddrs
+}
+
+func (c *Client) IsClosed() bool {
+	return c.closed
 }
 
 func NewClient(address netip.AddrPort, t transport.Transport) *Client {
@@ -88,6 +93,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		oooPackets:    0,
 		sentBuffer:    utils.NewCircularBuffer(100),
 		orderSendLock: &sync.Mutex{},
+		closed:        false,
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
 	client.seqOut.Store(1)
@@ -164,7 +170,14 @@ func (c *Client) RunNetLoop(address netip.AddrPort) {
 			msg, n, err := c.t.Receive(address)
 			if err != nil {
 				c.logger.Error("client NetLoop Receive error", "err", err)
-				return
+				c.bufSignal.Signal()
+				// We got an error. Mostly it will EOF(XXX), so close and remove the client
+				c.SetClientState(NotFound)
+				RemoveClient(c.address)
+				if configs.GetConfig().Mode == "client" {
+					tunIf.SetExit()
+				}
+				break
 			}
 			c.bufLock.Lock()
 			// Write to the end of the buffer
@@ -177,6 +190,7 @@ func (c *Client) RunNetLoop(address netip.AddrPort) {
 			c.bufLock.Unlock()
 			c.logger.Debug("client NetLoop put", "len", n, "from", address.String())
 		}
+		c.logger.Debug("client NetLoop exits", "address", address.String())
 	}()
 }
 
@@ -195,6 +209,10 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	c.bufLock.Lock()
 	var lastSize int = 0
 	for c.bufSize-c.bufOffset < reqSize {
+		if c.closed {
+			c.bufLock.Unlock()
+			return nil, errors.New("client is closed")
+		}
 		lastSize = c.bufSize
 		c.bufSignal.Wait()
 	}
@@ -371,6 +389,8 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	err := c.t.Send(c.address, &buf)
 	if err != nil {
 		c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", seq)
+		// XXX
+		tunIf.SetExit()
 		return err
 	}
 	c.logger.Debug("client Write sent", "len", len(buf), "address", c.address.String(), "seq", seq)
@@ -379,6 +399,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 }
 
 func (c *Client) Close() error {
+	c.closed = true
 	err := c.t.CloseClient(c.address)
 	if err != nil {
 		return err

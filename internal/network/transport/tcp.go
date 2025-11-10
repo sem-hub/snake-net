@@ -141,6 +141,7 @@ func (tcp *TcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 }
 
 func (tcp *TcpTransport) CloseClient(addr netip.AddrPort) error {
+	tcp.logger.Debug("TCP CloseClient", "addr", addr.String())
 	tcp.connLock.RLock()
 	tcpconn, ok := tcp.conn[addr]
 	tcp.connLock.RUnlock()

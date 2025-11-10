@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"net"
@@ -16,7 +17,7 @@ import (
 var logger *slog.Logger
 var cfg *configs.RuntimeConfig = nil
 
-func ResolveAndProcess(t transport.Transport, host string, port uint32) {
+func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, port uint32) {
 	logger = configs.InitLogger("protocol")
 	cfg = configs.GetConfig()
 
@@ -65,6 +66,7 @@ func ResolveAndProcess(t transport.Transport, host string, port uint32) {
 		}
 
 		logger.Info("Start server", "addr", cfg.LocalAddr, "port", cfg.LocalPort)
+		<-ctx.Done()
 	} else {
 		if len(ip) == 16 {
 			cfg.RemoteAddr = "[" + ip.String() + "]"
@@ -83,7 +85,7 @@ func ResolveAndProcess(t transport.Transport, host string, port uint32) {
 		logger.Info("Connected to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
 
 		ProcessServer(t, netip.MustParseAddrPort(rAddrPortStr))
+		logger.Info("ProcessServer exited")
+		<-ctx.Done()
 	}
-	forever := make(chan bool)
-	<-forever
 }
