@@ -5,19 +5,24 @@ import (
 	mrand "math/rand"
 )
 
-func (c *Client) WriteWithXORAndPadding(msg []byte, needXOR bool) error {
-	paddingSize := mrand.Intn(64)
-	buf := make([]byte, len(msg)+paddingSize)
-	copy(buf, msg)
+func makePadding() []byte {
+	paddingSize := mrand.Intn(128)
 	padding := make([]byte, paddingSize)
 	rand.Read(padding)
-	// 0 byte to separate message and padding
+	return padding
+}
+
+func (c *Client) WriteWithXORAndPadding(msg []byte, needXOR bool) error {
+	padding := makePadding()
+	paddingSize := len(padding)
+	buf := make([]byte, len(msg)+paddingSize)
+	copy(buf, msg)
 	copy(buf[len(msg):], padding)
 	if needXOR {
 		c.XOR(&buf)
 	}
 	c.logger.Debug("client WriteWithPadding", "buflen", len(buf), "datalen", len(msg), "paddingSize", paddingSize, "address", c.address)
-	return c.Write(&buf, NoEncryptionCmd)
+	return c.Write(&buf, NoEncryption)
 }
 
 func (c *Client) XOR(data *[]byte) {

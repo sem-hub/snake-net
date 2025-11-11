@@ -27,7 +27,7 @@ func (c *Client) ECDH() error {
 	}
 
 	c.logger.Debug("ECDH: Write public key", "len", len(buf), "buf", hex.EncodeToString(buf))
-	err = c.Write(&buf, NoEncryptionCmd)
+	err = c.Write(&buf, NoEncryption)
 	if err != nil {
 		return err
 	}

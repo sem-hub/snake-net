@@ -8,23 +8,29 @@ import (
 )
 
 const (
-	NoneCmd         Cmd = iota
-	ShutdownNotify      = 0xfc
-	NoEncryptionCmd     = 0xfd
-	AskForResendCmd     = 0xfe
-	ShutdownRequest     = 0xff
+	NoneCmd Cmd = iota
+	// Commands
+	ShutdownRequest = 1
+	ShutdownNotify  = 2
+	AskForResend    = 3
+	// Flags
+	NoEncryption = 0xa0
 )
+
+const FlagsMask Cmd = 0xf0
+const CmdMask Cmd = 0x0f
 
 // Process special commands received from the client
 // Executed under bufLock
-func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Message, error) {
-	switch flags {
+func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Message, error) {
+	switch command {
 	case ShutdownRequest:
 		c.removeThePacketFromBuffer(HEADER)
 		c.bufLock.Unlock()
 		c.logger.Info("got shutdown request command, closing connection", "address", c.address.String())
 
-		c.Write(nil, ShutdownNotify)
+		buf := makePadding()
+		c.Write(&buf, ShutdownNotify)
 		c.Close()
 
 		return nil, errors.New("connection closed by server")
@@ -40,15 +46,21 @@ func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Messag
 
 		return nil, errors.New("connection closed by client")
 
-	case AskForResendCmd:
-		dataDecrypted, err := c.secrets.DecryptAndVerify(data[HEADER : HEADER+n])
-		if err != nil {
-			c.logger.Error("process command AskForResendCmd: decrypt&verify error", "address", c.address.String(), "error", err)
-			return nil, err
+	case AskForResend:
+		dataDecrypted := make([]byte, n)
+		if (command & NoEncryption) == 0 {
+			var err error
+			dataDecrypted, err = c.secrets.DecryptAndVerify(data[HEADER : HEADER+n])
+			if err != nil {
+				c.logger.Error("process command AskForResend: decrypt&verify error", "address", c.address.String(), "error", err)
+				return nil, err
+			}
+		} else {
+			copy(dataDecrypted, data[HEADER:HEADER+n])
 		}
 		// Find in sentBuffer and resend
 		askSeq := uint32(dataDecrypted[0])<<8 | uint32(dataDecrypted[1])
-		c.logger.Debug("client asked for resend command", "address", c.address.String(), "seq", askSeq)
+		c.logger.Info("client asked to resend packet", "address", c.address.String(), "seq", askSeq)
 
 		dataSend, ok := c.sentBuffer.Find(func(index interface{}) bool {
 			buf := index.([]byte)
@@ -70,13 +82,12 @@ func (c *Client) processCommand(flags Cmd, data []byte, n int) (transport.Messag
 		}
 		// Remove the packet from buffer
 		c.removeThePacketFromBuffer(HEADER + n)
-
 		c.bufLock.Unlock()
 		return c.ReadBuf(HEADER)
 	default:
 		c.removeThePacketFromBuffer(HEADER + n)
 		c.bufLock.Unlock()
 
-		return nil, errors.New("unknown command: " + string(flags))
+		return nil, errors.New("unknown command: " + string(command))
 	}
 }

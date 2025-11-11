@@ -93,11 +93,11 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 			newConnection = false
 		}
 		udp.packetBuf[addrPort] = append(udp.packetBuf[addrPort], buf[:l])
+		packetBufLen := len(udp.packetBuf[addrPort])
 		udp.packetBufLock.Unlock()
 		// Ready to process
 		udp.packetBufCond.Broadcast()
-		udp.logger.Debug("UDP put into buffer", "len", l, "from", addrPort.String(), "len(packetBuf)", len(udp.packetBuf[addrPort]))
-
+		udp.logger.Debug("UDP put into buffer", "len", l, "from", addrPort.String(), "len(packetBuf)", packetBufLen)
 		if newConnection {
 			if callback == nil {
 				udp.logger.Debug("UDP Listen: No callback for client connection")

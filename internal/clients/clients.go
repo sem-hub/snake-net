@@ -20,8 +20,8 @@ type State int
 type Cmd byte
 
 const (
-	BUFSIZE = 131070
-	HEADER  = 9 // 2 bytes size + 2 bytes sequence number + 1 byte flags + 4 bytes CRC32
+	BUFSIZE = 524288 // 512 KB
+	HEADER  = 9      // 2 bytes size + 2 bytes sequence number + 1 byte flags + 4 bytes CRC32
 )
 
 const (
@@ -278,16 +278,19 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		return c.processOOOP(n, seq)
 	} else {
 		// In order, reset bufOffset and oooPackets counter
-		c.oooPackets = 0
-		if c.bufOffset != 0 {
-			needResetOffset = true
+		if c.oooPackets > 0 {
+			c.oooPackets = 0
+			if c.bufOffset != 0 {
+				needResetOffset = true
+			}
+			c.logger.Info("client ReadBuf: restored order", "address", c.address.String(), "seq", seq)
 		}
 	}
 	c.seqIn++
 
-	if flags != NoneCmd && flags != NoEncryptionCmd {
+	if (flags & CmdMask) != NoneCmd {
 		c.logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", flags)
-		return c.processCommand(flags, data, n)
+		return c.processCommand(flags&CmdMask, data, n)
 	}
 
 	if n == 0 {
@@ -314,7 +317,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	c.bufLock.Unlock()
 
 	// decrypt and verify the packet or just verify if NoEncryptionCmd flag set
-	if flags != NoEncryptionCmd {
+	if (flags & NoEncryption) == 0 {
 		c.logger.Debug("client ReadBuf decrypting", "address", c.address.String())
 		data, err := c.secrets.DecryptAndVerify(msg[HEADER : HEADER+n])
 		if err != nil {
@@ -357,7 +360,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	buf := make([]byte, HEADER)
 
 	if msg != nil {
-		if cmd != NoEncryptionCmd {
+		if (cmd & NoEncryption) == 0 {
 			c.logger.Debug("client Write encrypting and sign", "address", c.address, "seq", c.seqOut.Load())
 			data, err := c.secrets.EncryptAndSeal(*msg)
 			if err != nil {
