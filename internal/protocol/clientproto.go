@@ -19,7 +19,8 @@ import (
 func Identification(c *clients.Client) ([]utils.Cidr, error) {
 	cidrs := make([]utils.Cidr, 0)
 
-	msg := []byte("Hello")
+	msg := []byte("Hello " + configs.GetConfig().ClientId)
+
 	for _, addr := range configs.GetConfig().TunAddrs {
 		logger.Debug("Adding TUN address to identification", "addr", addr)
 		msg = append(msg, ' ')

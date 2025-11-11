@@ -24,6 +24,7 @@ type Main struct {
 	LocalAddr  string   `toml:"local_addr"`
 	LocalPort  uint32   `toml:"local_port"`
 	TunAddrStr []string `toml:"tun_addr"`
+	ClientId   string   `toml:"id"`
 }
 
 type Log struct {
@@ -45,6 +46,7 @@ type RuntimeConfig struct {
 	LocalAddr  string
 	LocalPort  uint32
 	TunAddrs   []utils.Cidr
+	ClientId   string
 }
 
 var (
@@ -70,6 +72,7 @@ func GetConfig() *RuntimeConfig {
 			LocalAddr:  configFile.Main.LocalAddr,
 			LocalPort:  configFile.Main.LocalPort,
 			TunAddrs:   []utils.Cidr{},
+			ClientId:   configFile.Main.ClientId,
 		}
 		if len(configFile.Main.TunAddrStr) > 0 {
 			for _, addr := range configFile.Main.TunAddrStr {

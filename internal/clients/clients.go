@@ -50,6 +50,7 @@ type Client struct {
 	sentBuffer    *utils.CircularBuffer
 	orderSendLock *sync.Mutex
 	closed        bool
+	id            string
 }
 
 var (
@@ -98,6 +99,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		sentBuffer:    utils.NewCircularBuffer(100),
 		orderSendLock: &sync.Mutex{},
 		closed:        false,
+		id:            "",
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
 	client.seqOut.Store(1)
@@ -153,6 +155,11 @@ func (c *Client) GetClientState() State {
 func (c *Client) SetClientState(state State) {
 	c.state = state
 	c.logger.Debug("SetClientState", "address", c.address.String(), "state", state)
+}
+
+func (c *Client) SetClientId(id string) {
+	c.id = id
+	c.logger.Info("SetClientId", "address", c.address.String(), "id", id)
 }
 
 func GetClientCount() int {

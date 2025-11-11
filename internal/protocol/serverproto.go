@@ -63,8 +63,9 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 		return nil, errors.New("invalid identification string")
 	}
 	h := str[0]
-	clientCidr := str[1:]
-	logger.Debug("IdentifyClient", "h", h, "clientCidrs", clientCidr)
+	clientId := str[1]
+	clientCidr := str[2:]
+	logger.Debug("IdentifyClient", "h", h, "clientId", clientId, "clientCidrs", clientCidr)
 	if h == "Hello" {
 		for _, clientNet := range clientCidr {
 			// Check every IP client sent to us
@@ -85,6 +86,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 			cidrs = append(cidrs, utils.Cidr{IP: netIp.Unmap(), Network: network})
 			logger.Debug("Added CIDR from client", "cidrs", cidrs)
 		}
+		c.SetClientId(clientId)
 	} else {
 		logger.Error("IdentifyClient: invalid first word", "word", h)
 		if err := c.WriteWithXORAndPadding([]byte("Error"), true); err != nil {

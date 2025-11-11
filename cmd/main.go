@@ -31,6 +31,7 @@ var (
 	isServer   bool
 	tunAddr    cidrs
 	debug      bool
+	clientId   string
 )
 
 var flagAlias = map[string]string{
@@ -38,6 +39,7 @@ var flagAlias = map[string]string{
 	"config": "c",
 	"tun":    "t",
 	"debug":  "d",
+	"id":     "i",
 }
 
 // cidrs type for flag parsing
@@ -62,6 +64,7 @@ func init() {
 	flag.BoolVar(&isServer, "server", false, "Run as server.")
 	flag.Var(&tunAddr, "tun", "Comma separated IPv4 and IPv6 Addresses (CIDR) for Tun interface.")
 	flag.BoolVar(&debug, "debug", false, "Enable debug mode.")
+	flag.StringVar(&clientId, "id", "", "Client ID.")
 
 	for from, to := range flagAlias {
 		flagSet := flag.Lookup(from)
@@ -141,6 +144,7 @@ func main() {
 				strconv.Itoa(int(cfg.Main.RemotePort))
 		}
 		logger.Debug(addr)
+		cfg.Main.ClientId = clientId
 	}
 
 	proto_regex := `(tcp|udp)://`
@@ -176,6 +180,13 @@ func main() {
 	if len(tunAddr) == 0 {
 		log.Fatalln("At least one TUN address (CIDR) is mandatory")
 	}
+
+	if cfg.Main.ClientId == "" && !isServer {
+		uuid := uuid.New()
+		cfg.Main.ClientId = uuid.String()
+		logger.Info("Generated Client ID", "id", cfg.Main.ClientId)
+	}
+	// ================== Configuration parsed ==================
 
 	// Set up TUN interface
 	logger.Info("TUN Addresses", "addrs", tunAddr)
