@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/uuid"
@@ -216,9 +217,11 @@ func main() {
 	select {
 	case sig := <-sigChan:
 		logger.Info("Received signal", "signal", sig)
-		t.Close()
-		tunIf.Close()
-		t = nil
+		// Send shutdown command to all clients
+		if isServer {
+			clients.SendAllShutdownRequest()
+			time.Sleep(3 * time.Second) // Give some time for clients to process shutdown
+		}
 		cancel()
 		<-done // Wait for processing to finish
 	case <-done:

@@ -163,6 +163,20 @@ func GetClientCount() int {
 	}
 }
 
+func SendAllShutdownRequest() {
+	clientsLock.Lock()
+	defer clientsLock.Unlock()
+
+	for _, c := range clients {
+		c.logger.Info("Sending shutdown request to client", "address", c.address.String())
+		buf := makePadding()
+		err := c.Write(&buf, ShutdownRequest)
+		if err != nil {
+			c.logger.Error("Error sending shutdown request", "address", c.address.String(), "error", err)
+		}
+	}
+}
+
 func (c *Client) RunNetLoop(address netip.AddrPort) {
 	c.logger.Debug("RunNetLoop", "address", address)
 	// read data from network into c.buf

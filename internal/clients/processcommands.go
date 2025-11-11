@@ -31,7 +31,9 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 
 		buf := makePadding()
 		c.Write(&buf, ShutdownNotify)
+		time.Sleep(100 * time.Millisecond) // Give some time to send the notify
 		c.Close()
+		tunIf.Close()
 
 		return nil, errors.New("connection closed by server")
 
@@ -41,7 +43,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		c.logger.Info("client sent shutdown notify command, closing connection", "address", c.address.String())
 
 		c.SetClientState(NotFound)
-		c.Close()
+		// RemoveClient() calls c.Close()
 		RemoveClient(c.address)
 
 		return nil, errors.New("connection closed by client")
