@@ -158,6 +158,7 @@ func (tcp *TcpTransport) CloseClient(addr netip.AddrPort) error {
 }
 
 func (tcp *TcpTransport) Close() error {
+	tcp.logger.Info("TCP Transport Close")
 	if tcp.mainConn != nil {
 		err := tcp.mainConn.Close()
 		if err != nil {

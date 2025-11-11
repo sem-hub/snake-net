@@ -15,6 +15,36 @@ import (
 	"github.com/sem-hub/snake-net/internal/utils"
 )
 
+func checkIP(cidrStr string) error {
+	logger.Debug("CIDR", "clientNet", cidrStr)
+	ip, _, err := net.ParseCIDR(cidrStr)
+	if err != nil {
+		logger.Error("Failed to parse CIDR from client", "error", err)
+		return err
+	}
+	logger.Debug("IP from client", "ip", ip)
+
+	for _, cidr := range configs.GetConfig().TunAddrs {
+		logger.Debug("Check client IP in server CIDR", "cidr", cidr)
+		if cidr.Network.Contains(ip) {
+			// Check already connected client's IP
+			for _, c := range clients.GetClientsList() {
+				for _, tunAddr := range c.GetTunAddrs() {
+					netIp, _ := netip.AddrFromSlice(ip)
+					if tunAddr.IP == netIp.Unmap() {
+						logger.Error("Client IP already in use by another client", "ip", ip.String(), "clientAddr", c.GetClientAddr().String())
+						return errors.New("Client IP " + ip.String() + " already in use by another client")
+					}
+				}
+			}
+			return nil
+		}
+	}
+
+	return errors.New("Client IP " + ip.String() + " not in any server Network")
+
+}
+
 func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	cidrs := make([]utils.Cidr, 0)
 
@@ -37,30 +67,23 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	logger.Debug("IdentifyClient", "h", h, "clientCidrs", clientCidr)
 	if h == "Hello" {
 		for _, clientNet := range clientCidr {
-			logger.Debug("CIDR", "clientNet", clientNet)
-			ip, network, err := net.ParseCIDR(clientNet)
+			// Check every IP client sent to us
+			err := checkIP(clientNet)
 			if err != nil {
-				logger.Error("Failed to parse CIDR from client", "error", err)
-				return nil, err
-			}
-			logger.Debug("IP from client", "ip", ip)
-
-			for _, cidr := range configs.GetConfig().TunAddrs {
-				logger.Debug("Check client IP in server CIDR", "cidr", cidr)
-				if cidr.Network.Contains(ip) {
-					netIp, _ := netip.AddrFromSlice(ip)
-					cidrs = append(cidrs, utils.Cidr{IP: netIp.Unmap(), Network: network})
-					logger.Debug("Added CIDR from client", "cidrs", cidrs)
-					break
+				logger.Error("IdentifyClient: invalid client CIDR", "cidr", clientNet, "error", err)
+				buf = []byte("Error: " + err.Error() + "\x00")
+				err = c.WriteWithXORAndPadding(buf, true)
+				if err != nil {
+					logger.Error("Failed to write Error message", "error", err)
+					return nil, err
 				}
 			}
-			if len(cidrs) == 0 {
-				logger.Error("Client IP not in any server CIDR", "ip", ip.String())
-				buf = []byte("Error: IP not in any server CIDR:" + ip.String())
-				c.Write(&buf, clients.NoneCmd)
 
-				return nil, errors.New("Client IP " + ip.String() + " not in any server CIDR")
-			}
+			// IP is good, add it to list
+			ip, network, _ := net.ParseCIDR(clientNet)
+			netIp, _ := netip.AddrFromSlice(ip)
+			cidrs = append(cidrs, utils.Cidr{IP: netIp.Unmap(), Network: network})
+			logger.Debug("Added CIDR from client", "cidrs", cidrs)
 		}
 	} else {
 		logger.Error("IdentifyClient: invalid first word", "word", h)

@@ -25,7 +25,6 @@ type TunInterface struct {
 	mtu       int
 	logger    *slog.Logger
 	readBuffs [][]byte
-	needExit  bool
 }
 
 var tunIf *TunInterface
@@ -158,9 +157,6 @@ func (tunIf *TunInterface) WriteTun(buf []byte) error {
 		slog.Debug("WriteTun: did not initialized yet")
 		return errors.New("did not initialized")
 	}
-	if tunIf.needExit {
-		return errors.New("TUN: client closed")
-	}
 	bufs := make([][]byte, 1)
 	// 16 for additional header will work always
 	bufs[0] = make([]byte, len(buf)+16)
@@ -173,6 +169,7 @@ func (tunIf *TunInterface) WriteTun(buf []byte) error {
 }
 
 func (tunIf *TunInterface) Close() {
+	tunIf.logger.Info("TUN Interface Close")
 	// Try to close underlying tun device to unblock Read
 	if tunIf.tunDev != nil {
 		err := tunIf.tunDev.Close()

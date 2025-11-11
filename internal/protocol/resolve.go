@@ -86,6 +86,6 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, 
 
 		ProcessServer(t, netip.MustParseAddrPort(rAddrPortStr))
 		logger.Info("ProcessServer exited")
-		<-ctx.Done()
+		//<-ctx.Done()
 	}
 }

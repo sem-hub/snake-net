@@ -57,7 +57,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 			cidrs = append(cidrs, utils.Cidr{IP: ip, Network: &net.IPNet{}})
 		}
 	} else {
-		return nil, errors.New("Identification " + string(msg1))
+		return nil, errors.New("Identification " + string(msg1[:eol]))
 	}
 	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
 		logger.Error("Failed to write OK message", "error", err)

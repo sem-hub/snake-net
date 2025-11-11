@@ -58,6 +58,10 @@ var (
 	tunIf       interfaces.TunInterface
 )
 
+func GetClientsList() []*Client {
+	return clients
+}
+
 func SetTunInterface(tun interfaces.TunInterface) {
 	tunIf = tun
 }

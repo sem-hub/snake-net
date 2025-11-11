@@ -10,8 +10,8 @@ import (
 type UdpTransport struct {
 	TransportData
 	mainConn         *net.UDPConn
-	connectedClients map[netip.AddrPort]bool     // This field is used to track active clients
-	packetBuf        map[netip.AddrPort][][]byte // A client buffer removed when empty. Track connections with clientAddr
+	connectedClients map[netip.AddrPort]bool     // This field is used to track active clients.
+	packetBuf        map[netip.AddrPort][][]byte // A client buffer removed when empty. Track connections with field above.
 	packetBufLock    *sync.Mutex
 	packetBufCond    *sync.Cond
 	hasError         bool
@@ -174,6 +174,7 @@ func (udp *UdpTransport) CloseClient(addrPort netip.AddrPort) error {
 }
 
 func (udp *UdpTransport) Close() error {
+	udp.logger.Info("UDP Transport Close")
 	if udp.mainConn != nil {
 		err := udp.mainConn.Close()
 		if err != nil {
