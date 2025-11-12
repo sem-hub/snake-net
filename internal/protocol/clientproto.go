@@ -105,6 +105,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	c.SetClientState(clients.Ready)
 
 	c.RunReadLoop("client")
+	c.CreatePinger()
 	logger.Info("client started", "address", addr.String())
 	network.ProcessTun()
 	logger.Debug("client finished")

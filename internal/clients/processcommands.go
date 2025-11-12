@@ -13,6 +13,8 @@ const (
 	ShutdownRequest = 1
 	ShutdownNotify  = 2
 	AskForResend    = 3
+	Ping            = 4
+	Pong            = 5
 	// Flags
 	NoEncryption = 0xa0
 )
@@ -24,8 +26,27 @@ const CmdMask Cmd = 0x0f
 // Executed under bufLock
 func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Message, error) {
 	switch command {
+	case Ping:
+		c.removeThePacketFromBuffer(HEADER + n)
+		c.bufLock.Unlock()
+		c.logger.Debug("received ping command, sending pong", "address", c.address.String())
+
+		buf := MakePadding()
+		err := c.Write(&buf, Pong)
+		if err != nil {
+			c.logger.Error("failed to send pong command", "address", c.address.String(), "error", err)
+		}
+
+		return c.ReadBuf(HEADER)
+	case Pong:
+		c.removeThePacketFromBuffer(HEADER + n)
+		c.bufLock.Unlock()
+		c.logger.Debug("received pong command", "address", c.address.String())
+
+		// XXX reset timer, save current time as last pong
+		return c.ReadBuf(HEADER)
 	case ShutdownRequest:
-		c.removeThePacketFromBuffer(HEADER)
+		c.removeThePacketFromBuffer(HEADER + n)
 		c.bufLock.Unlock()
 		c.logger.Info("got shutdown request command, closing connection", "address", c.address.String())
 
@@ -38,7 +59,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		return nil, errors.New("connection closed by server")
 
 	case ShutdownNotify:
-		c.removeThePacketFromBuffer(HEADER)
+		c.removeThePacketFromBuffer(HEADER + n)
 		c.bufLock.Unlock()
 		c.logger.Info("client sent shutdown notify command, closing connection", "address", c.address.String())
 

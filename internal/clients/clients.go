@@ -48,6 +48,7 @@ type Client struct {
 	orderSendLock *sync.Mutex
 	closed        bool
 	id            string
+	pinger        *PingerClient
 }
 
 var (
@@ -59,6 +60,10 @@ var (
 
 func SetTunInterface(tun interfaces.TunInterface) {
 	tunIf = tun
+}
+
+func (c *Client) CreatePinger() {
+	c.pinger = NewPingerForClient(c)
 }
 
 func (c *Client) GetClientAddr() netip.AddrPort {
@@ -94,6 +99,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		orderSendLock: &sync.Mutex{},
 		closed:        false,
 		id:            "",
+		pinger:        nil,
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
 	client.seqOut.Store(1)
@@ -206,6 +212,12 @@ func (c *Client) RunNetLoop(address netip.AddrPort) {
 				}
 				break
 			}
+
+			// We got some data, reset ping timer
+			if c.pinger != nil {
+				c.pinger.ResetTimer()
+			}
+
 			c.bufLock.Lock()
 			// Write to the end of the buffer
 			c.logger.Debug("client NetLoop put in buf", "len", n, "bufSize", c.bufSize, "address", address.String())
@@ -222,7 +234,7 @@ func (c *Client) RunNetLoop(address netip.AddrPort) {
 }
 
 // Under lock
-// n is a full packet size (contains HEADER)
+// n is a full packet size (contains HEADER!)
 func (c *Client) removeThePacketFromBuffer(n int) {
 	copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+n:c.bufSize])
 	c.bufSize -= n
