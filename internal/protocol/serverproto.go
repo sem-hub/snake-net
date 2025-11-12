@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"encoding/hex"
 	"errors"
 	"net"
 	"net/netip"
@@ -52,10 +51,9 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(buf) < 6 {
+	if len(buf) < clients.HEADER {
 		return nil, errors.New("invalid buffer length")
 	}
-	c.XOR(&buf)
 	logger.Debug("IdentifyClient", "ID string", string(buf))
 	eol := strings.Index(string(buf), "\x00")
 	str := strings.Fields(string(buf[:eol]))
@@ -73,7 +71,8 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 			if err != nil {
 				logger.Error("IdentifyClient: invalid client CIDR", "cidr", clientNet, "error", err)
 				buf = []byte("Error: " + err.Error() + "\x00")
-				err = c.WriteWithXORAndPadding(buf, true)
+				buf = append(buf, clients.MakePadding()...)
+				err = c.Write(&buf, clients.NoneCmd)
 				if err != nil {
 					logger.Error("Failed to write Error message", "error", err)
 					return nil, err
@@ -89,7 +88,9 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 		c.SetClientId(clientId)
 	} else {
 		logger.Error("IdentifyClient: invalid first word", "word", h)
-		if err := c.WriteWithXORAndPadding([]byte("Error"), true); err != nil {
+		buf := []byte("Error: Identification error\x00")
+		buf = append(buf, clients.MakePadding()...)
+		if err := c.Write(&buf, clients.NoneCmd); err != nil {
 			logger.Error("Failed to write Error message", "error", err)
 			return nil, err
 		}
@@ -105,8 +106,8 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	}
 	msg = append(msg, '\x00')
 	logger.Debug("Welcome message", "msg", msg)
-
-	if err := c.WriteWithXORAndPadding(msg, true); err != nil {
+	msg = append(msg, clients.MakePadding()...)
+	if err := c.Write(&msg, clients.NoneCmd); err != nil {
 		logger.Error("Failed to write Welcome message", "error", err)
 		return nil, err
 	}
@@ -118,7 +119,6 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	if len(buf) < 2 {
 		return nil, errors.New("invalid buffer length")
 	}
-	c.XOR(&buf)
 	logger.Debug("IdentifyClient", "Final string", string(buf))
 	if string(buf[:2]) != "OK" {
 		return nil, errors.New("Identification not OK")
@@ -135,30 +135,12 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	c.AddSecretsToClient(s)
 	c.RunNetLoop(addr)
 
-	// Get XOR key from client
-	buf, err := c.ReadBuf(clients.HEADER)
-	if err != nil {
-		logger.Error("Failed to read XOR key", "error", err)
-		clients.RemoveClient(addr)
-		return
-	}
-	if len(buf) < crypt.XORKEYLEN {
-		logger.Error("Invalid XOR key length", "len", len(buf))
-		clients.RemoveClient(addr)
-		return
-	}
-	copy(s.XORKey, buf[:crypt.XORKEYLEN])
-	logger.Debug("ProcessNewClient: Received XOR key", "XORKey", hex.EncodeToString(s.XORKey))
-	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
-		logger.Error("Failed to write OK message", "error", err)
-		clients.RemoveClient(addr)
-		return
-	}
-
 	clientTunIPs, err := IdentifyClient(c)
 	if err != nil {
 		logger.Error("Identification failed", "error", err)
-		if err := c.WriteWithXORAndPadding([]byte("Error"), true); err != nil {
+		buf := []byte("Error: " + err.Error() + "\x00")
+		buf = append(buf, clients.MakePadding()...)
+		if err := c.Write(&buf, clients.NoneCmd); err != nil {
 			logger.Error("Failed to write Error message", "error", err)
 		}
 		clients.RemoveClient(addr)
@@ -176,14 +158,13 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	}
 
 	// Wait for OK from client after ECDH
-	buf, err = c.ReadBuf(clients.HEADER)
+	buf, err := c.ReadBuf(clients.HEADER)
 	if err != nil {
 		logger.Error("Failed to read response message", "error", err)
 		clients.RemoveClient(addr)
 		return
 	}
 
-	c.XOR(&buf)
 	if len(buf) < 2 || string(buf[:2]) != "OK" {
 		logger.Error("Invalid server response", "len", len(buf), "msg", string(buf))
 		clients.RemoveClient(addr)

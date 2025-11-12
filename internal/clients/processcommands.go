@@ -29,7 +29,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		c.bufLock.Unlock()
 		c.logger.Info("got shutdown request command, closing connection", "address", c.address.String())
 
-		buf := makePadding()
+		buf := MakePadding()
 		c.Write(&buf, ShutdownNotify)
 		time.Sleep(100 * time.Millisecond) // Give some time to send the notify
 		c.Close()

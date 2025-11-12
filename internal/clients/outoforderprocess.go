@@ -79,7 +79,7 @@ func (c *Client) AskForResend(seq uint32) error {
 	buf := make([]byte, 2)
 	buf[0] = byte(seq >> 8)
 	buf[1] = byte(seq & 0xff)
-	padding := makePadding()
+	padding := MakePadding()
 	buf = append(buf, padding...)
 	return c.Write(&buf, AskForResend)
 }

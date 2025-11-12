@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"encoding/hex"
 	"errors"
 	"net"
 	"net/netip"
@@ -28,9 +27,10 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 		msg = append(msg, []byte(addr.IP.Unmap().String()+"/"+strconv.Itoa(prefLen))...)
 	}
 	msg = append(msg, '\x00')
-
+	padding := clients.MakePadding()
 	logger.Debug("Identification", "msg", string(msg))
-	err := c.WriteWithXORAndPadding(msg, true)
+	msg = append(msg, padding...)
+	err := c.Write(&msg, clients.NoneCmd)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,6 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.XOR(&msg1)
 	logger.Debug("ID", "msg", string(msg1))
 	eol := strings.Index(string(msg1), "\x00")
 	str := strings.Fields(string(msg1[:eol]))
@@ -60,7 +59,9 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 	} else {
 		return nil, errors.New("Identification " + string(msg1[:eol]))
 	}
-	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
+	buf := []byte{'O', 'K'}
+	buf = append(buf, clients.MakePadding()...)
+	if err := c.Write(&buf, clients.NoneCmd); err != nil {
 		logger.Error("Failed to write OK message", "error", err)
 		return nil, err
 	}
@@ -74,30 +75,6 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	c.AddSecretsToClient(s)
 
 	c.RunNetLoop(addr)
-
-	// Send XOR key to server
-	logger.Debug("ProcessServer: Send XOR key", "XORKey", hex.EncodeToString(s.XORKey))
-	err := c.WriteWithXORAndPadding(s.XORKey, false)
-	if err != nil {
-		logger.Error("Failed to write XOR key", "error", err)
-		clients.RemoveClient(addr)
-		return
-	}
-
-	buf, err := c.ReadBuf(clients.HEADER)
-	logger.Debug("ProcessServer: Read response message from server", "len", len(buf))
-	if err != nil {
-		logger.Error("Failed to read response message", "error", err)
-		clients.RemoveClient(addr)
-		return
-	}
-
-	c.XOR(&buf)
-	if len(buf) < 2 || string(buf[:2]) != "OK" {
-		logger.Error("Invalid server response", "len", len(buf), "msg", string(buf))
-		clients.RemoveClient(addr)
-		return
-	}
 
 	serverIPs, err := Identification(c)
 	if err != nil {
@@ -117,7 +94,9 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 		return
 	}
 
-	if err := c.WriteWithXORAndPadding([]byte("OK"), true); err != nil {
+	buf := []byte{'O', 'K'}
+	buf = append(buf, clients.MakePadding()...)
+	if err := c.Write(&buf, clients.NoneCmd); err != nil {
 		logger.Error("Failed to write OK message", "error", err)
 		clients.RemoveClient(addr)
 		return

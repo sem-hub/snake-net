@@ -5,7 +5,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -27,7 +26,6 @@ type Secrets struct {
 	SharedSecret      []byte
 	SessionPrivateKey ed25519.PrivateKey
 	SessionPublicKey  ed25519.PublicKey
-	XORKey            []byte
 }
 
 func NewSecrets() *Secrets {
@@ -38,9 +36,6 @@ func NewSecrets() *Secrets {
 	copy(s.SharedSecret, []byte(FIRSTSECRET))
 	s.SessionPublicKey, s.SessionPrivateKey, _ =
 		ed25519.GenerateKey(bytes.NewReader([]byte(s.SharedSecret)))
-
-	s.XORKey = make([]byte, XORKEYLEN)
-	rand.Read(s.XORKey)
 
 	return &s
 }
@@ -69,12 +64,6 @@ func (s *Secrets) Verify(msg []byte, sig []byte) bool {
 func (s *Secrets) Sign(msg []byte) []byte {
 	s.logger.Debug("Sign", "msglen", len(msg))
 	return ed25519.Sign(s.SessionPrivateKey, msg)
-}
-
-func (s *Secrets) XOR(data *[]byte) {
-	for i := 0; i < len(*data); i++ {
-		(*data)[i] ^= s.XORKey[i%len(s.XORKey)]
-	}
 }
 
 func (s *Secrets) MinimalSize() int {

@@ -176,7 +176,7 @@ func SendAllShutdownRequest() {
 
 	for _, c := range clients {
 		c.logger.Info("Sending shutdown request to client", "address", c.address.String())
-		buf := makePadding()
+		buf := MakePadding()
 		err := c.Write(&buf, ShutdownRequest)
 		if err != nil {
 			c.logger.Error("Error sending shutdown request", "address", c.address.String(), "error", err)
