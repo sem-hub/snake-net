@@ -49,6 +49,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		return nil, errors.New("connection closed by client")
 
 	case AskForResend:
+		// we did not decrypt the data yet
 		dataDecrypted := make([]byte, n)
 		if (command & NoEncryption) == 0 {
 			var err error
@@ -80,7 +81,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 			// Hold on the client a little
 			time.Sleep(5 * time.Millisecond)
 		} else {
-			c.logger.Error("process command resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
+			c.logger.Warn("process command resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
 		}
 		// Remove the packet from buffer
 		c.removeThePacketFromBuffer(HEADER + n)

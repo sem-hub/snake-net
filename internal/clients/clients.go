@@ -226,7 +226,7 @@ func (c *Client) removeThePacketFromBuffer(n int) {
 	c.bufSize -= n
 }
 
-// reqSize - minimal size to read
+// reqSize - minimal size to read (usually HEADER size)
 func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	c.logger.Debug("client ReadBuf", "address", c.address.String(), "bufSize", c.bufSize, "bufOffset", c.bufOffset,
 		"reqSize", reqSize)
@@ -365,6 +365,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	return msg[HEADER : HEADER+n], nil
 }
 
+// We send encrypted header (HEADER bytes) + encrypted data + signature of the encrypted data (not header here)
 func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	c.orderSendLock.Lock()
 	defer c.orderSendLock.Unlock()

@@ -55,15 +55,24 @@ func (c *Client) lookInBufferForSeq(seq uint32) bool {
 		if c.bufSize-offset < HEADER+c.secrets.MinimalSize() {
 			return false
 		}
-		crc := uint32(c.buf[offset+5])<<24 | uint32(c.buf[offset+6])<<16 | uint32(c.buf[offset+7])<<8 | uint32(c.buf[offset+8])
-		if crc != crc32.ChecksumIEEE(c.buf[offset:offset+5]) {
+		// header is encrypted, decrypt it first
+		dataHeader, err := c.secrets.CryptDecrypt(c.buf[offset : offset+HEADER])
+		if err != nil {
+			c.bufLock.Unlock()
+			c.logger.Error("lookInBufferForSeq: decrypt error", "address", c.address, "error", err)
+			// really buf is corrupted
+			return false
+		}
+
+		crc := uint32(dataHeader[5])<<24 | uint32(dataHeader[6])<<16 | uint32(dataHeader[7])<<8 | uint32(dataHeader[8])
+		if crc != crc32.ChecksumIEEE(dataHeader[:5]) {
 			c.logger.Error("lookInBufferForSeq CRC32 error", "address", c.address, "offset", offset, "crc", crc,
-				"calculated", crc32.ChecksumIEEE(c.buf[offset:offset+5]))
+				"calculated", crc32.ChecksumIEEE(dataHeader[:5]))
 			return false
 		}
 		// Get data size and sequence number
-		n := int(c.buf[offset])<<8 | int(c.buf[offset+1])
-		packetSeq := uint32(c.buf[offset+2])<<8 | uint32(c.buf[offset+3])
+		n := int(dataHeader[0])<<8 | int(dataHeader[1])
+		packetSeq := uint32(dataHeader[2])<<8 | uint32(dataHeader[3])
 		if packetSeq == seq {
 			c.bufOffset = offset
 			return true
