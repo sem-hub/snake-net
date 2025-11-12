@@ -128,12 +128,14 @@ func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
 	c.secrets = s
 }
 
+// Closes the client connection and removes it from the clients map
 func RemoveClient(address netip.AddrPort) {
 	client := FindClient(address)
 	clientsLock.Lock()
 	defer clientsLock.Unlock()
 	if client != nil {
 		client.Close() // Close connection here
+		// Remvove all tun addresses
 		for _, cidr := range client.tunAddrs {
 			tunAddr := utils.MakeAddrPort(cidr.IP, 0)
 			delete(clients, tunAddr)

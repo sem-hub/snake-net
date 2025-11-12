@@ -43,7 +43,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		c.bufLock.Unlock()
 		c.logger.Debug("received pong command", "address", c.address.String())
 
-		// XXX reset timer, save current time as last pong
+		// timer already reseted when data is received in ReadBuf()
 		return c.ReadBuf(HEADER)
 	case ShutdownRequest:
 		c.removeThePacketFromBuffer(HEADER + n)
