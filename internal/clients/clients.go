@@ -250,10 +250,15 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 
 	data := make([]byte, c.bufSize-c.bufOffset)
 	copy(data, c.buf[c.bufOffset:c.bufSize])
+	dataHeader, err := c.secrets.CryptDecrypt(data[:HEADER])
+	if err != nil {
+		c.bufLock.Unlock()
+		return nil, err
+	}
 
-	crc := uint32(data[5])<<24 | uint32(data[6])<<16 | uint32(data[7])<<8 | uint32(data[8])
-	if crc != crc32.ChecksumIEEE(data[:5]) {
-		c.logger.Error("ReadBuf CRC32 error", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(data[:5]))
+	crc := uint32(dataHeader[5])<<24 | uint32(dataHeader[6])<<16 | uint32(dataHeader[7])<<8 | uint32(dataHeader[8])
+	if crc != crc32.ChecksumIEEE(dataHeader[:5]) {
+		c.logger.Error("ReadBuf CRC32 error", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(dataHeader[:5]))
 		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
@@ -261,7 +266,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		c.bufLock.Unlock()
 		return nil, errors.New("CRC32 error")
 	}
-	n := int(data[0])<<8 | int(data[1])
+	n := int(dataHeader[0])<<8 | int(dataHeader[1])
 	if n <= 0 || HEADER+n > BUFSIZE {
 		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
@@ -278,8 +283,8 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		//return nil, errors.New("incomplete message")
 		return c.ReadBuf(HEADER + n)
 	}
-	seq := uint32(data[2])<<8 | uint32(data[3])
-	flags := Cmd(data[4])
+	seq := uint32(dataHeader[2])<<8 | uint32(dataHeader[3])
+	flags := Cmd(dataHeader[4])
 
 	c.logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	// Sanity check of "n"
@@ -400,21 +405,28 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	seq := c.seqOut.Load()
 	c.seqOut.Add(1)
 
-	buf[0] = byte(n >> 8)
-	buf[1] = byte(n & 0xff)
-	buf[2] = byte(seq >> 8)
-	buf[3] = byte(seq & 0xff)
-	buf[4] = byte(cmd) // flags or command
+	data := make([]byte, HEADER)
+	data[0] = byte(n >> 8)
+	data[1] = byte(n & 0xff)
+	data[2] = byte(seq >> 8)
+	data[3] = byte(seq & 0xff)
+	data[4] = byte(cmd) // flags or command
 
-	crc := crc32.ChecksumIEEE(buf[:5])
+	crc := crc32.ChecksumIEEE(data[:5])
 	c.logger.Debug("client Write", "crc", crc)
-	buf[5] = byte(crc >> 24)
-	buf[6] = byte((crc >> 16) & 0xff)
-	buf[7] = byte((crc >> 8) & 0xff)
-	buf[8] = byte(crc & 0xff)
+	data[5] = byte(crc >> 24)
+	data[6] = byte((crc >> 16) & 0xff)
+	data[7] = byte((crc >> 8) & 0xff)
+	data[8] = byte(crc & 0xff)
+
+	encryptData, err := c.secrets.CryptDecrypt(data)
+	if err != nil {
+		return err
+	}
+	copy(buf[:HEADER], encryptData)
 
 	c.logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(buf))
-	err := c.t.Send(c.address, &buf)
+	err = c.t.Send(c.address, &buf)
 	if err != nil {
 		c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", seq)
 		return err

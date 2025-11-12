@@ -72,7 +72,7 @@ func (s *Secrets) MinimalSize() int {
 
 func (s *Secrets) EncryptAndSeal(data []byte) ([]byte, error) {
 	signature := s.Sign(data)
-	buf, err := s.cryptDecrypt(data)
+	buf, err := s.CryptDecrypt(data)
 	buf = append(buf, signature...)
 
 	return buf, err
@@ -80,14 +80,14 @@ func (s *Secrets) EncryptAndSeal(data []byte) ([]byte, error) {
 
 func (s *Secrets) DecryptAndVerify(data []byte) ([]byte, error) {
 	signatureStart := len(data) - s.MinimalSize()
-	buf, err := s.cryptDecrypt(data[:signatureStart])
+	buf, err := s.CryptDecrypt(data[:signatureStart])
 	if !s.Verify(buf, data[signatureStart:]) {
 		return nil, errors.New("verify error")
 	}
 	return buf, err
 }
 
-func (s *Secrets) cryptDecrypt(data []byte) ([]byte, error) {
+func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
 	buf := slices.Clone(data)
 	s.logger.Debug("CryptDecrypt", "datalen", len(data), "sharedsecret", hex.EncodeToString(s.SharedSecret))
 	bReader := bytes.NewReader(data)
