@@ -27,14 +27,11 @@ func checkIP(cidrStr string) error {
 		logger.Debug("Check client IP in server CIDR", "cidr", cidr)
 		if cidr.Network.Contains(ip) {
 			// Check already connected client's IP
-			for _, c := range clients.GetClientsList() {
-				for _, tunAddr := range c.GetTunAddrs() {
-					netIp, _ := netip.AddrFromSlice(ip)
-					if tunAddr.IP == netIp.Unmap() {
-						logger.Error("Client IP already in use by another client", "ip", ip.String(), "clientAddr", c.GetClientAddr().String())
-						return errors.New("Client IP " + ip.String() + " already in use by another client")
-					}
-				}
+			ipAddr, _ := netip.AddrFromSlice(ip)
+			addrPort := utils.MakeAddrPort(ipAddr.Unmap(), 0)
+			if clients.FindClient(addrPort) != nil {
+				logger.Error("Client IP already in use", "ip", ip.String())
+				return errors.New("Client IP " + ip.String() + " already in use")
 			}
 			return nil
 		}

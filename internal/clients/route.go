@@ -35,12 +35,16 @@ func sendDataToClient(addr netip.AddrPort, data []byte) {
 
 func Route(data []byte) bool {
 	logger := configs.InitLogger("route")
-	clientsLock.Lock()
-	clientsCopy := make([]Client, len(clients))
-	for i, c := range clients {
-		clientsCopy[i] = *c
+	// We don't want to lock clients for long time. So we make a copy first and work with it.
+	clientsLock.RLock()
+	clientsCopy := make(map[netip.AddrPort]Client, len(clients))
+	// copy only real clients, ignore tunAddrs
+	for k, c := range clients {
+		if k == c.address {
+			clientsCopy[k] = *c
+		}
 	}
-	clientsLock.Unlock()
+	clientsLock.RUnlock()
 
 	address, ok := getDstIP(data)
 	if !ok {

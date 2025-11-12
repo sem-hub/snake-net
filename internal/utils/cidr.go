@@ -21,3 +21,7 @@ func (c Cidr) String() string {
 	str += strconv.Itoa(prefixSize)
 	return str
 }
+
+func MakeAddrPort(ip netip.Addr, port uint16) netip.AddrPort {
+	return netip.AddrPortFrom(ip, port)
+}

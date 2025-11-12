@@ -51,14 +51,11 @@ type Client struct {
 }
 
 var (
-	clients     = []*Client{} // XXX make map
-	clientsLock sync.Mutex
+	// holds client pointers. Keys are both client IPs and tunnel IPs (points to the same client)
+	clients     = map[netip.AddrPort]*Client{}
+	clientsLock sync.RWMutex
 	tunIf       interfaces.TunInterface
 )
-
-func GetClientsList() []*Client {
-	return clients
-}
 
 func SetTunInterface(tun interfaces.TunInterface) {
 	tunIf = tun
@@ -105,7 +102,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		logger.Info("Client already exists", "address", address)
 	} else {
 		clientsLock.Lock()
-		clients = append(clients, &client)
+		clients[address] = &client
 		clientsLock.Unlock()
 	}
 	return &client
@@ -113,6 +110,12 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 
 func (c *Client) AddTunAddressesToClient(cidrs []utils.Cidr) {
 	c.tunAddrs = append(c.tunAddrs, cidrs...)
+	for _, cidr := range cidrs {
+		clientsLock.Lock()
+		clients[utils.MakeAddrPort(cidr.IP, 0)] = c
+		clientsLock.Unlock()
+		c.logger.Info("AddTunAddressesToClient", "address", c.address.String(), "tunAddr", cidr)
+	}
 }
 
 func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
@@ -120,28 +123,27 @@ func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
 }
 
 func RemoveClient(address netip.AddrPort) {
+	client := FindClient(address)
 	clientsLock.Lock()
 	defer clientsLock.Unlock()
-	for i, c := range clients {
-		if c.address == address {
-			c.Close()
-			c.logger.Debug("RemoveClient", "address", address)
-			clients = append(clients[:i], clients[i+1:]...)
-			break
+	if client != nil {
+		client.Close() // Close connection here
+		for _, cidr := range client.tunAddrs {
+			tunAddr := utils.MakeAddrPort(cidr.IP, 0)
+			delete(clients, tunAddr)
+			client.logger.Info("RemoveClient tunAddr", "tunAddr", tunAddr)
 		}
+		delete(clients, address)
+		client.logger.Info("RemoveClient", "address", address.String())
 	}
 }
 
 func FindClient(address netip.AddrPort) *Client {
-	clientsLock.Lock()
-	defer clientsLock.Unlock()
-
-	for _, c := range clients {
-		if c.address == address {
-			return c
-		}
+	clientsLock.RLock()
+	defer clientsLock.RUnlock()
+	if c, ok := clients[address]; ok {
+		return c
 	}
-
 	return nil
 }
 
@@ -168,15 +170,18 @@ func GetClientCount() int {
 }
 
 func SendAllShutdownRequest() {
-	clientsLock.Lock()
-	defer clientsLock.Unlock()
+	clientsLock.RLock()
+	defer clientsLock.RUnlock()
 
-	for _, c := range clients {
-		c.logger.Info("Sending shutdown request to client", "address", c.address.String())
-		buf := MakePadding()
-		err := c.Write(&buf, ShutdownRequest)
-		if err != nil {
-			c.logger.Error("Error sending shutdown request", "address", c.address.String(), "error", err)
+	// Ignore tunAddrs here
+	for k, c := range clients {
+		if k == c.address {
+			c.logger.Info("Sending shutdown request to client", "address", c.address.String())
+			buf := MakePadding()
+			err := c.Write(&buf, ShutdownRequest)
+			if err != nil {
+				c.logger.Error("Error sending shutdown request", "address", c.address.String(), "error", err)
+			}
 		}
 	}
 }
