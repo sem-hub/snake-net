@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -96,7 +97,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	logger := configs.InitLogger("main")
 	// ================== Configuration parsing ==================
 	var addr string
 	if configFile != "" {
@@ -122,7 +122,7 @@ func main() {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.RemoteAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.RemotePort))
 		}
-		logger.Debug(addr)
+		slog.Debug(addr)
 		cfg.Main.ClientId = clientId
 
 	} else {
@@ -154,6 +154,8 @@ func main() {
 		addr = strings.ToLower(flag.Arg(0))
 
 	}
+
+	logger := configs.InitLogger("main")
 
 	proto_regex := `(tcp|udp)://`
 	ipv4_regex := `(?:[0-9]{1,3}[\.]){3}[0-9]{1,3}`
