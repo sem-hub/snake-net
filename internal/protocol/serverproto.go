@@ -43,6 +43,7 @@ func checkIP(cidrStr string) error {
 
 func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	cidrs := make([]utils.Cidr, 0)
+	cfg := configs.GetConfig()
 
 	buf, err := c.ReadBuf(clients.HEADER)
 	if err != nil {
@@ -99,7 +100,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 
 	logger.Info("IdentifyClient OK", "addr", c.GetClientAddr().String())
 	msg := []byte("Welcome")
-	for _, cidr := range configs.GetConfig().TunAddrs {
+	for _, cidr := range cfg.TunAddrs {
 		msg = append(msg, ' ')
 		msg = append(msg, []byte(cidr.IP.Unmap().String())...)
 	}
@@ -128,9 +129,10 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 
 func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	logger.Info("ProcessNewClient", "gotAddr", addr.String())
+	cfg := configs.GetConfig()
 
 	c := clients.NewClient(addr, t)
-	s := crypt.NewSecrets()
+	s := crypt.NewSecrets(cfg.Secret)
 	c.AddSecretsToClient(s)
 	c.ReadLoop(addr)
 

@@ -25,7 +25,9 @@ func (c *Client) ReadLoop(address netip.AddrPort) {
 				c.SetClientState(NotFound)
 				RemoveClient(c.address)
 				if configs.GetConfig().Mode == "client" {
-					tunIf.Close()
+					if tunIf != nil {
+						tunIf.Close()
+					}
 				}
 				break
 			}

@@ -28,12 +28,23 @@ type Secrets struct {
 	SessionPublicKey  ed25519.PublicKey
 }
 
-func NewSecrets() *Secrets {
+func NewSecrets(secret []byte) *Secrets {
 	s := Secrets{}
 	s.logger = configs.InitLogger("crypt")
 
 	s.SharedSecret = make([]byte, 32)
-	copy(s.SharedSecret, []byte(FIRSTSECRET))
+	if len(secret) == 0 {
+		s.logger.Info("Using default shared secret")
+		copy(s.SharedSecret, []byte(FIRSTSECRET))
+	} else {
+		s.logger.Info("Using provided shared secret")
+		if len(secret) != 32 {
+			s.logger.Error("Provided secret must be exactly 32 bytes.")
+			return nil
+		}
+		copy(s.SharedSecret, secret[:32])
+	}
+
 	s.SessionPublicKey, s.SessionPrivateKey, _ =
 		ed25519.GenerateKey(bytes.NewReader([]byte(s.SharedSecret)))
 

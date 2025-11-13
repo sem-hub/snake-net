@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"errors"
-	"log"
 	"net"
 	"net/netip"
 	"strconv"
@@ -19,9 +18,11 @@ import (
 func Identification(c *clients.Client) ([]utils.Cidr, error) {
 	cidrs := make([]utils.Cidr, 0)
 
-	msg := []byte("Hello " + configs.GetConfig().ClientId)
+	cfg := configs.GetConfig()
 
-	for _, addr := range configs.GetConfig().TunAddrs {
+	msg := []byte("Hello " + cfg.ClientId)
+
+	for _, addr := range cfg.TunAddrs {
 		logger.Debug("Adding TUN address to identification", "addr", addr)
 		msg = append(msg, ' ')
 		prefLen, _ := addr.Network.Mask.Size()
@@ -70,10 +71,12 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 	return cidrs, nil
 }
 
-func ProcessServer(t transport.Transport, addr netip.AddrPort) {
+func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
+	cfg := configs.GetConfig()
+
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t)
-	s := crypt.NewSecrets()
+	s := crypt.NewSecrets(cfg.Secret)
 	c.AddSecretsToClient(s)
 
 	c.ReadLoop(addr)
@@ -82,7 +85,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	if err != nil {
 		logger.Error("Identification Fails", "error", err)
 		clients.RemoveClient(addr)
-		return
+		return errors.New("Identification failed: " + err.Error())
 	}
 	logger.Info("Identification Success")
 
@@ -93,7 +96,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	if err := c.ECDH(); err != nil {
 		logger.Error("ECDH", "error", err)
 		clients.RemoveClient(addr)
-		return
+		return errors.New("ECDH failed: " + err.Error())
 	}
 
 	buf := []byte{'O', 'K'}
@@ -101,7 +104,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	if err := c.Write(&buf, clients.NoneCmd); err != nil {
 		logger.Error("Failed to write OK message", "error", err)
 		clients.RemoveClient(addr)
-		return
+		return errors.New("Failed to write OK message: " + err.Error())
 	}
 
 	// Set up TUN interface
@@ -109,7 +112,8 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 
 	tunIf, err := network.NewTUN(cfg.TunName, cfg.TunAddrs, cfg.TunMTU)
 	if err != nil {
-		log.Fatalf("Error creating tun interface: %s", err)
+		logger.Error("Error creating tun interface", "error", err)
+		return errors.New("Error creating tun interface: " + err.Error())
 	}
 	clients.SetTunInterface(tunIf)
 
@@ -120,4 +124,5 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 	logger.Info("client started", "address", addr.String())
 	network.ProcessTun()
 	logger.Debug("client finished")
+	return nil
 }

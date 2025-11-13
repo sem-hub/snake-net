@@ -202,6 +202,7 @@ func (c *Client) removeThePacketFromBuffer(n int) {
 }
 
 func (c *Client) Close() error {
+	c.pinger.pingTimer.Stop()
 	c.closed = true
 	err := c.t.CloseClient(c.address)
 	if err != nil {

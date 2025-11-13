@@ -98,10 +98,20 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, 
 		logger.Info("Connected to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
 
 		// Run client in a goroutine so we can listen for context cancellation
-		go ProcessServer(t, netip.MustParseAddrPort(rAddrPortStr))
+		v := make(chan struct{})
+		go func() {
+			err := ProcessServer(t, netip.MustParseAddrPort(rAddrPortStr))
+			if err != nil {
+				logger.Error("ProcessServer error", "error", err)
+			}
+			v <- struct{}{}
+		}()
 
-		// Wait for context cancellation (Ctrl-C)
-		<-ctx.Done()
+		// Wait for context cancellation (Ctrl-C) or normal exit
+		select {
+		case <-ctx.Done():
+		case <-v:
+		}
 		logger.Info("ProcessServer exited")
 	}
 }
