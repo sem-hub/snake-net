@@ -3,9 +3,52 @@ package clients
 import (
 	"errors"
 	"hash/crc32"
+	"net/netip"
 
+	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
+
+func (c *Client) ReadLoop(address netip.AddrPort) {
+	c.logger.Debug("ReadLoop", "address", address)
+	// read data from network into c.buf
+	// when data is available, send signal to c.bufSignal
+	// main loop will read data from c.buf
+	go func() {
+		for {
+			c.logger.Debug("client ReadLoop waiting for data", "address", address.String())
+			msg, n, err := c.t.Receive(address)
+			if err != nil {
+				c.logger.Error("client ReadLoop Receive error", "err", err)
+				c.bufSignal.Signal()
+				// We got an error. Mostly it will EOF(XXX), so close and remove the client
+				c.SetClientState(NotFound)
+				RemoveClient(c.address)
+				if configs.GetConfig().Mode == "client" {
+					tunIf.Close()
+				}
+				break
+			}
+
+			// We got some data, reset ping timer
+			if c.pinger != nil {
+				c.pinger.ResetTimer()
+			}
+
+			c.bufLock.Lock()
+			// Write to the end of the buffer
+			c.logger.Debug("client ReadLoop put in buf", "len", n, "bufSize", c.bufSize, "address", address.String())
+			copy(c.buf[c.bufSize:], msg[:n])
+			c.bufSize += n
+			if n > 0 {
+				c.bufSignal.Signal()
+			}
+			c.bufLock.Unlock()
+			c.logger.Debug("client ReadLoop put", "len", n, "from", address.String())
+		}
+		c.logger.Debug("client ReadLoop exits", "address", address.String())
+	}()
+}
 
 // reqSize - minimal size to read (usually HEADER size)
 func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {

@@ -194,47 +194,6 @@ func SendAllShutdownRequest() {
 	}
 }
 
-func (c *Client) RunNetLoop(address netip.AddrPort) {
-	c.logger.Debug("RunNetLoop", "address", address)
-	// read data from network into c.buf
-	// when data is available, send signal to c.bufSignal
-	// main loop will read data from c.buf
-	go func() {
-		for {
-			c.logger.Debug("client NetLoop waiting for data", "address", address.String())
-			msg, n, err := c.t.Receive(address)
-			if err != nil {
-				c.logger.Error("client NetLoop Receive error", "err", err)
-				c.bufSignal.Signal()
-				// We got an error. Mostly it will EOF(XXX), so close and remove the client
-				c.SetClientState(NotFound)
-				RemoveClient(c.address)
-				if configs.GetConfig().Mode == "client" {
-					tunIf.Close()
-				}
-				break
-			}
-
-			// We got some data, reset ping timer
-			if c.pinger != nil {
-				c.pinger.ResetTimer()
-			}
-
-			c.bufLock.Lock()
-			// Write to the end of the buffer
-			c.logger.Debug("client NetLoop put in buf", "len", n, "bufSize", c.bufSize, "address", address.String())
-			copy(c.buf[c.bufSize:], msg[:n])
-			c.bufSize += n
-			if n > 0 {
-				c.bufSignal.Signal()
-			}
-			c.bufLock.Unlock()
-			c.logger.Debug("client NetLoop put", "len", n, "from", address.String())
-		}
-		c.logger.Debug("client NetLoop exits", "address", address.String())
-	}()
-}
-
 // Under lock
 // n is a full packet size (contains HEADER!)
 func (c *Client) removeThePacketFromBuffer(n int) {

@@ -130,7 +130,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	c := clients.NewClient(addr, t)
 	s := crypt.NewSecrets()
 	c.AddSecretsToClient(s)
-	c.RunNetLoop(addr)
+	c.ReadLoop(addr)
 
 	clientTunIPs, err := IdentifyClient(c)
 	if err != nil {
@@ -169,7 +169,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	}
 
 	c.SetClientState(clients.Ready)
-	c.RunReadLoop("server")
+	c.NetLoop("server")
 	c.CreatePinger()
 	network.ProcessTun()
 }

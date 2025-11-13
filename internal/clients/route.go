@@ -77,7 +77,7 @@ func Route(data []byte) bool {
 }
 
 // Read from NET, write to TUN
-func (c *Client) RunReadLoop(mode string) {
+func (c *Client) NetLoop(mode string) {
 	go func() {
 		for {
 			if c != nil && !c.IsClosed() {
@@ -91,7 +91,7 @@ func (c *Client) RunReadLoop(mode string) {
 					// Ignore bad packet
 					continue
 				}
-				c.logger.Debug("TUN: Read from net", "len", len(buf), "mode", mode)
+				c.logger.Debug("NetLoop: Read from net", "len", len(buf), "mode", mode)
 
 				// send to all clients except the sender
 				if mode == "server" {
@@ -104,7 +104,7 @@ func (c *Client) RunReadLoop(mode string) {
 				if tunIf != nil {
 					tunIf.WriteTun(buf)
 				} else {
-					c.logger.Debug("RunReadLoop: ignore packet. Did not initialized yet")
+					c.logger.Debug("NetLoop: ignore packet. Did not initialized yet")
 				}
 			} else {
 				break
