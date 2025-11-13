@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"errors"
+	"log"
 	"net"
 	"net/netip"
 	"strconv"
@@ -39,9 +40,10 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger.Debug("ID", "msg", string(msg1))
 	eol := strings.Index(string(msg1), "\x00")
 	str := strings.Fields(string(msg1[:eol]))
+	logger.Debug("ID", "msg", string(msg1[:eol]))
+
 	if len(str) == 0 {
 		return nil, errors.New("invalid welcome string")
 	}
@@ -59,7 +61,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 	} else {
 		return nil, errors.New("Identification " + string(msg1[:eol]))
 	}
-	buf := []byte{'O', 'K'}
+	buf := []byte{'O', 'K', 0}
 	buf = append(buf, clients.MakePadding()...)
 	if err := c.Write(&buf, clients.NoneCmd); err != nil {
 		logger.Error("Failed to write OK message", "error", err)
@@ -101,6 +103,15 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) {
 		clients.RemoveClient(addr)
 		return
 	}
+
+	// Set up TUN interface
+	logger.Info("TUN Addresses", "addrs", cfg.TunAddrs)
+
+	tunIf, err := network.NewTUN(cfg.TunName, cfg.TunAddrs, cfg.TunMTU)
+	if err != nil {
+		log.Fatalf("Error creating tun interface: %s", err)
+	}
+	clients.SetTunInterface(tunIf)
 
 	c.SetClientState(clients.Ready)
 

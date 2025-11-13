@@ -51,9 +51,11 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	if len(buf) < clients.HEADER {
 		return nil, errors.New("invalid buffer length")
 	}
-	logger.Debug("IdentifyClient", "ID string", string(buf))
+
 	eol := strings.Index(string(buf), "\x00")
 	str := strings.Fields(string(buf[:eol]))
+	logger.Debug("IdentifyClient", "ID string", string(buf[:eol]))
+
 	if len(str) == 0 {
 		return nil, errors.New("invalid identification string")
 	}

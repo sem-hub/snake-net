@@ -12,19 +12,26 @@ import (
 
 type ConfigFile struct {
 	Main Main `toml:"main"`
+	Tun  Tun  `toml:"tun"`
 	Log  Log  `toml:"log"`
 }
 
 type Main struct {
-	Mode       string   `toml:"mode"`
-	Debug      bool     `toml:"debug"`
-	Protocol   string   `toml:"protocol"`
-	RemoteAddr string   `toml:"remote_addr"`
-	RemotePort uint32   `toml:"remote_port"`
-	LocalAddr  string   `toml:"local_addr"`
-	LocalPort  uint32   `toml:"local_port"`
+	Mode       string `toml:"mode"`
+	Debug      bool   `toml:"debug"`
+	Secret     string
+	Protocol   string `toml:"protocol"`
+	RemoteAddr string `toml:"remote_addr"`
+	RemotePort uint32 `toml:"remote_port"`
+	LocalAddr  string `toml:"local_addr"`
+	LocalPort  uint32 `toml:"local_port"`
+	ClientId   string `toml:"id"`
+}
+
+type Tun struct {
+	Name       string   `toml:"name"`
+	MTU        int      `toml:"mtu"`
 	TunAddrStr []string `toml:"tun_addr"`
-	ClientId   string   `toml:"id"`
 }
 
 type Log struct {
@@ -46,6 +53,8 @@ type RuntimeConfig struct {
 	LocalAddr  string
 	LocalPort  uint32
 	TunAddrs   []utils.Cidr
+	TunMTU     int
+	TunName    string
 	ClientId   string
 }
 
@@ -72,10 +81,12 @@ func GetConfig() *RuntimeConfig {
 			LocalAddr:  configFile.Main.LocalAddr,
 			LocalPort:  configFile.Main.LocalPort,
 			TunAddrs:   []utils.Cidr{},
+			TunMTU:     configFile.Tun.MTU,
+			TunName:    configFile.Tun.Name,
 			ClientId:   configFile.Main.ClientId,
 		}
-		if len(configFile.Main.TunAddrStr) > 0 {
-			for _, addr := range configFile.Main.TunAddrStr {
+		if len(configFile.Tun.TunAddrStr) > 0 {
+			for _, addr := range configFile.Tun.TunAddrStr {
 				ip, network, _ := net.ParseCIDR(addr)
 				netIP, _ := netip.AddrFromSlice(ip)
 				config.TunAddrs = append(config.TunAddrs,

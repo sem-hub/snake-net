@@ -18,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 	"github.com/sem-hub/snake-net/internal/protocol"
 )
@@ -28,18 +27,26 @@ type cidrs []string
 var (
 	cfg        *configs.ConfigFile
 	configFile string
-	isServer   bool
+	mode       string
+	secret     string
+	name       string
+	mtu        int
 	tunAddr    cidrs
 	debug      bool
 	clientId   string
+	proto      string
 )
 
 var flagAlias = map[string]string{
-	"server": "s",
+	"mode":   "m",
+	"secret": "s",
 	"config": "c",
 	"tun":    "t",
+	"mtu":    "u",
+	"name":   "n",
 	"debug":  "d",
 	"id":     "i",
+	"proto":  "p",
 }
 
 // cidrs type for flag parsing
@@ -61,10 +68,14 @@ func (i *cidrs) Set(value string) error {
 func init() {
 	cfg = configs.GetConfigFile()
 	flag.StringVar(&configFile, "config", "", "Path to config file.")
-	flag.BoolVar(&isServer, "server", false, "Run as server.")
+	flag.StringVar(&mode, "mode", "client", "Mode: client or server.")
+	flag.StringVar(&name, "name", "", "Name of tun interface.")
+	flag.StringVar(&secret, "secret", "", "Secret key.")
+	flag.StringVar(&clientId, "id", "", "Client ID.")
+	flag.StringVar(&proto, "proto", "", "Protocol to use (tcp or udp). Overrides config file setting.")
+	flag.IntVar(&mtu, "mtu", 1500, "MTU size.")
 	flag.Var(&tunAddr, "tun", "Comma separated IPv4 and IPv6 Addresses (CIDR) for Tun interface.")
 	flag.BoolVar(&debug, "debug", false, "Enable debug mode.")
-	flag.StringVar(&clientId, "id", "", "Client ID.")
 
 	for from, to := range flagAlias {
 		flagSet := flag.Lookup(from)
@@ -85,6 +96,9 @@ func main() {
 		os.Exit(0)
 	}
 
+	logger := configs.InitLogger("main")
+	// ================== Configuration parsing ==================
+	var addr string
 	if configFile != "" {
 		_, err := toml.DecodeFile(configFile, cfg)
 		if err != nil {
@@ -101,6 +115,16 @@ func main() {
 			cfg.Log.Protocol = "Debug"
 			cfg.Log.Route = "Debug"
 		}
+		if cfg.Main.Mode == "server" {
+			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.LocalAddr) + ":" +
+				strconv.Itoa(int(cfg.Main.LocalPort))
+		} else {
+			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.RemoteAddr) + ":" +
+				strconv.Itoa(int(cfg.Main.RemotePort))
+		}
+		logger.Debug(addr)
+		cfg.Main.ClientId = clientId
+
 	} else {
 		cfg.Main.Debug = debug
 		if debug {
@@ -121,30 +145,14 @@ func main() {
 			cfg.Log.Protocol = "Info"
 			cfg.Log.Route = "Info"
 		}
-
-	}
-
-	logger := configs.InitLogger("main")
-
-	var addr string
-	if configFile == "" {
-		if isServer {
-			cfg.Main.Mode = "server"
-		} else {
-			cfg.Main.Mode = "client"
+		if mode != "server" && mode != "client" {
+			log.Fatalln("Invalid mode. Use 'client' or 'server'.")
 		}
+
+		cfg.Main.Mode = mode
+		cfg.Main.Secret = secret
 		addr = strings.ToLower(flag.Arg(0))
-	} else {
-		isServer = (strings.ToLower(cfg.Main.Mode) == "server")
-		if isServer {
-			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.LocalAddr) + ":" +
-				strconv.Itoa(int(cfg.Main.LocalPort))
-		} else {
-			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.RemoteAddr) + ":" +
-				strconv.Itoa(int(cfg.Main.RemotePort))
-		}
-		logger.Debug(addr)
-		cfg.Main.ClientId = clientId
+
 	}
 
 	proto_regex := `(tcp|udp)://`
@@ -165,8 +173,16 @@ func main() {
 		log.Fatalln("Wrong port number", "port", m[3])
 	}
 
+	// Override config protocol if command line switch is used
+	if proto != "" {
+		if proto != "tcp" && proto != "udp" {
+			log.Fatalln("Invalid protocol. Use 'tcp' or 'udp'.")
+		}
+		cfg.Main.Protocol = proto
+	}
+
 	if configFile != "" {
-		for _, cidrStr := range cfg.Main.TunAddrStr {
+		for _, cidrStr := range cfg.Tun.TunAddrStr {
 			_, _, err := net.ParseCIDR(cidrStr)
 			if err != nil {
 				log.Fatalln("Parse error", "CIDR", cidrStr)
@@ -174,29 +190,21 @@ func main() {
 			tunAddr = append(tunAddr, cidrStr)
 		}
 	} else {
-		cfg.Main.TunAddrStr = tunAddr
+		cfg.Tun.TunAddrStr = tunAddr
+		cfg.Tun.MTU = mtu
+		cfg.Tun.Name = name
 	}
 
 	if len(tunAddr) == 0 {
 		log.Fatalln("At least one TUN address (CIDR) is mandatory")
 	}
 
-	if cfg.Main.ClientId == "" && !isServer {
+	if cfg.Main.ClientId == "" && cfg.Main.Mode == "client" {
 		uuid := uuid.New()
 		cfg.Main.ClientId = uuid.String()
 		logger.Info("Generated Client ID", "id", cfg.Main.ClientId)
 	}
 	// ================== Configuration parsed ==================
-
-	// Set up TUN interface
-	logger.Info("TUN Addresses", "addrs", tunAddr)
-
-	tunIf, err := network.NewTUN("snake", tunAddr, 0)
-	if err != nil {
-		log.Fatalf("Error creating tun interface: %s", err)
-	}
-
-	clients.SetTunInterface(tunIf)
 
 	var t transport.Transport = nil
 	switch cfg.Main.Protocol {
@@ -229,7 +237,7 @@ func main() {
 	case sig := <-sigChan:
 		logger.Info("Received signal", "signal", sig)
 		// Send shutdown command to all clients
-		if isServer {
+		if mode == "server" {
 			clients.SendAllShutdownRequest()
 			time.Sleep(3 * time.Second) // Give some time for clients to process shutdown
 		}

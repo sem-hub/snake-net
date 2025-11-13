@@ -4,8 +4,6 @@ import (
 	"errors"
 	"log"
 	"log/slog"
-	"net"
-	"net/netip"
 
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -21,6 +19,7 @@ type TunInterface struct {
 	interfaces.TunInterface
 
 	tunDev    tun.Device
+	name      string
 	cidrs     []utils.Cidr
 	mtu       int
 	logger    *slog.Logger
@@ -29,73 +28,69 @@ type TunInterface struct {
 
 var tunIf *TunInterface
 
-func NewTUN(name string, cidrs []string, mtu int) (interfaces.TunInterface, error) {
+func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, error) {
 	logger := configs.InitLogger("tun")
+
+	if mtu == 0 {
+		mtu = defaultMTU
+	}
 
 	iface := TunInterface{
 		tunDev:    nil,
+		name:      name,
 		cidrs:     make([]utils.Cidr, 0),
-		mtu:       defaultMTU,
+		mtu:       mtu,
 		logger:    logger,
 		readBuffs: make([][]byte, 0),
 	}
 
 	var err error
-	if mtu == 0 {
-		mtu = defaultMTU
-	}
-	iface.mtu = mtu
-
-	for _, cidrStr := range cidrs {
-		ip, net, err := net.ParseCIDR(cidrStr)
-		if err != nil {
-			return nil, err
-		}
-		netipAddr, _ := netip.AddrFromSlice(ip)
-		netipAddr = netipAddr.Unmap()
-		logger.Debug("Add CIDR to TUN", "cidr", cidrStr, "ip", netipAddr.String())
-		iface.cidrs = append(iface.cidrs, utils.Cidr{IP: netipAddr, Network: net})
-	}
+	iface.cidrs = append(iface.cidrs, cidrs...)
 
 	iface.tunDev, err = tun.CreateTUN(name, mtu)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	tunName, err := iface.tunDev.Name()
+	iface.name, err = iface.tunDev.Name()
 	if err != nil {
 		log.Fatalln("Get tun name")
 	}
-	logger.Info("Interface", "name", tunName)
-
-	link, err := netlink.LinkByName(tunName)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, cidr := range iface.cidrs {
-		nladdr, err := netlink.ParseAddr(cidr.String())
-		if err != nil {
-			return nil, err
-		}
-		mask, _ := cidr.Network.Mask.Size()
-		logger.Info("Set address for TUN", "addr", cidr.IP.String(), "mask", mask)
-		err = netlink.AddrAdd(link, nladdr)
-		if err != nil {
-			return nil, err
-		}
-	}
-	/*err = netlink.LinkSetMTU(link, mtu)
-	if err != nil {
-		return nil, err
-	}*/
-	err = netlink.LinkSetUp(link)
-	if err != nil {
+	logger.Info("Interface", "name", iface.name)
+	if err := iface.setUpInterface(); err != nil {
+		logger.Error("Set up interface", "err", err)
 		return nil, err
 	}
 
 	tunIf = &iface
 	return &iface, nil
+}
+
+// XXX Platform specific implementation
+func (iface *TunInterface) setUpInterface() error {
+	link, err := netlink.LinkByName(iface.name)
+	if err != nil {
+		return err
+	}
+
+	for _, cidr := range iface.cidrs {
+		nladdr, err := netlink.ParseAddr(cidr.String())
+		if err != nil {
+			return err
+		}
+		mask, _ := cidr.Network.Mask.Size()
+		iface.logger.Info("Set address for TUN", "addr", cidr.IP.String(), "mask", mask)
+		err = netlink.AddrAdd(link, nladdr)
+		if err != nil {
+			return err
+		}
+	}
+	err = netlink.LinkSetUp(link)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Read from TUN and pass to client
