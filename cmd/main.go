@@ -239,7 +239,7 @@ func main() {
 	case sig := <-sigChan:
 		logger.Info("Received signal", "signal", sig)
 		// Send shutdown command to all clients
-		if mode == "server" {
+		if cfg.Main.Mode == "server" {
 			clients.SendAllShutdownRequest()
 			time.Sleep(3 * time.Second) // Give some time for clients to process shutdown
 		}

@@ -16,8 +16,8 @@ const (
 	Ping            = 4
 	Pong            = 5
 	// Flags
-	NoEncryption = 0xa0
-	WithPadding  = 0x80
+	NoEncryption = 0x80
+	WithPadding  = 0x40
 )
 
 const FlagsMask Cmd = 0xf0

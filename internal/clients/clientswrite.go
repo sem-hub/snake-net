@@ -30,8 +30,10 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 
 	buf := make([]byte, HEADER)
 
-	msgBuf := make([]byte, len(*msg))
-	copy(msgBuf, *msg)
+	msgBuf := make([]byte, 0)
+	if msg != nil {
+		msgBuf = append(msgBuf, *msg...)
+	}
 	// Need padding
 	if (cmd & WithPadding) != 0 {
 		msgBuf = crypt.Pad(msgBuf)

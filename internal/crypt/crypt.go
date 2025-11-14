@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -33,14 +34,12 @@ func NewSecrets(secret []byte) *Secrets {
 	s.SharedSecret = make([]byte, 32)
 	if len(secret) == 0 {
 		s.logger.Info("Using default shared secret")
-		copy(s.SharedSecret, []byte(FIRSTSECRET))
+		sum256 := sha256.Sum256([]byte(FIRSTSECRET))
+		copy(s.SharedSecret, sum256[:])
 	} else {
 		s.logger.Info("Using provided shared secret")
-		if len(secret) != 32 {
-			s.logger.Error("Provided secret must be exactly 32 bytes.")
-			return nil
-		}
-		copy(s.SharedSecret, secret[:32])
+		sum256 := sha256.Sum256([]byte(secret))
+		copy(s.SharedSecret, sum256[:])
 	}
 
 	s.SessionPublicKey, s.SessionPrivateKey, _ =

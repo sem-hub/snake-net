@@ -1,8 +1,6 @@
 package configs
 
 import (
-	"encoding/hex"
-	"log"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -87,7 +85,7 @@ func GetConfig() *RuntimeConfig {
 			TunMTU:     configFile.Tun.MTU,
 			TunName:    configFile.Tun.Name,
 			ClientId:   configFile.Main.ClientId,
-			Secret:     []byte{},
+			Secret:     []byte(configFile.Main.Secret),
 		}
 		if len(configFile.Tun.TunAddrStr) > 0 {
 			for _, addr := range configFile.Tun.TunAddrStr {
@@ -100,23 +98,6 @@ func GetConfig() *RuntimeConfig {
 					})
 			}
 		}
-		if strings.HasPrefix(configFile.Main.Secret, "0x") {
-			n, err := hex.Decode(config.Secret, []byte(configFile.Main.Secret[2:]))
-			if err != nil {
-				log.Fatalf("Invalid secret in config file: %s", err)
-			}
-			if n != 32 {
-				log.Fatalf("Secret must be exactly 32 bytes long")
-			}
-		} else {
-			if configFile.Main.Secret != "" {
-				config.Secret = []byte(configFile.Main.Secret)
-				if len(config.Secret) != 32 {
-					log.Fatalf("Secret must be exactly 32 bytes long")
-				}
-			}
-		}
-
 	}
 	return config
 }
