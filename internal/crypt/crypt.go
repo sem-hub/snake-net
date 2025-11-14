@@ -6,12 +6,8 @@ import (
 	"crypto/cipher"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
-	"io"
 	"log/slog"
-	"slices"
-	"strings"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
@@ -92,22 +88,21 @@ func (s *Secrets) DecryptAndVerify(data []byte) ([]byte, error) {
 }
 
 func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
-	buf := slices.Clone(data)
-	s.logger.Debug("CryptDecrypt", "datalen", len(data), "sharedsecret", hex.EncodeToString(s.SharedSecret))
-	bReader := bytes.NewReader(data)
+	s.logger.Debug("CryptDecrypt", "datalen", len(data))
 	block, err := aes.NewCipher(s.SharedSecret)
 	if err != nil {
 		return nil, err
 	}
-	var iv [aes.BlockSize]byte
-	stream := cipher.NewCTR(block, iv[:])
+	// XXX generate random IV: rand.Read(iv) for Encryption
+	// XXX and copy(iv, data[:aes.BlockSize]) for Decryption
+	iv := make([]byte, aes.BlockSize)
+	stream := cipher.NewCTR(block, iv)
 
-	reader := &cipher.StreamReader{S: stream, R: bReader}
-	buf1 := new(strings.Builder)
-	if _, err := io.Copy(buf1, reader); err != nil {
-		return nil, err
-	}
-	s.logger.Debug("CryptDecrypt", "encryptedlen", len(data))
-	copy(buf, []byte(buf1.String()))
-	return buf, nil
+	bufOut := make([]byte, len(data)) // len(data)+aes.BlockSize
+	// copy iv to buf
+	// copy(bufOut[:aes.BlockSize], iv)
+
+	stream.XORKeyStream(bufOut, data) // bufOut[aes.BlockSize:]
+	s.logger.Debug("CryptDecrypt", "encryptedlen", len(bufOut))
+	return bufOut, nil
 }
