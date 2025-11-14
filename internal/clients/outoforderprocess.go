@@ -4,6 +4,7 @@ import (
 	"errors"
 	"hash/crc32"
 
+	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
@@ -52,7 +53,7 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 func (c *Client) lookInBufferForSeq(seq uint32) bool {
 	offset := 0
 	for offset < c.bufSize {
-		if c.bufSize-offset < HEADER+c.secrets.MinimalSize() {
+		if c.bufSize-offset < HEADER+crypt.SIGNLEN {
 			return false
 		}
 		// header is encrypted, decrypt it first
@@ -88,7 +89,5 @@ func (c *Client) AskForResend(seq uint32) error {
 	buf := make([]byte, 2)
 	buf[0] = byte(seq >> 8)
 	buf[1] = byte(seq & 0xff)
-	padding := MakePadding()
-	buf = append(buf, padding...)
-	return c.Write(&buf, AskForResend)
+	return c.Write(&buf, AskForResend|WithPadding)
 }

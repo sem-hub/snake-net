@@ -19,8 +19,6 @@ const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
 
 const SIGNLEN = 64
 
-const XORKEYLEN = 32
-
 type Secrets struct {
 	logger            *slog.Logger
 	SharedSecret      []byte
@@ -77,10 +75,6 @@ func (s *Secrets) Sign(msg []byte) []byte {
 	return ed25519.Sign(s.SessionPrivateKey, msg)
 }
 
-func (s *Secrets) MinimalSize() int {
-	return 64
-}
-
 func (s *Secrets) EncryptAndSeal(data []byte) ([]byte, error) {
 	signature := s.Sign(data)
 	buf, err := s.CryptDecrypt(data)
@@ -90,7 +84,7 @@ func (s *Secrets) EncryptAndSeal(data []byte) ([]byte, error) {
 }
 
 func (s *Secrets) DecryptAndVerify(data []byte) ([]byte, error) {
-	signatureStart := len(data) - s.MinimalSize()
+	signatureStart := len(data) - SIGNLEN
 	buf, err := s.CryptDecrypt(data[:signatureStart])
 	if !s.Verify(buf, data[signatureStart:]) {
 		return nil, errors.New("verify error")

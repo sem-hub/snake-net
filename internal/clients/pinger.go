@@ -37,8 +37,7 @@ func (p *PingerClient) sendPing() {
 	}
 	p.unansweredPings++
 	p.client.logger.Debug("Sending ping to client", "address", p.client.address.String())
-	buf := MakePadding()
-	err := p.client.Write(&buf, Ping)
+	err := p.client.Write(nil, Ping|WithPadding)
 	if err != nil {
 		p.client.logger.Error("Failed to send ping to client", "address", p.client.address.String(), "error", err)
 		return

@@ -185,8 +185,7 @@ func SendAllShutdownRequest() {
 	for k, c := range clients {
 		if k == c.address {
 			c.logger.Info("Sending shutdown request to client", "address", c.address.String())
-			buf := MakePadding()
-			err := c.Write(&buf, ShutdownRequest)
+			err := c.Write(nil, ShutdownRequest|WithPadding)
 			if err != nil {
 				c.logger.Error("Error sending shutdown request", "address", c.address.String(), "error", err)
 			}
@@ -202,7 +201,9 @@ func (c *Client) removeThePacketFromBuffer(n int) {
 }
 
 func (c *Client) Close() error {
-	c.pinger.pingTimer.Stop()
+	if c.pinger != nil {
+		c.pinger.pingTimer.Stop()
+	}
 	c.closed = true
 	err := c.t.CloseClient(c.address)
 	if err != nil {

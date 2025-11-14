@@ -17,6 +17,7 @@ const (
 	Pong            = 5
 	// Flags
 	NoEncryption = 0xa0
+	WithPadding  = 0x80
 )
 
 const FlagsMask Cmd = 0xf0
@@ -31,8 +32,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		c.bufLock.Unlock()
 		c.logger.Debug("received ping command, sending pong", "address", c.address.String())
 
-		buf := MakePadding()
-		err := c.Write(&buf, Pong)
+		err := c.Write(nil, Pong|WithPadding)
 		if err != nil {
 			c.logger.Error("failed to send pong command", "address", c.address.String(), "error", err)
 		}
@@ -50,8 +50,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		c.bufLock.Unlock()
 		c.logger.Info("got shutdown request command, closing connection", "address", c.address.String())
 
-		buf := MakePadding()
-		c.Write(&buf, ShutdownNotify)
+		c.Write(nil, ShutdownNotify|WithPadding)
 		time.Sleep(100 * time.Millisecond) // Give some time to send the notify
 		c.Close()
 		tunIf.Close()

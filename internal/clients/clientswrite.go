@@ -4,6 +4,7 @@ import (
 	"errors"
 	"hash/crc32"
 
+	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
@@ -15,11 +16,12 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	var n int = 0
 	if msg == nil {
 		c.logger.Debug("client Write: no data. Send a command only", "address", c.address.String())
+		cmd |= WithPadding
 	} else {
 		n = len(*msg)
 		c.logger.Debug("client Write data", "len", n, "address", c.address.String())
 
-		if HEADER+n+c.secrets.MinimalSize() > BUFSIZE {
+		if HEADER+n+crypt.SIGNLEN > BUFSIZE {
 			return errors.New("invalid message size")
 		}
 	}
@@ -28,20 +30,25 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 
 	buf := make([]byte, HEADER)
 
-	if msg != nil {
-		if (cmd & NoEncryption) == 0 {
-			c.logger.Debug("client Write encrypting and sign", "address", c.address, "seq", c.seqOut.Load())
-			data, err := c.secrets.EncryptAndSeal(*msg)
-			if err != nil {
-				return err
-			}
-			buf = append(buf, data...)
-		} else {
-			c.logger.Debug("client Write sign only", "address", c.address, "seq", c.seqOut.Load())
-			buf = append(buf, *msg...)
-			signature := c.secrets.Sign(*msg)
-			buf = append(buf, signature...)
+	msgBuf := make([]byte, len(*msg))
+	copy(msgBuf, *msg)
+	// Need padding
+	if (cmd & WithPadding) != 0 {
+		msgBuf = crypt.Pad(msgBuf)
+	}
+
+	if (cmd & NoEncryption) == 0 {
+		c.logger.Debug("client Write encrypting and sign", "address", c.address, "seq", c.seqOut.Load())
+		data, err := c.secrets.EncryptAndSeal(msgBuf)
+		if err != nil {
+			return err
 		}
+		buf = append(buf, data...)
+	} else {
+		c.logger.Debug("client Write sign only", "address", c.address, "seq", c.seqOut.Load())
+		buf = append(buf, msgBuf...)
+		signature := c.secrets.Sign(buf[HEADER:])
+		buf = append(buf, signature...)
 	}
 
 	n = len(buf) - HEADER
@@ -62,6 +69,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	data[7] = byte((crc >> 8) & 0xff)
 	data[8] = byte(crc & 0xff)
 
+	// Encrypt header. The same buf size.
 	encryptData, err := c.secrets.CryptDecrypt(data)
 	if err != nil {
 		return err

@@ -28,11 +28,8 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 		prefLen, _ := addr.Network.Mask.Size()
 		msg = append(msg, []byte(addr.IP.Unmap().String()+"/"+strconv.Itoa(prefLen))...)
 	}
-	msg = append(msg, '\x00')
-	padding := clients.MakePadding()
 	logger.Debug("Identification", "msg", string(msg))
-	msg = append(msg, padding...)
-	err := c.Write(&msg, clients.NoneCmd)
+	err := c.Write(&msg, clients.NoneCmd|clients.WithPadding)
 	if err != nil {
 		return nil, err
 	}
@@ -41,9 +38,8 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 	if err != nil {
 		return nil, err
 	}
-	eol := strings.Index(string(msg1), "\x00")
-	str := strings.Fields(string(msg1[:eol]))
-	logger.Debug("ID", "msg", string(msg1[:eol]))
+	str := strings.Fields(string(msg1))
+	logger.Debug("ID", "msg", string(msg1))
 
 	if len(str) == 0 {
 		return nil, errors.New("invalid welcome string")
@@ -60,11 +56,10 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 			cidrs = append(cidrs, utils.Cidr{IP: ip, Network: &net.IPNet{}})
 		}
 	} else {
-		return nil, errors.New("Identification " + string(msg1[:eol]))
+		return nil, errors.New("Identification " + string(msg1))
 	}
-	buf := []byte{'O', 'K', 0}
-	buf = append(buf, clients.MakePadding()...)
-	if err := c.Write(&buf, clients.NoneCmd); err != nil {
+	buf := []byte{'O', 'K'}
+	if err := c.Write(&buf, clients.NoneCmd|clients.WithPadding); err != nil {
 		logger.Error("Failed to write OK message", "error", err)
 		return nil, err
 	}
@@ -100,8 +95,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	}
 
 	buf := []byte{'O', 'K'}
-	buf = append(buf, clients.MakePadding()...)
-	if err := c.Write(&buf, clients.NoneCmd); err != nil {
+	if err := c.Write(&buf, clients.NoneCmd|clients.WithPadding); err != nil {
 		logger.Error("Failed to write OK message", "error", err)
 		clients.RemoveClient(addr)
 		return errors.New("Failed to write OK message: " + err.Error())

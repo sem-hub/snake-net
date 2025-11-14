@@ -6,6 +6,7 @@ import (
 	"net/netip"
 
 	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
@@ -151,8 +152,9 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		return nil, errors.New("plain header and not command. Ignore")
 	}
 
-	msg := make([]byte, HEADER+n)
-	copy(msg, c.buf[c.bufOffset:c.bufOffset+HEADER+n])
+	// msg is a plaing data on finish: no header, no padding etc.
+	msg := make([]byte, n)
+	copy(msg, c.buf[c.bufOffset+HEADER:c.bufOffset+HEADER+n])
 
 	/* Remove the packet from buffer */
 	c.removeThePacketFromBuffer(HEADER + n)
@@ -171,22 +173,30 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// decrypt and verify the packet or just verify if NoEncryptionCmd flag set
 	if (flags & NoEncryption) == 0 {
 		c.logger.Debug("client ReadBuf decrypting", "address", c.address.String())
-		data, err := c.secrets.DecryptAndVerify(msg[HEADER : HEADER+n])
+		data, err := c.secrets.DecryptAndVerify(msg)
 		if err != nil {
 			c.logger.Error("client Readbuf: decrypt&verify error", "address", c.address.String(), "error", err)
 			return nil, err
 		}
 		c.logger.Debug("After decryption", "datalen", len(data), "msglen", len(msg))
-		copy(msg[HEADER:], data)
+		copy(msg, data)
 	} else {
-		if !c.secrets.Verify(msg[HEADER:HEADER+n-c.secrets.MinimalSize()], msg[HEADER+n-c.secrets.MinimalSize():]) {
+		if !c.secrets.Verify(msg[:n-crypt.SIGNLEN], msg[n-crypt.SIGNLEN:]) {
 			c.logger.Error("client Readbuf: verify error", "address", c.address.String())
 			return nil, errors.New("verify error")
 		}
-		// Remove the signature
-		copy(msg, msg[:HEADER+n-c.secrets.MinimalSize()])
-		n -= c.secrets.MinimalSize()
+	}
+	// Remove the signature
+	msg = msg[:n-crypt.SIGNLEN]
+	n -= crypt.SIGNLEN
+
+	if (flags & WithPadding) != 0 {
+		msg, err = crypt.UnPad(msg)
+		if err != nil {
+			c.logger.Error("ReadBuf: UnPadding error")
+			return nil, errors.New("unpadding error")
+		}
 	}
 
-	return msg[HEADER : HEADER+n], nil
+	return msg, nil
 }
