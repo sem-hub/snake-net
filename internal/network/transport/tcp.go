@@ -37,19 +37,19 @@ func (tcp *TcpTransport) IsEncrypted() bool {
 	return false
 }
 
-func (tcp *TcpTransport) Init(mode string, rAddrPort string, lAddrPort string,
+func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	callback func(Transport, netip.AddrPort)) error {
 	if mode == "server" {
 		// Do not block
 		go func() {
-			tcp.listen(lAddrPort, callback)
+			tcp.listen(lAddrPort.String(), callback)
 		}()
 	} else {
 		family := "tcp"
-		if strings.Contains(rAddrPort, "[") {
+		if strings.Contains(rAddrPort.String(), "[") {
 			family = "tcp6"
 		}
-		tcpServer, err := net.ResolveTCPAddr(family, rAddrPort)
+		tcpServer, err := net.ResolveTCPAddr(family, rAddrPort.String())
 		if err != nil {
 			return errors.New("ResolveTCPAddr error: " + err.Error())
 		}

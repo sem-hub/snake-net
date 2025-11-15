@@ -23,20 +23,19 @@ type Secrets struct {
 	SessionPublicKey  ed25519.PublicKey
 }
 
-func NewSecrets(secret []byte) *Secrets {
+func NewSecrets(secret string) *Secrets {
 	s := Secrets{}
 	s.logger = configs.InitLogger("crypt")
 
 	s.SharedSecret = make([]byte, 32)
-	if len(secret) == 0 {
+	if secret == "" {
 		s.logger.Info("Using default shared secret")
-		sum256 := sha256.Sum256([]byte(FIRSTSECRET))
-		copy(s.SharedSecret, sum256[:])
+		secret = FIRSTSECRET
 	} else {
 		s.logger.Info("Using provided shared secret")
-		sum256 := sha256.Sum256([]byte(secret))
-		copy(s.SharedSecret, sum256[:])
 	}
+	sum256 := sha256.Sum256([]byte(secret))
+	copy(s.SharedSecret, sum256[:])
 
 	s.SessionPublicKey, s.SessionPrivateKey, _ =
 		ed25519.GenerateKey(bytes.NewReader([]byte(s.SharedSecret)))
@@ -53,11 +52,7 @@ func (s *Secrets) GetPrivateKey() *ed25519.PrivateKey {
 }
 
 func (s *Secrets) GetSharedSecret() []byte {
-	if s.SharedSecret != nil {
-		return s.SharedSecret
-	} else {
-		return nil
-	}
+	return s.SharedSecret
 }
 
 func (s *Secrets) Verify(msg []byte, sig []byte) bool {

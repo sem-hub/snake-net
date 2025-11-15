@@ -230,7 +230,7 @@ func main() {
 	// Start processing in a goroutine
 	done := make(chan struct{})
 	go func() {
-		protocol.ResolveAndProcess(ctx, t, host, uint32(port))
+		protocol.ResolveAndProcess(ctx, t, host, uint16(port))
 		close(done)
 	}()
 

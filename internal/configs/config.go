@@ -22,9 +22,9 @@ type Main struct {
 	Secret     string
 	Protocol   string `toml:"protocol"`
 	RemoteAddr string `toml:"remote_addr"`
-	RemotePort uint32 `toml:"remote_port"`
+	RemotePort uint16 `toml:"remote_port"`
 	LocalAddr  string `toml:"local_addr"`
-	LocalPort  uint32 `toml:"local_port"`
+	LocalPort  uint16 `toml:"local_port"`
 	ClientId   string `toml:"id"`
 }
 
@@ -49,14 +49,14 @@ type RuntimeConfig struct {
 	Debug      bool
 	Protocol   string
 	RemoteAddr string
-	RemotePort uint32
+	RemotePort uint16
 	LocalAddr  string
-	LocalPort  uint32
+	LocalPort  uint16
 	TunAddrs   []utils.Cidr
 	TunMTU     int
 	TunName    string
 	ClientId   string
-	Secret     []byte
+	Secret     string
 }
 
 var (
@@ -85,7 +85,7 @@ func GetConfig() *RuntimeConfig {
 			TunMTU:     configFile.Tun.MTU,
 			TunName:    configFile.Tun.Name,
 			ClientId:   configFile.Main.ClientId,
-			Secret:     []byte(configFile.Main.Secret),
+			Secret:     configFile.Main.Secret,
 		}
 		if len(configFile.Tun.TunAddrStr) > 0 {
 			for _, addr := range configFile.Tun.TunAddrStr {

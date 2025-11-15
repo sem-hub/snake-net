@@ -42,11 +42,11 @@ func (udp *UdpTransport) IsEncrypted() bool {
 	return false
 }
 
-func (udp *UdpTransport) Init(mode string, rAddrPort string, lAddrPort string,
+func (udp *UdpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	callback func(Transport, netip.AddrPort)) error {
 
 	if mode == "server" {
-		udpLocal, err := net.ResolveUDPAddr("udp", lAddrPort)
+		udpLocal, err := net.ResolveUDPAddr("udp", lAddrPort.String())
 		if err != nil {
 			return err
 		}

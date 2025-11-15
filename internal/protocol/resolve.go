@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/sem-hub/snake-net/internal/clients"
@@ -19,13 +18,15 @@ import (
 var logger *slog.Logger
 var cfg *configs.RuntimeConfig = nil
 
-func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, port uint32) {
+func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, port uint16) {
 	logger = configs.InitLogger("protocol")
 	cfg = configs.GetConfig()
 
+	// XXX
 	if host == "" {
 		if cfg.Mode == "server" {
 			host = "0.0.0.0"
+			cfg.LocalAddr = host
 		} else {
 			log.Fatal("Server Address is mandatory for client")
 		}
@@ -34,9 +35,11 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, 
 
 	if cfg.Mode == "server" {
 		cfg.LocalPort = port
-
 	} else {
 		cfg.RemotePort = port
+		if cfg.LocalAddr == "" {
+			cfg.LocalAddr = "0.0.0.0"
+		}
 	}
 
 	if strings.HasPrefix((host), "[") && strings.HasSuffix(host, "]") {
@@ -54,6 +57,8 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, 
 		ip = ips[0]
 	}
 
+	rAddrPort := netip.AddrPortFrom(netip.MustParseAddr(ip.String()).Unmap(), uint16(port))
+	lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
 	logger.Debug("", "ip", ip, "mode", cfg.Mode)
 	if cfg.Mode == "server" {
 		if len(ip) == 16 {
@@ -63,8 +68,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, 
 		}
 
 		// Set up transport with callback for new clients
-		err := t.Init("server", cfg.RemoteAddr+":"+strconv.Itoa(int(cfg.RemotePort)),
-			cfg.LocalAddr+":"+strconv.Itoa(int(cfg.LocalPort)), ProcessNewClient)
+		err := t.Init("server", rAddrPort, lAddrPort, ProcessNewClient)
 		if err != nil {
 			log.Fatalf("Transport init error %s", err)
 		}
@@ -88,9 +92,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, 
 		}
 
 		// Set up transport. No callback for client mode
-		rAddrPortStr := cfg.RemoteAddr + ":" + strconv.Itoa(int(cfg.RemotePort))
-		lAddrPortStr := cfg.LocalAddr + ":" + strconv.Itoa(int(cfg.LocalPort))
-		err := t.Init("client", rAddrPortStr, lAddrPortStr, nil)
+		err := t.Init("client", rAddrPort, lAddrPort, nil)
 		if err != nil {
 			log.Fatalf("Transport init error %s", err)
 		}
@@ -100,7 +102,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, 
 		// Run client in a goroutine so we can listen for context cancellation
 		v := make(chan struct{})
 		go func() {
-			err := ProcessServer(t, netip.MustParseAddrPort(rAddrPortStr))
+			err := ProcessServer(t, rAddrPort)
 			if err != nil {
 				logger.Error("ProcessServer error", "error", err)
 			}
