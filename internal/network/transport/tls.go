@@ -48,7 +48,8 @@ func getCert() *mtls.Certificate {
 
 func buildTlsConfig(cert *mtls.Certificate) *mtls.Config {
 	cfg := &mtls.Config{
-		Certificates: []mtls.Certificate{*cert},
+		Certificates:       []mtls.Certificate{*cert},
+		InsecureSkipVerify: true,
 	}
 	return cfg
 }
