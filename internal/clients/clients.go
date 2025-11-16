@@ -8,17 +8,17 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
-	"github.com/sem-hub/snake-net/internal/interfaces"
+
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
+	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 	"github.com/sem-hub/snake-net/internal/utils"
 )
 
 type State int
-type Cmd byte
 
 const (
 	BUFSIZE = 524288 // 512 KB
-	HEADER  = 9      // 2 bytes size + 2 bytes sequence number + 1 byte flags + 4 bytes CRC32
 )
 
 const (
@@ -55,10 +55,10 @@ var (
 	// holds client pointers. Keys are both client IPs and tunnel IPs (points to the same client)
 	clients     = map[netip.AddrPort]*Client{}
 	clientsLock sync.RWMutex
-	tunIf       interfaces.TunInterface
+	tunIf       TunInterface
 )
 
-func SetTunInterface(tun interfaces.TunInterface) {
+func SetTunInterface(tun TunInterface) {
 	tunIf = tun
 }
 

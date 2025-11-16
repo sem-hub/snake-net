@@ -7,6 +7,9 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
+
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
+	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
@@ -18,14 +21,14 @@ func (c *Client) getHeaderInfo(buf []byte) (int, uint32, Cmd, error) {
 		var err error
 		dataHeader, err = c.secrets.CryptDecrypt(buf[:HEADER])
 		if err != nil {
-			c.logger.Error("getHeaderInfoAtOffset decrypt error", "address", c.address.String(), "error", err)
+			c.logger.Error("getHeaderInfo decrypt error", "address", c.address.String(), "error", err)
 			return 0, 0, NoneCmd, err
 		}
 	}
 
 	crc := uint32(dataHeader[5])<<24 | uint32(dataHeader[6])<<16 | uint32(dataHeader[7])<<8 | uint32(dataHeader[8])
 	if crc != crc32.ChecksumIEEE(dataHeader[:5]) {
-		c.logger.Error("getHeaderInfoAtOffset CRC32 error", "address", c.address.String(), "crc", crc, "calculated", crc32.ChecksumIEEE(dataHeader[:5]))
+		c.logger.Error("getHeaderInfo CRC32 error", "address", c.address.String(), "crc", crc, "calculated", crc32.ChecksumIEEE(dataHeader[:5]))
 		return 0, 0, NoneCmd, errors.New("CRC32 mismatch")
 	}
 	n := int(dataHeader[0])<<8 | int(dataHeader[1])
@@ -100,7 +103,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// Next n bytes are message finished with 64 bytes signature
 	n, seq, flags, err := c.getHeaderInfo(c.buf[c.bufOffset : c.bufOffset+HEADER])
 	if err != nil {
-		c.logger.Error("client ReadBuf: getHeaderInfoAtOffset error", "address", c.address.String(), "error", err)
+		c.logger.Error("client ReadBuf: getHeaderInfo error", "address", c.address.String(), "error", err)
 		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
@@ -189,29 +192,10 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// Finished working with buf, unlock
 	c.bufLock.Unlock()
 
-	// decrypt and verify the packet or just verify if NoEncryptionCmd flag set
-	if (flags & NoEncryption) == 0 {
-		c.logger.Debug("client ReadBuf decrypting", "address", c.address.String())
-		signature := make([]byte, crypt.SIGNLEN)
-		copy(signature, msg[n-crypt.SIGNLEN:])
-		data, err := c.secrets.Decrypt(msg[:n-crypt.SIGNLEN])
-		if err != nil {
-			c.logger.Error("client Readbuf: decrypt&verify error", "address", c.address.String(), "error", err)
-			return nil, err
-		}
-		c.logger.Debug("After decryption", "datalen", len(data), "msglen", len(msg))
-		copy(msg, data)
-		// Restore signature
-		copy(msg[n-crypt.SIGNLEN:], signature)
-	}
-	if (flags & NoSignature) == 0 {
-		if !c.secrets.Verify(msg[:n-crypt.SIGNLEN], msg[n-crypt.SIGNLEN:]) {
-			c.logger.Error("client Readbuf: verify error", "address", c.address.String())
-			return nil, errors.New("verify error")
-		}
-		// Remove the signature
-		msg = msg[:n-crypt.SIGNLEN]
-		n -= crypt.SIGNLEN
+	msg, err = c.secrets.DecryptAndVerify(msg, n, flags)
+	if err != nil {
+		c.logger.Error("ReadBuf: DecryptAndVerify error", "address", c.address.String())
+		return nil, errors.New("decrypt&verify error")
 	}
 
 	// Unpad if needed

@@ -1,6 +1,11 @@
 package clients
 
-import "time"
+import (
+	"time"
+
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
+	. "github.com/sem-hub/snake-net/internal/interfaces"
+)
 
 type PingerClient struct {
 	client          *Client

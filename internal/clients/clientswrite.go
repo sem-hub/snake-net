@@ -5,6 +5,8 @@ import (
 	"hash/crc32"
 
 	"github.com/sem-hub/snake-net/internal/crypt"
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
+	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
@@ -27,7 +29,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 		n = len(*msg)
 		c.logger.Debug("client Write data", "len", n, "address", c.address.String())
 
-		if HEADER+n+crypt.SIGNLEN > BUFSIZE {
+		if HEADER+n+crypt.SignLen() > BUFSIZE {
 			return errors.New("invalid message size")
 		}
 	}
@@ -43,29 +45,15 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 		msgBuf = crypt.Pad(msgBuf)
 	}
 
-	// Sign BEFORE encryption
-	var signature []byte
-	if (cmd & NoSignature) == 0 {
-		signature = c.secrets.Sign(msgBuf)
-	}
-
 	buf := make([]byte, HEADER)
 
-	if (cmd & NoEncryption) == 0 {
-		c.logger.Debug("client Write encrypting and sign", "address", c.address, "seq", c.seqOut.Load())
-		data, err := c.secrets.Encrypt(msgBuf)
-		if err != nil {
-			return err
-		}
-		buf = append(buf, data...)
-	} else {
-		buf = append(buf, msgBuf...)
+	var err error
+	msgBuf, err = c.secrets.SignAndEncrypt(msgBuf, cmd)
+	if err != nil {
+		c.logger.Error("client Write SignAndEncrypt error", "error", err, "address", c.address, "seq", c.seqOut.Load())
+		return err
 	}
-
-	// Unencrypted signature at the end
-	if (cmd & NoSignature) == 0 {
-		buf = append(buf, signature...)
-	}
+	buf = append(buf, msgBuf...)
 
 	n = len(buf) - HEADER
 	seq := c.seqOut.Load()
@@ -97,7 +85,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	}
 
 	c.logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(buf))
-	err := c.t.Send(c.address, &buf)
+	err = c.t.Send(c.address, &buf)
 	if err != nil {
 		c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", seq)
 		return err

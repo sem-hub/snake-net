@@ -6,25 +6,11 @@ import (
 	"time"
 
 	"github.com/sem-hub/snake-net/internal/crypt"
+
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
+	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
-
-const (
-	NoneCmd Cmd = iota
-	// Commands
-	ShutdownRequest = 1
-	ShutdownNotify  = 2
-	AskForResend    = 3
-	Ping            = 4
-	Pong            = 5
-	// Flags
-	NoEncryption = 0x80
-	NoSignature  = 0x40
-	WithPadding  = 0x20
-)
-
-const FlagsMask Cmd = 0xf0
-const CmdMask Cmd = 0x0f
 
 // Process special commands received from the client
 // Executed under bufLock. data excludes header: data + signature (if any)
@@ -77,7 +63,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		dataDecrypted := make([]byte, n)
 		sigLen := 0
 		if (command & NoSignature) == 0 {
-			sigLen = crypt.SIGNLEN
+			sigLen = crypt.SignLen()
 		}
 		if (command & NoEncryption) == 0 {
 			var err error

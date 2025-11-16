@@ -8,6 +8,10 @@ import (
 
 func Pad(buf []byte) []byte {
 	padLen := rand.Intn(128)
+	// At lest 2 bytes of padding
+	if padLen < 2 {
+		padLen = 2
+	}
 	logger.Debug("Padding", "padLen", padLen)
 	if buf == nil {
 		buf = make([]byte, 0)

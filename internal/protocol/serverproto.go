@@ -9,6 +9,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
+	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 	"github.com/sem-hub/snake-net/internal/utils"
@@ -45,11 +46,11 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	cidrs := make([]utils.Cidr, 0)
 	cfg := configs.GetConfig()
 
-	buf, err := c.ReadBuf(clients.HEADER)
+	buf, err := c.ReadBuf(HEADER)
 	if err != nil {
 		return nil, err
 	}
-	if len(buf) < clients.HEADER {
+	if len(buf) < HEADER {
 		return nil, errors.New("invalid buffer length")
 	}
 
@@ -70,7 +71,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 			if err != nil {
 				logger.Error("IdentifyClient: invalid client CIDR", "cidr", clientNet, "error", err)
 				buf = []byte("Error: " + err.Error())
-				err = c.Write(&buf, clients.WithPadding)
+				err = c.Write(&buf, WithPadding)
 				if err != nil {
 					logger.Error("Failed to write Error message", "error", err)
 					return nil, err
@@ -87,7 +88,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	} else {
 		logger.Error("IdentifyClient: invalid first word", "word", h)
 		buf := []byte("Error: Identification error")
-		if err := c.Write(&buf, clients.WithPadding); err != nil {
+		if err := c.Write(&buf, WithPadding); err != nil {
 			logger.Error("Failed to write Error message", "error", err)
 			return nil, err
 		}
@@ -102,12 +103,12 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 		msg = append(msg, []byte(cidr.IP.Unmap().String())...)
 	}
 	logger.Debug("Welcome message", "msg", msg)
-	if err := c.Write(&msg, clients.WithPadding); err != nil {
+	if err := c.Write(&msg, WithPadding); err != nil {
 		logger.Error("Failed to write Welcome message", "error", err)
 		return nil, err
 	}
 
-	buf, err = c.ReadBuf(clients.HEADER)
+	buf, err = c.ReadBuf(HEADER)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	if err != nil {
 		logger.Error("Identification failed", "error", err)
 		buf := []byte("Error: " + err.Error())
-		if err := c.Write(&buf, clients.WithPadding); err != nil {
+		if err := c.Write(&buf, WithPadding); err != nil {
 			logger.Error("Failed to write Error message", "error", err)
 		}
 		clients.RemoveClient(addr)
@@ -153,7 +154,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	}
 
 	// Wait for OK from client after ECDH
-	buf, err := c.ReadBuf(clients.HEADER)
+	buf, err := c.ReadBuf(HEADER)
 	if err != nil {
 		logger.Error("Failed to read response message", "error", err)
 		clients.RemoveClient(addr)
