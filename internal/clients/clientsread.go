@@ -10,6 +10,31 @@ import (
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
+func (c *Client) getHeaderInfo(buf []byte) (int, uint32, Cmd, error) {
+	var dataHeader []byte
+	if c.t.IsEncrypted() {
+		dataHeader = buf
+	} else {
+		var err error
+		dataHeader, err = c.secrets.CryptDecrypt(buf[:HEADER])
+		if err != nil {
+			c.logger.Error("getHeaderInfoAtOffset decrypt error", "address", c.address.String(), "error", err)
+			return 0, 0, NoneCmd, err
+		}
+	}
+
+	crc := uint32(dataHeader[5])<<24 | uint32(dataHeader[6])<<16 | uint32(dataHeader[7])<<8 | uint32(dataHeader[8])
+	if crc != crc32.ChecksumIEEE(dataHeader[:5]) {
+		c.logger.Error("getHeaderInfoAtOffset CRC32 error", "address", c.address.String(), "crc", crc, "calculated", crc32.ChecksumIEEE(dataHeader[:5]))
+		return 0, 0, NoneCmd, errors.New("CRC32 mismatch")
+	}
+	n := int(dataHeader[0])<<8 | int(dataHeader[1])
+	seq := uint32(dataHeader[2])<<8 | uint32(dataHeader[3])
+	flags := Cmd(dataHeader[4])
+
+	return n, seq, flags, nil
+}
+
 func (c *Client) ReadLoop(address netip.AddrPort) {
 	c.logger.Debug("ReadLoop", "address", address)
 	// read data from network into c.buf
@@ -73,27 +98,18 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// Next 1 byte is flags
 	// Next 4 bytes are CRC32 of the header (of 5 bytes)
 	// Next n bytes are message finished with 64 bytes signature
-	c.logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
-
-	data := make([]byte, c.bufSize-c.bufOffset)
-	copy(data, c.buf[c.bufOffset:c.bufSize])
-	dataHeader, err := c.secrets.CryptDecrypt(data[:HEADER])
+	n, seq, flags, err := c.getHeaderInfo(c.buf[c.bufOffset : c.bufOffset+HEADER])
 	if err != nil {
-		c.bufLock.Unlock()
-		return nil, err
-	}
-
-	crc := uint32(dataHeader[5])<<24 | uint32(dataHeader[6])<<16 | uint32(dataHeader[7])<<8 | uint32(dataHeader[8])
-	if crc != crc32.ChecksumIEEE(dataHeader[:5]) {
-		c.logger.Error("ReadBuf CRC32 error", "address", c.address, "crc", crc, "calculated", crc32.ChecksumIEEE(dataHeader[:5]))
+		c.logger.Error("client ReadBuf: getHeaderInfoAtOffset error", "address", c.address.String(), "error", err)
 		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
 
 		c.bufLock.Unlock()
-		return nil, errors.New("CRC32 error")
+		return nil, err
 	}
-	n := int(dataHeader[0])<<8 | int(dataHeader[1])
+	c.logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
+
 	if n <= 0 || HEADER+n > BUFSIZE {
 		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
@@ -110,8 +126,11 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		//return nil, errors.New("incomplete message")
 		return c.ReadBuf(HEADER + n)
 	}
-	seq := uint32(dataHeader[2])<<8 | uint32(dataHeader[3])
-	flags := Cmd(dataHeader[4])
+	// Set flags for NoEncryption and NoSignature if transport does it
+	if c.t.IsEncrypted() {
+		flags |= NoEncryption
+		flags |= NoSignature
+	}
 
 	c.logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
 	// Sanity check of "n"
@@ -141,9 +160,13 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	}
 	c.seqIn++
 
+	// msg is a plaing data on finish: no header, no padding etc.
+	msg := make([]byte, n)
+	copy(msg, c.buf[c.bufOffset+HEADER:c.bufOffset+HEADER+n])
+
 	if (flags & CmdMask) != NoneCmd {
 		c.logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", flags)
-		return c.processCommand(flags&CmdMask, data, n)
+		return c.processCommand(flags, msg, n)
 	}
 
 	if n == 0 {
@@ -151,10 +174,6 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		c.removeThePacketFromBuffer(HEADER)
 		return nil, errors.New("plain header and not command. Ignore")
 	}
-
-	// msg is a plaing data on finish: no header, no padding etc.
-	msg := make([]byte, n)
-	copy(msg, c.buf[c.bufOffset+HEADER:c.bufOffset+HEADER+n])
 
 	/* Remove the packet from buffer */
 	c.removeThePacketFromBuffer(HEADER + n)
@@ -173,23 +192,29 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// decrypt and verify the packet or just verify if NoEncryptionCmd flag set
 	if (flags & NoEncryption) == 0 {
 		c.logger.Debug("client ReadBuf decrypting", "address", c.address.String())
-		data, err := c.secrets.DecryptAndVerify(msg)
+		signature := make([]byte, crypt.SIGNLEN)
+		copy(signature, msg[n-crypt.SIGNLEN:])
+		data, err := c.secrets.Decrypt(msg[:n-crypt.SIGNLEN])
 		if err != nil {
 			c.logger.Error("client Readbuf: decrypt&verify error", "address", c.address.String(), "error", err)
 			return nil, err
 		}
 		c.logger.Debug("After decryption", "datalen", len(data), "msglen", len(msg))
 		copy(msg, data)
-	} else {
+		// Restore signature
+		copy(msg[n-crypt.SIGNLEN:], signature)
+	}
+	if (flags & NoSignature) == 0 {
 		if !c.secrets.Verify(msg[:n-crypt.SIGNLEN], msg[n-crypt.SIGNLEN:]) {
 			c.logger.Error("client Readbuf: verify error", "address", c.address.String())
 			return nil, errors.New("verify error")
 		}
+		// Remove the signature
+		msg = msg[:n-crypt.SIGNLEN]
+		n -= crypt.SIGNLEN
 	}
-	// Remove the signature
-	msg = msg[:n-crypt.SIGNLEN]
-	n -= crypt.SIGNLEN
 
+	// Unpad if needed
 	if (flags & WithPadding) != 0 {
 		msg, err = crypt.UnPad(msg)
 		if err != nil {

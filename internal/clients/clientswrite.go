@@ -13,6 +13,12 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	c.orderSendLock.Lock()
 	defer c.orderSendLock.Unlock()
 
+	if c.t.IsEncrypted() {
+		// Transport does low-level encryption, so we can skip it
+		cmd |= NoEncryption
+		cmd |= NoSignature
+	}
+
 	var n int = 0
 	if msg == nil {
 		c.logger.Debug("client Write: no data. Send a command only", "address", c.address.String())
@@ -28,8 +34,6 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	// Copy message
 	c.logger.Debug("client Write", "address", c.address, "seq", c.seqOut.Load())
 
-	buf := make([]byte, HEADER)
-
 	msgBuf := make([]byte, 0)
 	if msg != nil {
 		msgBuf = append(msgBuf, *msg...)
@@ -39,17 +43,27 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 		msgBuf = crypt.Pad(msgBuf)
 	}
 
+	// Sign BEFORE encryption
+	var signature []byte
+	if (cmd & NoSignature) == 0 {
+		signature = c.secrets.Sign(msgBuf)
+	}
+
+	buf := make([]byte, HEADER)
+
 	if (cmd & NoEncryption) == 0 {
 		c.logger.Debug("client Write encrypting and sign", "address", c.address, "seq", c.seqOut.Load())
-		data, err := c.secrets.EncryptAndSeal(msgBuf)
+		data, err := c.secrets.Encrypt(msgBuf)
 		if err != nil {
 			return err
 		}
 		buf = append(buf, data...)
 	} else {
-		c.logger.Debug("client Write sign only", "address", c.address, "seq", c.seqOut.Load())
 		buf = append(buf, msgBuf...)
-		signature := c.secrets.Sign(buf[HEADER:])
+	}
+
+	// Unencrypted signature at the end
+	if (cmd & NoSignature) == 0 {
 		buf = append(buf, signature...)
 	}
 
@@ -71,15 +85,19 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	data[7] = byte((crc >> 8) & 0xff)
 	data[8] = byte(crc & 0xff)
 
-	// Encrypt header. The same buf size.
-	encryptData, err := c.secrets.CryptDecrypt(data)
-	if err != nil {
-		return err
+	// Encrypt header if transport is not Encrypted. Must not change buf size!
+	if !c.t.IsEncrypted() {
+		encryptData, err := c.secrets.CryptDecrypt(data)
+		if err != nil {
+			return err
+		}
+		copy(buf[:HEADER], encryptData)
+	} else {
+		copy(buf[:HEADER], data)
 	}
-	copy(buf[:HEADER], encryptData)
 
 	c.logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(buf))
-	err = c.t.Send(c.address, &buf)
+	err := c.t.Send(c.address, &buf)
 	if err != nil {
 		c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", seq)
 		return err

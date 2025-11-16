@@ -32,7 +32,7 @@ func (p *PingerClient) sendPing() {
 	if p.unansweredPings >= maxUnansweredPings {
 		p.client.logger.Warn("No pong received from client, closing connection", "address", p.client.address.String())
 		// Close the client connection and remove it
-		RemoveClient(p.client.address)
+		//XXX RemoveClient(p.client.address)
 		return
 	}
 	p.unansweredPings++

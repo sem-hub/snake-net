@@ -124,7 +124,7 @@ func (tunIf *TunInterface) ReadTun() ([]byte, error) {
 	}
 
 	// Allocate batch buffers
-	batchSize := 32
+	batchSize := 64
 	bufs := make([][]byte, batchSize)
 	sizes := make([]int, batchSize)
 	for i := 0; i < batchSize; i++ {

@@ -8,6 +8,7 @@ import (
 
 func Pad(buf []byte) []byte {
 	padLen := rand.Intn(128)
+	logger.Debug("Padding", "padLen", padLen)
 	if buf == nil {
 		buf = make([]byte, 0)
 	}
@@ -17,8 +18,10 @@ func Pad(buf []byte) []byte {
 
 func UnPad(buf []byte) ([]byte, error) {
 	bufLen := len(buf)
+	logger.Debug("UnPadding", "bufLen", bufLen)
 	pad := buf[bufLen-1]
 	padLen := int(pad)
+	logger.Debug("UnPadding", "padLen", padLen)
 	// Be sure we did not remove useful data
 	for _, v := range buf[bufLen-padLen : bufLen-1] {
 		if v != pad {

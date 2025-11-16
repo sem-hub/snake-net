@@ -29,7 +29,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 		msg = append(msg, []byte(addr.IP.Unmap().String()+"/"+strconv.Itoa(prefLen))...)
 	}
 	logger.Debug("Identification", "msg", string(msg))
-	err := c.Write(&msg, clients.NoneCmd|clients.WithPadding)
+	err := c.Write(&msg, clients.WithPadding)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 		return nil, errors.New("Identification " + string(msg1))
 	}
 	buf := []byte{'O', 'K'}
-	if err := c.Write(&buf, clients.NoneCmd|clients.WithPadding); err != nil {
+	if err := c.Write(&buf, clients.WithPadding); err != nil {
 		logger.Error("Failed to write OK message", "error", err)
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	}
 
 	buf := []byte{'O', 'K'}
-	if err := c.Write(&buf, clients.NoneCmd|clients.WithPadding); err != nil {
+	if err := c.Write(&buf, clients.WithPadding); err != nil {
 		logger.Error("Failed to write OK message", "error", err)
 		clients.RemoveClient(addr)
 		return errors.New("Failed to write OK message: " + err.Error())

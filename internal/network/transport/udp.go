@@ -57,7 +57,12 @@ func (udp *UdpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		}
 		udp.mainConn = conn
 	} else {
-		conn, err := net.ListenPacket("udp", ":0")
+		_, err := net.ResolveUDPAddr("udp", lAddrPort.String())
+		if err != nil {
+			return err
+		}
+
+		conn, err := net.ListenPacket("udp", lAddrPort.String())
 		if err != nil {
 			return err
 		}

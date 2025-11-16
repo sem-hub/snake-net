@@ -1,9 +1,11 @@
 package clients
 
 import (
+	"encoding/hex"
 	"errors"
 	"time"
 
+	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
@@ -17,16 +19,18 @@ const (
 	Pong            = 5
 	// Flags
 	NoEncryption = 0x80
-	WithPadding  = 0x40
+	NoSignature  = 0x40
+	WithPadding  = 0x20
 )
 
 const FlagsMask Cmd = 0xf0
 const CmdMask Cmd = 0x0f
 
 // Process special commands received from the client
-// Executed under bufLock
+// Executed under bufLock. data excludes header: data + signature (if any)
 func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Message, error) {
-	switch command {
+	c.logger.Debug("processCommand", "address", c.address.String(), "dataLen", len(data), "n", n)
+	switch command & CmdMask {
 	case Ping:
 		c.removeThePacketFromBuffer(HEADER + n)
 		c.bufLock.Unlock()
@@ -71,29 +75,48 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 	case AskForResend:
 		// we did not decrypt the data yet
 		dataDecrypted := make([]byte, n)
+		sigLen := 0
+		if (command & NoSignature) == 0 {
+			sigLen = crypt.SIGNLEN
+		}
 		if (command & NoEncryption) == 0 {
 			var err error
-			dataDecrypted, err = c.secrets.DecryptAndVerify(data[HEADER : HEADER+n])
+			dataDecrypted, err = c.secrets.Decrypt(data[:n-sigLen])
 			if err != nil {
 				c.logger.Error("process command AskForResend: decrypt&verify error", "address", c.address.String(), "error", err)
 				return nil, err
 			}
+			if (command & NoSignature) == 0 {
+				// restore signature for verification
+				dataDecrypted = append(dataDecrypted[:n-sigLen], data[n-sigLen:n]...)
+			}
 		} else {
-			copy(dataDecrypted, data[HEADER:HEADER+n])
+			copy(dataDecrypted, data[:n])
 		}
+
+		if (command & NoSignature) == 0 {
+			if !c.secrets.Verify(dataDecrypted[:n-sigLen], dataDecrypted[n-sigLen:]) {
+				c.logger.Error("process command AskForResend: verify error", "address", c.address.String())
+				return nil, errors.New("verify error")
+			}
+		}
+
 		// Find in sentBuffer and resend
 		askSeq := uint32(dataDecrypted[0])<<8 | uint32(dataDecrypted[1])
 		c.logger.Info("client asked to resend packet", "address", c.address.String(), "seq", askSeq)
 
 		dataSend, ok := c.sentBuffer.Find(func(index interface{}) bool {
 			buf := index.([]byte)
-			seqNum := uint32(buf[2])<<8 | uint32(buf[3])
+			_, seqNum, _, err := c.getHeaderInfo(buf)
+			if err != nil {
+				c.logger.Error("process command resend: cannot get header info from sentBuffer", "address", c.address.String(), "error", err)
+				return false
+			}
 			return seqNum == askSeq
 		})
 		if ok {
 			buf := dataSend.([]byte)
-			seqNum := uint32(buf[2])<<8 | uint32(buf[3])
-			c.logger.Debug("client resend for", "address", c.address.String(), "seq", seqNum)
+			c.logger.Info("client resend for", "address", c.address.String(), "seq", askSeq)
 			err := c.t.Send(c.address, &buf)
 			if err != nil {
 				c.logger.Error("process command resend failed", "address", c.address.String(), "seq", askSeq, "error", err)
@@ -101,7 +124,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 			// Hold on the client a little
 			time.Sleep(5 * time.Millisecond)
 		} else {
-			c.logger.Warn("process command resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
+			c.logger.Error("process command resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
 		}
 		// Remove the packet from buffer
 		c.removeThePacketFromBuffer(HEADER + n)
@@ -111,6 +134,6 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		c.removeThePacketFromBuffer(HEADER + n)
 		c.bufLock.Unlock()
 
-		return nil, errors.New("unknown command: " + string(command))
+		return nil, errors.New("unknown command: " + hex.EncodeToString([]byte{byte(command)}))
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"crypto/cipher"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"errors"
 	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -23,9 +22,12 @@ type Secrets struct {
 	SessionPublicKey  ed25519.PublicKey
 }
 
+var logger *slog.Logger
+
 func NewSecrets(secret string) *Secrets {
 	s := Secrets{}
 	s.logger = configs.InitLogger("crypt")
+	logger = s.logger
 
 	s.SharedSecret = make([]byte, 32)
 	if secret == "" {
@@ -65,21 +67,12 @@ func (s *Secrets) Sign(msg []byte) []byte {
 	return ed25519.Sign(s.SessionPrivateKey, msg)
 }
 
-func (s *Secrets) EncryptAndSeal(data []byte) ([]byte, error) {
-	signature := s.Sign(data)
-	buf, err := s.CryptDecrypt(data)
-	buf = append(buf, signature...)
-
-	return buf, err
+func (s *Secrets) Encrypt(data []byte) ([]byte, error) {
+	return s.CryptDecrypt(data)
 }
 
-func (s *Secrets) DecryptAndVerify(data []byte) ([]byte, error) {
-	signatureStart := len(data) - SIGNLEN
-	buf, err := s.CryptDecrypt(data[:signatureStart])
-	if !s.Verify(buf, data[signatureStart:]) {
-		return nil, errors.New("verify error")
-	}
-	return buf, err
+func (s *Secrets) Decrypt(data []byte) ([]byte, error) {
+	return s.CryptDecrypt(data)
 }
 
 func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {

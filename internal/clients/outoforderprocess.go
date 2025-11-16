@@ -2,9 +2,7 @@ package clients
 
 import (
 	"errors"
-	"hash/crc32"
 
-	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
@@ -19,11 +17,10 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 			return c.ReadBuf(HEADER)
 		}
 		// Did not find any packet in buffer. We lost it. Ask for resend.
-		seq = c.seqIn
-		// Ask for resend only once. XXX We don't process massive lost.
+		// Ask for resend only three times. XXX We don't process massive lost.
 		if c.oooPackets == 1 || c.oooPackets == 5 || c.oooPackets == 10 {
 			c.bufLock.Unlock()
-			err := c.AskForResend(seq)
+			err := c.AskForResend(c.seqIn)
 			if err != nil {
 				c.logger.Error("OOOP processing: Error when ask a packet for retransmittion", "error", err)
 			}
@@ -49,32 +46,19 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 	return c.ReadBuf(HEADER)
 }
 
-// Executed under lock
-func (c *Client) lookInBufferForSeq(seq uint32) bool {
+// Executed under bufLock
+func (c *Client) lookInBufferForSeq(reqSeq uint32) bool {
 	offset := 0
 	for offset < c.bufSize {
-		if c.bufSize-offset < HEADER+crypt.SIGNLEN {
-			return false
-		}
-		// header is encrypted, decrypt it first
-		dataHeader, err := c.secrets.CryptDecrypt(c.buf[offset : offset+HEADER])
-		if err != nil {
-			c.bufLock.Unlock()
-			c.logger.Error("lookInBufferForSeq: decrypt error", "address", c.address, "error", err)
-			// really buf is corrupted
+		if c.bufSize-offset < HEADER {
 			return false
 		}
 
-		crc := uint32(dataHeader[5])<<24 | uint32(dataHeader[6])<<16 | uint32(dataHeader[7])<<8 | uint32(dataHeader[8])
-		if crc != crc32.ChecksumIEEE(dataHeader[:5]) {
-			c.logger.Error("lookInBufferForSeq CRC32 error", "address", c.address, "offset", offset, "crc", crc,
-				"calculated", crc32.ChecksumIEEE(dataHeader[:5]))
+		n, seq, _, err := c.getHeaderInfo(c.buf[offset : offset+HEADER])
+		if err != nil {
 			return false
 		}
-		// Get data size and sequence number
-		n := int(dataHeader[0])<<8 | int(dataHeader[1])
-		packetSeq := uint32(dataHeader[2])<<8 | uint32(dataHeader[3])
-		if packetSeq == seq {
+		if seq == reqSeq {
 			c.bufOffset = offset
 			return true
 		}

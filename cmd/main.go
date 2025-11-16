@@ -107,6 +107,7 @@ func main() {
 		// We have both config and command line switch
 		// Command line has preference
 		if debug {
+			cfg.Main.Debug = true
 			cfg.Log.Main = "Debug"
 			cfg.Log.Clients = "Debug"
 			cfg.Log.Network = "Debug"
@@ -114,6 +115,7 @@ func main() {
 			cfg.Log.Crypt = "Debug"
 			cfg.Log.Protocol = "Debug"
 			cfg.Log.Route = "Debug"
+			cfg.Log.Transport = "Debug"
 		}
 		if cfg.Main.Mode == "server" {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.LocalAddr) + ":" +
@@ -135,7 +137,7 @@ func main() {
 			cfg.Log.Crypt = "Debug"
 			cfg.Log.Protocol = "Debug"
 			cfg.Log.Route = "Debug"
-
+			cfg.Log.Transport = "Debug"
 		} else {
 			cfg.Log.Main = "Info"
 			cfg.Log.Clients = "Info"
@@ -144,6 +146,7 @@ func main() {
 			cfg.Log.Crypt = "Info"
 			cfg.Log.Protocol = "Info"
 			cfg.Log.Route = "Info"
+			cfg.Log.Transport = "Info"
 		}
 		if mode != "server" && mode != "client" {
 			log.Fatalln("Invalid mode. Use 'client' or 'server'.")
@@ -177,8 +180,8 @@ func main() {
 
 	// Override config protocol if command line switch is used
 	if proto != "" {
-		if proto != "tcp" && proto != "udp" {
-			log.Fatalln("Invalid protocol. Use 'tcp' or 'udp'.")
+		if proto != "tcp" && proto != "udp" && proto != "tls" {
+			log.Fatalln("Invalid protocol. Use 'tcp', 'udp', or 'tls'.")
 		}
 		cfg.Main.Protocol = proto
 	}
@@ -216,6 +219,9 @@ func main() {
 	case "tcp":
 		logger.Info("Using TCP Transport.")
 		t = transport.NewTcpTransport()
+	case "tls":
+		logger.Info("Using TLS Transport.")
+		t = transport.NewTlsTransport()
 	default:
 		log.Fatalf("Unknown Protocol: %s", cfg.Main.Protocol)
 	}

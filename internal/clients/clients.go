@@ -79,7 +79,7 @@ func (c *Client) IsClosed() bool {
 }
 
 func NewClient(address netip.AddrPort, t transport.Transport) *Client {
-	logger := configs.InitLogger("client")
+	logger := configs.InitLogger("clients")
 	logger.Debug("AddClient", "address", address)
 	client := Client{
 		logger:        logger,

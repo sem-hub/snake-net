@@ -35,13 +35,14 @@ type Tun struct {
 }
 
 type Log struct {
-	Main     string `toml:"main"`
-	Protocol string `toml:"protocol"`
-	Network  string `toml:"network"`
-	Crypt    string `toml:"crypt"`
-	Clients  string `toml:"clients"`
-	Tun      string `toml:"tun"`
-	Route    string `toml:"route"`
+	Main      string `toml:"main"`
+	Protocol  string `toml:"protocol"`
+	Network   string `toml:"network"`
+	Crypt     string `toml:"crypt"`
+	Clients   string `toml:"clients"`
+	Tun       string `toml:"tun"`
+	Route     string `toml:"route"`
+	Transport string `toml:"transport"`
 }
 
 type RuntimeConfig struct {
@@ -141,7 +142,10 @@ func getLenvelByModule(module string) slog.Level {
 		return getLevelByString(configFile.Log.Clients)
 	case "crypt":
 		return getLevelByString(configFile.Log.Crypt)
+	case "transport":
+		return getLevelByString(configFile.Log.Transport)
 	default:
+		// XXX log.Debug here
 		if configFile.Main.Debug {
 			return slog.LevelDebug
 		} else {

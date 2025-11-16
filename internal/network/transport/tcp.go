@@ -49,11 +49,16 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		if strings.Contains(rAddrPort.String(), "[") {
 			family = "tcp6"
 		}
-		tcpServer, err := net.ResolveTCPAddr(family, rAddrPort.String())
+		remoteAddr, err := net.ResolveTCPAddr(family, rAddrPort.String())
 		if err != nil {
-			return errors.New("ResolveTCPAddr error: " + err.Error())
+			return errors.New("ResolveTCPAddr remote address error: " + err.Error())
 		}
-		conn, err := net.DialTCP(family, nil, tcpServer)
+		localAddr, err := net.ResolveTCPAddr(family, lAddrPort.String())
+		if err != nil {
+			return errors.New("ResolveTCPAddr local address error: " + err.Error())
+		}
+
+		conn, err := net.DialTCP(family, localAddr, remoteAddr)
 		if err != nil {
 			return errors.New("DialTCP error: " + err.Error())
 		}

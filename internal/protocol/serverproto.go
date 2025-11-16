@@ -70,7 +70,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 			if err != nil {
 				logger.Error("IdentifyClient: invalid client CIDR", "cidr", clientNet, "error", err)
 				buf = []byte("Error: " + err.Error())
-				err = c.Write(&buf, clients.NoneCmd|clients.WithPadding)
+				err = c.Write(&buf, clients.WithPadding)
 				if err != nil {
 					logger.Error("Failed to write Error message", "error", err)
 					return nil, err
@@ -87,7 +87,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	} else {
 		logger.Error("IdentifyClient: invalid first word", "word", h)
 		buf := []byte("Error: Identification error")
-		if err := c.Write(&buf, clients.NoneCmd|clients.WithPadding); err != nil {
+		if err := c.Write(&buf, clients.WithPadding); err != nil {
 			logger.Error("Failed to write Error message", "error", err)
 			return nil, err
 		}
@@ -102,7 +102,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 		msg = append(msg, []byte(cidr.IP.Unmap().String())...)
 	}
 	logger.Debug("Welcome message", "msg", msg)
-	if err := c.Write(&msg, clients.NoneCmd|clients.WithPadding); err != nil {
+	if err := c.Write(&msg, clients.WithPadding); err != nil {
 		logger.Error("Failed to write Welcome message", "error", err)
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	if err != nil {
 		logger.Error("Identification failed", "error", err)
 		buf := []byte("Error: " + err.Error())
-		if err := c.Write(&buf, clients.NoneCmd|clients.WithPadding); err != nil {
+		if err := c.Write(&buf, clients.WithPadding); err != nil {
 			logger.Error("Failed to write Error message", "error", err)
 		}
 		clients.RemoveClient(addr)
