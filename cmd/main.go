@@ -180,9 +180,6 @@ func main() {
 
 	// Override config protocol if command line switch is used
 	if proto != "" {
-		if proto != "tcp" && proto != "udp" && proto != "tls" {
-			log.Fatalln("Invalid protocol. Use 'tcp', 'udp', or 'tls'.")
-		}
 		cfg.Main.Protocol = proto
 	}
 
