@@ -5,8 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/sem-hub/snake-net/internal/crypt"
-
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
@@ -33,6 +31,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		c.bufLock.Unlock()
 		c.logger.Debug("received pong command", "address", c.address.String())
 
+		c.pinger.StopPongTimeoutTimer()
 		// timer already reseted when data is received in ReadBuf()
 		return c.ReadBuf(HEADER)
 	case ShutdownRequest:
@@ -60,31 +59,10 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 
 	case AskForResend:
 		// we did not decrypt the data yet
-		dataDecrypted := make([]byte, n)
-		sigLen := 0
-		if (command & NoSignature) == 0 {
-			sigLen = crypt.SignLen()
-		}
-		if (command & NoEncryption) == 0 {
-			var err error
-			dataDecrypted, err = c.secrets.Decrypt(data[:n-sigLen])
-			if err != nil {
-				c.logger.Error("process command AskForResend: decrypt&verify error", "address", c.address.String(), "error", err)
-				return nil, err
-			}
-			if (command & NoSignature) == 0 {
-				// restore signature for verification
-				dataDecrypted = append(dataDecrypted[:n-sigLen], data[n-sigLen:n]...)
-			}
-		} else {
-			copy(dataDecrypted, data[:n])
-		}
-
-		if (command & NoSignature) == 0 {
-			if !c.secrets.Verify(dataDecrypted[:n-sigLen], dataDecrypted[n-sigLen:]) {
-				c.logger.Error("process command AskForResend: verify error", "address", c.address.String())
-				return nil, errors.New("verify error")
-			}
+		dataDecrypted, err := c.secrets.DecryptAndVerify(data, n, command)
+		if err != nil {
+			c.logger.Error("process command AskForResend: decrypt&verify error", "address", c.address.String(), "error", err)
+			return nil, err
 		}
 
 		// Find in sentBuffer and resend

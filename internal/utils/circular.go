@@ -25,7 +25,6 @@ func NewCircularBuffer(size int) *CircularBuffer {
 }
 func (c *CircularBuffer) Push(data interface{}) {
 	c.lock.Lock()
-	defer c.lock.Unlock()
 	if c.count == c.size {
 		c.readPointer = (c.readPointer + 1) % c.size
 	} else {
@@ -33,6 +32,7 @@ func (c *CircularBuffer) Push(data interface{}) {
 	}
 	c.buffer[c.writePointer] = data
 	c.writePointer = (c.writePointer + 1) % c.size
+	c.lock.Unlock()
 }
 
 func (c *CircularBuffer) Find(comp func(index interface{}) bool) (interface{}, bool) {

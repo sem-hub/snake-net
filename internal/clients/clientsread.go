@@ -63,7 +63,7 @@ func (c *Client) ReadLoop(address netip.AddrPort) {
 
 			// We got some data, reset ping timer
 			if c.pinger != nil {
-				c.pinger.ResetTimer()
+				c.pinger.ResetPingTimer()
 			}
 
 			c.bufLock.Lock()
@@ -153,6 +153,11 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		return c.processOOOP(n, seq)
 	} else {
 		// In order, reset bufOffset and oooPackets counter
+		if c.ooopTimer != nil {
+			c.ooopTimer.Stop()
+			c.ooopTimer = nil
+		}
+		c.reaskedPackets = 0
 		if c.oooPackets > 0 {
 			c.oooPackets = 0
 			if c.bufOffset != 0 {

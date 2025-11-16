@@ -9,6 +9,8 @@ import (
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
+
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"

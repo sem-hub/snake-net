@@ -8,14 +8,18 @@ import (
 )
 
 type PingerClient struct {
-	client          *Client
-	lastPongTime    time.Time
-	pingTimer       *time.Timer
-	unansweredPings int
+	client           *Client
+	lastPongTime     time.Time
+	pingTimer        *time.Timer
+	pongTimeoutTimer *time.Timer
+	unansweredPings  int
 }
 
-const pingInterval = 10 * time.Second
-const maxUnansweredPings = 3
+const (
+	pingInterval       = 5 * time.Second
+	maxUnansweredPings = 3
+	pingTimeout        = 1 * time.Second
+)
 
 func NewPingerForClient(client *Client) *PingerClient {
 	pinger := &PingerClient{
@@ -27,17 +31,25 @@ func NewPingerForClient(client *Client) *PingerClient {
 	return pinger
 }
 
-func (p *PingerClient) ResetTimer() {
+func (p *PingerClient) ResetPingTimer() {
 	p.unansweredPings = 0
 	p.lastPongTime = time.Now()
 	p.pingTimer.Reset(pingInterval)
 }
 
+func (p *PingerClient) StopPongTimeoutTimer() {
+	if p.pongTimeoutTimer != nil {
+		p.pongTimeoutTimer.Stop()
+	}
+}
+
 func (p *PingerClient) sendPing() {
+	// Set timeout timer
+	p.pongTimeoutTimer = time.AfterFunc(pingTimeout, func() { p.PongTimeout() })
 	if p.unansweredPings >= maxUnansweredPings {
 		p.client.logger.Warn("No pong received from client, closing connection", "address", p.client.address.String())
 		// Close the client connection and remove it
-		//XXX RemoveClient(p.client.address)
+		RemoveClient(p.client.address)
 		return
 	}
 	p.unansweredPings++
@@ -49,4 +61,13 @@ func (p *PingerClient) sendPing() {
 	}
 	// Schedule next ping
 	p.pingTimer.Reset(pingInterval)
+}
+
+func (p *PingerClient) PongTimeout() {
+	p.client.logger.Warn("Pong timeout, no pong received from client", "address", p.client.address.String())
+	if p.unansweredPings >= maxUnansweredPings {
+		p.client.logger.Warn("Max unanswered pings reached, closing connection", "address", p.client.address.String())
+		// Close the client connection and remove it
+		RemoveClient(p.client.address)
+	}
 }

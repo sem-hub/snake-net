@@ -10,6 +10,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
@@ -76,6 +77,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	c.AddSecretsToClient(s)
 
 	c.ReadLoop(addr)
+	c.CreatePinger()
 
 	serverIPs, err := Identification(c)
 	if err != nil {
@@ -115,7 +117,6 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	c.SetClientState(clients.Ready)
 
 	c.NetLoop("client")
-	c.CreatePinger()
 	logger.Info("client started", "address", addr.String())
 	network.ProcessTun()
 	logger.Debug("client finished")

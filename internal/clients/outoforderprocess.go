@@ -2,11 +2,20 @@ package clients
 
 import (
 	"errors"
+	"time"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
+
+func (c *Client) reaskTimer() {
+	// We will reask the lost packet for 3 times and give up
+	if c.reaskedPackets < 3 {
+		c.AskForResend(c.seqIn)
+		c.ooopTimer = time.AfterFunc(500*time.Millisecond, func() { c.reaskTimer() })
+	}
+}
 
 // Process special out-of-order packets received from the client
 // Executed under bufLock
@@ -20,7 +29,14 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 		}
 		// Did not find any packet in buffer. We lost it. Ask for resend.
 		// Ask for resend only three times. XXX We don't process massive lost.
-		if c.oooPackets == 1 || c.oooPackets == 5 || c.oooPackets == 10 {
+		if c.oooPackets == 0 {
+			// timer for 0.5 second
+			c.ooopTimer = time.AfterFunc(500*time.Millisecond, func() { c.reaskTimer() })
+		}
+
+		// Did not find any packet in buffer. We lost it. Ask for resend.
+		// Ask for resend only three times. XXX We don't process massive lost. May be we need more aggressive reasking.
+		if c.oooPackets == 3 || c.oooPackets == 6 || c.oooPackets == 10 {
 			c.bufLock.Unlock()
 			err := c.AskForResend(c.seqIn)
 			if err != nil {
@@ -29,12 +45,15 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 			c.oooPackets++
 			return c.ReadBuf(HEADER)
 		}
+
 		// OutOfOrder leave packet in buffer and restart reading
 		c.oooPackets++
-		if c.oooPackets > 30 {
-			// Too many out of order packets, reset buffer
+		if c.reaskedPackets >= 3 || c.oooPackets > 30 {
+			// Too many out of order packets, ignore the lost packet
 			c.logger.Error("client ReadBuf: too many out of order packets, ignore the sequence number", "oooPackets", c.oooPackets, "address", c.address.String())
 			c.seqIn++
+			c.oooPackets = 0
+			c.reaskedPackets = 0
 			c.bufLock.Unlock()
 			return nil, errors.New("too many out of order packets")
 		}
@@ -72,6 +91,7 @@ func (c *Client) lookInBufferForSeq(reqSeq uint32) bool {
 func (c *Client) AskForResend(seq uint32) error {
 	c.logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
 
+	c.reaskedPackets++
 	buf := make([]byte, 2)
 	buf[0] = byte(seq >> 8)
 	buf[1] = byte(seq & 0xff)

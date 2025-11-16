@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
@@ -18,7 +19,8 @@ import (
 type State int
 
 const (
-	BUFSIZE = 524288 // 512 KB
+	BUFSIZE        = 524288 // 512 KB
+	SENTBUFFERSIZE = 200    // keep 200 packets after sending
 )
 
 const (
@@ -30,25 +32,27 @@ const (
 )
 
 type Client struct {
-	logger        *slog.Logger
-	address       netip.AddrPort
-	tunAddrs      []utils.Cidr
-	t             transport.Transport
-	state         State
-	secrets       *crypt.Secrets
-	buf           []byte
-	bufLock       *sync.Mutex
-	bufSignal     *sync.Cond
-	bufSize       int
-	bufOffset     int
-	seqIn         uint32 // always read/write under bugLock
-	seqOut        *atomic.Uint32
-	oooPackets    int
-	sentBuffer    *utils.CircularBuffer
-	orderSendLock *sync.Mutex
-	closed        bool
-	id            string
-	pinger        *PingerClient
+	logger         *slog.Logger
+	address        netip.AddrPort
+	tunAddrs       []utils.Cidr
+	t              transport.Transport
+	state          State
+	secrets        *crypt.Secrets
+	buf            []byte
+	bufLock        *sync.Mutex
+	bufSignal      *sync.Cond
+	bufSize        int
+	bufOffset      int
+	seqIn          uint32 // always read/write under bugLock
+	seqOut         *atomic.Uint32
+	oooPackets     int
+	ooopTimer      *time.Timer
+	reaskedPackets int
+	sentBuffer     *utils.CircularBuffer
+	orderSendLock  *sync.Mutex
+	closed         bool
+	id             string
+	pinger         *PingerClient
 }
 
 var (
@@ -82,24 +86,26 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 	logger := configs.InitLogger("clients")
 	logger.Debug("AddClient", "address", address)
 	client := Client{
-		logger:        logger,
-		address:       address,
-		tunAddrs:      nil,
-		t:             t,
-		state:         Connected,
-		secrets:       nil,
-		buf:           make([]byte, BUFSIZE),
-		bufLock:       &sync.Mutex{},
-		bufSize:       0,
-		bufOffset:     0,
-		seqIn:         1,
-		seqOut:        &atomic.Uint32{},
-		oooPackets:    0,
-		sentBuffer:    utils.NewCircularBuffer(100),
-		orderSendLock: &sync.Mutex{},
-		closed:        false,
-		id:            "",
-		pinger:        nil,
+		logger:         logger,
+		address:        address,
+		tunAddrs:       nil,
+		t:              t,
+		state:          Connected,
+		secrets:        nil,
+		buf:            make([]byte, BUFSIZE),
+		bufLock:        &sync.Mutex{},
+		bufSize:        0,
+		bufOffset:      0,
+		seqIn:          1,
+		seqOut:         &atomic.Uint32{},
+		oooPackets:     0,
+		reaskedPackets: 0,
+		sentBuffer:     utils.NewCircularBuffer(SENTBUFFERSIZE),
+		orderSendLock:  &sync.Mutex{},
+		closed:         false,
+		id:             "",
+		pinger:         nil,
+		ooopTimer:      nil,
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
 	client.seqOut.Store(1)
@@ -131,11 +137,10 @@ func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
 // Closes the client connection and removes it from the clients map
 func RemoveClient(address netip.AddrPort) {
 	client := FindClient(address)
-	clientsLock.Lock()
-	defer clientsLock.Unlock()
 	if client != nil {
 		client.Close() // Close connection here
 		// Remvove all tun addresses
+		clientsLock.Lock()
 		for _, cidr := range client.tunAddrs {
 			tunAddr := utils.MakeAddrPort(cidr.IP, 0)
 			delete(clients, tunAddr)
@@ -143,6 +148,16 @@ func RemoveClient(address netip.AddrPort) {
 		}
 		delete(clients, address)
 		client.logger.Info("RemoveClient", "address", address.String())
+		clientsLock.Unlock()
+	}
+	if GetClientsCount() == 0 {
+		if tunIf != nil {
+			tunIf.Close()
+		}
+		// Close transport
+		if client != nil {
+			client.t.Close()
+		}
 	}
 }
 
@@ -169,7 +184,10 @@ func (c *Client) SetClientId(id string) {
 	c.logger.Info("SetClientId", "address", c.address.String(), "id", id)
 }
 
-func GetClientCount() int {
+func GetClientsCount() int {
+	clientsLock.RLock()
+	defer clientsLock.RUnlock()
+
 	if clients == nil {
 		return 0
 	} else {
@@ -177,7 +195,7 @@ func GetClientCount() int {
 	}
 }
 
-func SendAllShutdownRequest() {
+func SendShutdownRequest() {
 	clientsLock.RLock()
 	defer clientsLock.RUnlock()
 
@@ -185,7 +203,13 @@ func SendAllShutdownRequest() {
 	for k, c := range clients {
 		if k == c.address {
 			c.logger.Info("Sending shutdown request to client", "address", c.address.String())
-			err := c.Write(nil, ShutdownRequest|WithPadding)
+			var cmd Cmd
+			if configs.GetConfig().Mode == "server" {
+				cmd = ShutdownRequest
+			} else {
+				cmd = ShutdownNotify
+			}
+			err := c.Write(nil, cmd|WithPadding)
 			if err != nil {
 				c.logger.Error("Error sending shutdown request", "address", c.address.String(), "error", err)
 			}
@@ -203,6 +227,9 @@ func (c *Client) removeThePacketFromBuffer(n int) {
 func (c *Client) Close() error {
 	if c.pinger != nil {
 		c.pinger.pingTimer.Stop()
+		if c.pinger.pongTimeoutTimer != nil {
+			c.pinger.pongTimeoutTimer.Stop()
+		}
 	}
 	c.closed = true
 	err := c.t.CloseClient(c.address)
