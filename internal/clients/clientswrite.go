@@ -75,7 +75,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 
 	// Encrypt header if transport is not Encrypted. Must not change buf size!
 	if !c.t.IsEncrypted() {
-		encryptData, err := c.secrets.CryptDecrypt(data)
+		encryptData, err := c.secrets.CryptDecryptConstSize(data)
 		if err != nil {
 			return err
 		}

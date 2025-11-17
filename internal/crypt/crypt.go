@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"log/slog"
@@ -71,30 +72,58 @@ func (s *Secrets) Sign(msg []byte) []byte {
 }
 
 func (s *Secrets) Encrypt(data []byte) ([]byte, error) {
-	return s.CryptDecrypt(data)
-}
+	s.logger.Debug("Encrypt", "datalen", len(data))
 
-func (s *Secrets) Decrypt(data []byte) ([]byte, error) {
-	return s.CryptDecrypt(data)
-}
-
-func (s *Secrets) CryptDecrypt(data []byte) ([]byte, error) {
-	s.logger.Debug("CryptDecrypt", "datalen", len(data))
 	block, err := aes.NewCipher(s.SharedSecret)
 	if err != nil {
 		return nil, err
 	}
-	// XXX generate random IV: rand.Read(iv) for Encryption
-	// XXX and copy(iv, data[:aes.BlockSize]) for Decryption
+	iv := make([]byte, aes.BlockSize)
+	rand.Read(iv)
+	stream := cipher.NewCTR(block, iv)
+
+	bufOut := make([]byte, len(data)+len(iv))
+	// copy iv to output buf
+	copy(bufOut[:aes.BlockSize], iv)
+
+	stream.XORKeyStream(bufOut[aes.BlockSize:], data)
+	s.logger.Debug("Encrypt", "encryptedlen", len(bufOut))
+	return bufOut, nil
+}
+
+func (s *Secrets) Decrypt(data []byte) ([]byte, error) {
+	s.logger.Debug("Decrypt", "datalen", len(data))
+
+	block, err := aes.NewCipher(s.SharedSecret)
+	if err != nil {
+		return nil, err
+	}
+	iv := make([]byte, aes.BlockSize)
+	copy(iv, data[:aes.BlockSize])
+	stream := cipher.NewCTR(block, iv)
+
+	bufOut := make([]byte, len(data)-len(iv))
+
+	stream.XORKeyStream(bufOut, data[aes.BlockSize:])
+	s.logger.Debug("Decrypt", "decryptedlen", len(bufOut))
+
+	return bufOut, nil
+}
+
+// We just make zero IV and don't keep it so len(data) == len(bufOut)
+func (s *Secrets) CryptDecryptConstSize(data []byte) ([]byte, error) {
+	s.logger.Debug("CryptDecryptConstSize", "datalen", len(data))
+
+	block, err := aes.NewCipher(s.SharedSecret)
+	if err != nil {
+		return nil, err
+	}
+
 	iv := make([]byte, aes.BlockSize)
 	stream := cipher.NewCTR(block, iv)
 
-	bufOut := make([]byte, len(data)) // len(data)+aes.BlockSize
-	// copy iv to buf
-	// copy(bufOut[:aes.BlockSize], iv)
-
-	stream.XORKeyStream(bufOut, data) // bufOut[aes.BlockSize:]
-	s.logger.Debug("CryptDecrypt", "encryptedlen", len(bufOut))
+	bufOut := make([]byte, len(data))
+	stream.XORKeyStream(bufOut, data)
 	return bufOut, nil
 }
 
@@ -125,7 +154,7 @@ func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error)
 		buf = append(buf, msg[:n-signLen]...)
 	}
 	if (flags & NoSignature) == 0 {
-		if !s.Verify(buf[:n-signLen], signature) {
+		if !s.Verify(buf, signature) {
 			s.logger.Error("DecryptAndVerify: verify error")
 			return nil, errors.New("verify error")
 		}
