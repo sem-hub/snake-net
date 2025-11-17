@@ -158,7 +158,9 @@ func (tcp *TcpTransport) CloseClient(addr netip.AddrPort) error {
 	if err != nil {
 		return err
 	}
+	tcp.connLock.Lock()
 	delete(tcp.conn, addr)
+	tcp.connLock.Unlock()
 	return nil
 }
 

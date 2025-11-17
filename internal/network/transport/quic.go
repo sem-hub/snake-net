@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
-	"strings"
 	"sync"
 
 	mquic "github.com/quic-go/quic-go"
@@ -54,26 +53,17 @@ func (quic *QuicTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 	tlsCfg.MinVersion = tls.VersionTLS13
 	tlsCfg.NextProtos = []string{"quic-protocol"}
 
-	family := "udp"
-	if strings.Contains(rAddrPort.String(), "[") {
-		family = "udp6"
-	}
-
 	if mode == "server" {
 		// Do not block
 		go func() {
 			quic.listen(lAddrPort.String(), tlsCfg, callback)
 		}()
 	} else {
-		remoteAddr, err := net.ResolveUDPAddr(family, rAddrPort.String())
-		if err != nil {
-			return errors.New("ResolveUDPAddr remote address error: " + err.Error())
-		}
+		quic.logger.Info("Connect", "to", rAddrPort.String())
 		conn, err := mquic.DialAddr(context.Background(), rAddrPort.String(), tlsCfg, nil)
 		if err != nil {
 			return errors.New("DialAddr error: " + err.Error())
 		}
-		quic.logger.Info("Connect", "to", remoteAddr.String())
 		stream, err := conn.OpenStreamSync(context.Background())
 		if err != nil {
 			quic.logger.Error("Dial error", "err", err)
@@ -102,14 +92,13 @@ func (quic *QuicTransport) listen(addrPort string, cfg *tls.Config, callback fun
 		conn, err := listen.Accept(context.Background())
 		if err != nil {
 			quic.logger.Error("Accept error:", "err", err)
-			continue
+			return err
 		}
 
 		stream, err := conn.AcceptStream(context.Background())
 		if err != nil {
 			quic.logger.Error("AcceptStream error:", "err", err)
-
-			continue
+			return err
 		}
 		remoteAddr := conn.RemoteAddr().(*net.UDPAddr).AddrPort()
 		remoteAddr = netip.AddrPortFrom(remoteAddr.Addr().Unmap(), remoteAddr.Port())

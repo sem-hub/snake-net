@@ -219,7 +219,10 @@ func (tls *TlsTransport) CloseClient(addr netip.AddrPort) error {
 	if err != nil {
 		return err
 	}
+	tls.connLock.Lock()
 	delete(tls.conn, addr)
+	tls.connLock.Unlock()
+
 	return nil
 }
 
