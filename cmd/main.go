@@ -219,6 +219,9 @@ func main() {
 	case "tls":
 		logger.Info("Using TLS Transport.")
 		t = transport.NewTlsTransport()
+	case "quic":
+		logger.Info("Using QUIC Transport.")
+		t = transport.NewQuicTransport()
 	default:
 		log.Fatalf("Unknown Protocol: %s", cfg.Main.Protocol)
 	}

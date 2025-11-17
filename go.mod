@@ -10,8 +10,10 @@ require (
 )
 
 require (
+	github.com/quic-go/quic-go v0.56.0 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
-	golang.org/x/net v0.39.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )

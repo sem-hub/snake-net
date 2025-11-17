@@ -123,7 +123,7 @@ func (tls *TlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		}
 		conn, err := mtls.Dial(family, remoteAddr.String(), tlsCfg)
 		if err != nil {
-			return errors.New("DialTCP error: " + err.Error())
+			return errors.New("DialTLS error: " + err.Error())
 		}
 		tls.mainConn = conn
 		tls.connLock.Lock()
@@ -154,7 +154,7 @@ func (tls *TlsTransport) listen(addrPort string, cfg *mtls.Config, callback func
 		// unmap this AddrPort
 		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
 
-		tls.logger.Info("New TCP connection from", "addr", addrPort.String())
+		tls.logger.Info("New TLS connection from", "addr", addrPort.String())
 		tls.connLock.Lock()
 		tls.conn[addrPort] = tlsconn
 		tls.connLock.Unlock()
@@ -182,7 +182,7 @@ func (tls *TlsTransport) Send(addr netip.AddrPort, buf *Message) error {
 		return err
 	}
 	if l < n {
-		return errors.New("TCP sent less data: " + strconv.Itoa(l) + " != " + strconv.Itoa(n))
+		return errors.New("TLS sent less data: " + strconv.Itoa(l) + " != " + strconv.Itoa(n))
 	}
 	return nil
 }
@@ -207,7 +207,7 @@ func (tls *TlsTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 }
 
 func (tls *TlsTransport) CloseClient(addr netip.AddrPort) error {
-	tls.logger.Debug("TCP CloseClient", "addr", addr.String())
+	tls.logger.Debug("TLS CloseClient", "addr", addr.String())
 	tls.connLock.RLock()
 	tlsconn, ok := tls.conn[addr]
 	tls.connLock.RUnlock()
@@ -224,7 +224,7 @@ func (tls *TlsTransport) CloseClient(addr netip.AddrPort) error {
 }
 
 func (tls *TlsTransport) Close() error {
-	tls.logger.Info("TCP Transport Close")
+	tls.logger.Info("TLS Transport Close")
 	if tls.mainConn != nil {
 		err := tls.mainConn.Close()
 		if err != nil {
