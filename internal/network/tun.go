@@ -4,12 +4,12 @@ import (
 	"errors"
 	"log"
 	"log/slog"
+	"runtime"
 
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/utils"
-	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
@@ -64,33 +64,6 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 
 	tunIf = &iface
 	return &iface, nil
-}
-
-// XXX Platform specific implementation
-func (iface *TunInterface) setUpInterface() error {
-	link, err := netlink.LinkByName(iface.name)
-	if err != nil {
-		return err
-	}
-
-	for _, cidr := range iface.cidrs {
-		nladdr, err := netlink.ParseAddr(cidr.String())
-		if err != nil {
-			return err
-		}
-		mask, _ := cidr.Network.Mask.Size()
-		iface.logger.Info("Set address for TUN", "addr", cidr.IP.String(), "mask", mask)
-		err = netlink.AddrAdd(link, nladdr)
-		if err != nil {
-			return err
-		}
-	}
-	err = netlink.LinkSetUp(link)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Read from TUN and pass to client
@@ -153,11 +126,14 @@ func (tunIf *TunInterface) WriteTun(buf []byte) error {
 		return errors.New("did not initialized")
 	}
 	bufs := make([][]byte, 1)
-	// 16 for additional header will work always
-	bufs[0] = make([]byte, len(buf)+16)
-	copy(bufs[0][16:], buf)
+	offset := 0
+	if runtime.GOOS == "linux" {
+		offset = 16
+	}
+	bufs[0] = make([]byte, len(buf)+offset)
+	copy(bufs[0][offset:], buf)
 	tunIf.logger.Debug("TUN: Write into tun", "len", len(buf))
-	if _, err := tunIf.tunDev.Write(bufs, 16); err != nil {
+	if _, err := tunIf.tunDev.Write(bufs, offset); err != nil {
 		return err
 	}
 	return nil
