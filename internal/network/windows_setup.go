@@ -20,19 +20,29 @@ func (iface *TunInterface) setUpInterface() error {
 				"static",
 				cidr.IP.String(),
 				maskStr)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				iface.logger.Error("netsh set ip", "output", output, "err", err)
+			}
 		} else {
 			maskSize, _ := cidr.Network.Mask.Size()
-			maskStr := strconv.Itoa(maskSize)
-			iface.logger.Info("set TUN", "IPv6", cidr.IP.String(), "Prefixlen", maskStr)
+			addrStr := cidr.IP.String() + "/" + strconv.Itoa(maskSize)
+			iface.logger.Info("set TUN", "IPv6", addrStr)
 			cmd = exec.Command("netsh", "interface", "ipv6", "set", "address",
 				fmt.Sprintf("interface=\"%s\"", iface.name),
-				"address="+cidr.IP.String(),
-				"prefixlen="+maskStr)
-		}
-
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			iface.logger.Error("netsh", "output", output, "err", err)
+				"address="+addrStr)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				iface.logger.Error("netsh set ipv6", "output", output, "err", err)
+			}
+			// Windows requeres explicit route for IPv6 nets
+			iface.logger.Info("set IPv6 route", "net", cidr.Network.String())
+			cmd = exec.Command("netsh", "interface", "ipv6", "add", "route",
+				cidr.Network.String(), iface.name)
+			output, err = cmd.CombinedOutput()
+			if err != nil {
+				iface.logger.Error("netsh add route", "output", output, "err", err)
+			}
 		}
 	}
 	return nil
