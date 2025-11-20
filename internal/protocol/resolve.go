@@ -53,7 +53,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, 
 			log.Fatalf("Error resolving host: %s", err)
 			os.Exit(1)
 		}
-
+		logger.Info("Resolving", "host", host, "ips", ips)
 		ip = ips[0]
 	}
 
