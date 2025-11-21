@@ -81,7 +81,7 @@ func Route(sourceClient netip.AddrPort, data []byte) bool {
 }
 
 // Read from NET, write to TUN
-func (c *Client) NetLoop(mode string) {
+func (c *Client) ProcessNetworkDataLoop(mode string) {
 	go func() {
 		for {
 			if c != nil && !c.IsClosed() {

@@ -76,7 +76,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	s := crypt.NewSecrets(cfg.Secret)
 	c.AddSecretsToClient(s)
 
-	c.ReadLoop(addr)
+	c.TransportReadLoop(addr)
 	c.CreatePinger()
 
 	serverIPs, err := Identification(c)
@@ -116,7 +116,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 
 	c.SetClientState(clients.Ready)
 
-	c.NetLoop("client")
+	c.ProcessNetworkDataLoop("client")
 	logger.Info("client started", "address", addr.String())
 	network.ProcessTun()
 	logger.Debug("client finished")

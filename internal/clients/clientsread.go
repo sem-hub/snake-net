@@ -38,7 +38,7 @@ func (c *Client) getHeaderInfo(buf []byte) (int, uint32, Cmd, error) {
 	return n, seq, flags, nil
 }
 
-func (c *Client) ReadLoop(address netip.AddrPort) {
+func (c *Client) TransportReadLoop(address netip.AddrPort) {
 	c.logger.Debug("ReadLoop", "address", address)
 	// read data from network into c.buf
 	// when data is available, send signal to c.bufSignal
