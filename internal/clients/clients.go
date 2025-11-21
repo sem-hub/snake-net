@@ -57,9 +57,11 @@ type Client struct {
 
 var (
 	// holds client pointers. Keys are both client IPs and tunnel IPs (points to the same client)
-	clients     = map[netip.AddrPort]*Client{}
-	clientsLock sync.RWMutex
-	tunIf       TunInterface
+	clients      = map[netip.AddrPort]*Client{}
+	clientsLock  sync.RWMutex
+	tunAddrs     = map[netip.Addr]*Client{}
+	tunAddrsLock sync.RWMutex
+	tunIf        TunInterface
 )
 
 func SetTunInterface(tun TunInterface) {
@@ -123,9 +125,9 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 func (c *Client) AddTunAddressesToClient(cidrs []utils.Cidr) {
 	c.tunAddrs = append(c.tunAddrs, cidrs...)
 	for _, cidr := range cidrs {
-		clientsLock.Lock()
-		clients[utils.MakeAddrPort(cidr.IP, 0)] = c
-		clientsLock.Unlock()
+		tunAddrsLock.Lock()
+		tunAddrs[cidr.IP] = c
+		tunAddrsLock.Unlock()
 		c.logger.Info("AddTunAddressesToClient", "address", c.address.String(), "tunAddr", cidr)
 	}
 }
@@ -140,15 +142,16 @@ func RemoveClient(address netip.AddrPort) {
 	if client != nil {
 		client.Close() // Close connection here
 		// Remvove all tun addresses
-		clientsLock.Lock()
 		for _, cidr := range client.tunAddrs {
-			tunAddr := utils.MakeAddrPort(cidr.IP, 0)
-			delete(clients, tunAddr)
-			client.logger.Info("RemoveClient tunAddr", "tunAddr", tunAddr)
+			tunAddrsLock.Lock()
+			delete(tunAddrs, cidr.IP)
+			tunAddrsLock.Unlock()
+			client.logger.Info("RemoveClient tunAddr", "tunAddr", cidr.String())
 		}
+		clientsLock.Lock()
 		delete(clients, address)
-		client.logger.Info("RemoveClient", "address", address.String())
 		clientsLock.Unlock()
+		client.logger.Info("RemoveClient", "address", address.String())
 	}
 	if GetClientsCount() == 0 {
 		if configs.GetConfig().Mode != "server" && tunIf != nil {
@@ -199,21 +202,19 @@ func SendShutdownRequest() {
 	clientsLock.RLock()
 	defer clientsLock.RUnlock()
 
-	// Ignore tunAddrs here
-	for k, c := range clients {
-		if k == c.address {
-			c.logger.Info("Sending shutdown request to client", "address", c.address.String())
-			var cmd Cmd
-			if configs.GetConfig().Mode == "server" {
-				cmd = ShutdownRequest
-			} else {
-				cmd = ShutdownNotify
-			}
-			err := c.Write(nil, cmd|WithPadding)
-			if err != nil {
-				c.logger.Error("Error sending shutdown request", "address", c.address.String(), "error", err)
-			}
+	for _, c := range clients {
+		c.logger.Info("Sending shutdown request to client", "address", c.address.String())
+		var cmd Cmd
+		if configs.GetConfig().Mode == "server" {
+			cmd = ShutdownRequest
+		} else {
+			cmd = ShutdownNotify
 		}
+		err := c.Write(nil, cmd|WithPadding)
+		if err != nil {
+			c.logger.Error("Error sending shutdown request", "address", c.address.String(), "error", err)
+		}
+
 	}
 }
 

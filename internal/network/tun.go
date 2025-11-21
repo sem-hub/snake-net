@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"log/slog"
+	"net/netip"
 	"runtime"
 
 	"github.com/sem-hub/snake-net/internal/clients"
@@ -66,7 +67,7 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 	return &iface, nil
 }
 
-// Read from TUN and pass to client
+// Read from TUN and pass to client(s)
 // It blocks main thread. Exit here, exit main.
 func ProcessTun() {
 	if tunIf == nil {
@@ -80,11 +81,7 @@ func ProcessTun() {
 		}
 		tunIf.logger.Debug("TUN: Read from tun", "len", len(buf))
 		// send to all clients except the sender
-		found := clients.Route(buf)
-		// if no client found, write into local tun interface channel.
-		if !found {
-			tunIf.WriteTun(buf)
-		}
+		clients.Route(netip.AddrPort{}, buf)
 	}
 }
 

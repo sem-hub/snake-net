@@ -4,6 +4,7 @@ import (
 	"net/netip"
 
 	"github.com/sem-hub/snake-net/internal/configs"
+
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
 )
@@ -14,10 +15,12 @@ func getDstIP(packet []byte) (netip.Addr, bool) {
 	}
 	version := packet[0] >> 4 // First 4 bits
 	if version == 4 {
-		return netip.AddrFromSlice(packet[16:20]) // IPv4 address in bytes 16-19
+		// IPv4: destination address is at bytes 16-19 (inclusive)
+		return netip.AddrFromSlice(packet[16:20])
 	}
 	if version == 6 {
-		return netip.AddrFromSlice(packet[24:40]) // IPv6 address in bytes 24-39
+		// IPv6: destination address is at bytes 24-39 (inclusive)
+		return netip.AddrFromSlice(packet[24:40])
 	}
 	return netip.Addr{}, false
 }
@@ -35,44 +38,43 @@ func sendDataToClient(addr netip.AddrPort, data []byte) {
 	}
 }
 
-func Route(data []byte) bool {
+func Route(sourceClient netip.AddrPort, data []byte) bool {
 	logger := configs.InitLogger("route")
-	// We don't want to lock clients for long time. So we make a copy first and work with it.
-	clientsLock.RLock()
-	clientsCopy := make(map[netip.AddrPort]Client, len(clients))
-	// copy only real clients, ignore tunAddrs
-	for k, c := range clients {
-		if k == c.address {
-			clientsCopy[k] = *c
-		}
-	}
-	clientsLock.RUnlock()
 
 	address, ok := getDstIP(data)
 	if !ok {
 		logger.Error("Route: no destination IP found. Ignore.")
 		return false
 	}
-	logger.Debug("Route", "address", address, "data len", len(data), "clientsCopy", len(clientsCopy), "clients", len(clients))
-	// XXX read route table
-	found := false
-	for _, c := range clientsCopy {
-		logger.Debug("Route loop", "address", c.address, "tunAddrs", c.tunAddrs)
-		for _, tunAddr := range c.tunAddrs {
-			logger.Debug("Route", "address", address, "cidrIP", tunAddr.IP, "cidrNetwork", tunAddr.Network, "clientState", c.GetClientState())
-			if tunAddr.IP == address {
-				sendDataToClient(c.address, data)
-				found = true
-				break
+	logger.Debug("Route", "address", address, "data_len", len(data), "clients_num", len(clients))
+	clientsLock.RLock()
+	cl, found := tunAddrs[address]
+	clientsLock.RUnlock()
+
+	logger.Debug("Route", "found", found)
+	if found {
+		sendDataToClient(cl.address, data)
+	} else {
+		for _, cidr := range configs.GetConfig().TunAddrs {
+			if cidr.IP == address {
+				// It's packet for us. Send it into tun
+				return false
 			}
 		}
-	}
-	logger.Debug("Route", "found", found)
-	// Check if address is in server's own CIDRs
-	if !found {
-		logger.Debug("Route: no matching client found. Send to all clients", "len(clients)", len(clientsCopy))
-		for _, c := range clientsCopy {
-			sendDataToClient(c.address, data)
+
+		logger.Debug("Route: no matching client found. Send to all clients")
+		addrs := make([]netip.AddrPort, 0)
+		clientsLock.RLock()
+		for _, c := range clients {
+			addrs = append(addrs, c.address)
+		}
+		clientsLock.RUnlock()
+
+		// Send to all except client we got the packet
+		for _, addr := range addrs {
+			if addr != sourceClient {
+				sendDataToClient(addr, data)
+			}
 		}
 	}
 	return found
@@ -97,7 +99,7 @@ func (c *Client) NetLoop(mode string) {
 
 				// send to all clients except the sender
 				if mode == "server" {
-					if Route(buf) {
+					if Route(c.address, buf) {
 						continue
 					}
 					// if no client found, write into local tun interface channel.
