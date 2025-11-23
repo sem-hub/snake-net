@@ -2,6 +2,7 @@
 Snake net is a tunnel protocol
 
 Features:
+ * Both TOML config and command line seting up. (Command line overrides config).
  * TUN interface
  * Own packet format
  * Random padding for fixed-size packets

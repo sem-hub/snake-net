@@ -14,7 +14,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const defaultMTU = 1420
+const DefaultMTU = 1420
 
 type TunInterface struct {
 	interfaces.TunInterface
@@ -33,7 +33,7 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 	logger := configs.InitLogger("tun")
 
 	if mtu == 0 {
-		mtu = defaultMTU
+		mtu = DefaultMTU
 	}
 
 	iface := TunInterface{

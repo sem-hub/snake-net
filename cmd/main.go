@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 	"github.com/sem-hub/snake-net/internal/protocol"
 )
@@ -74,7 +75,7 @@ func init() {
 	flag.StringVar(&secret, "secret", "", "Secret key.")
 	flag.StringVar(&clientId, "id", "", "Client ID.")
 	flag.StringVar(&proto, "proto", "", "Protocol to use (tcp or udp). Overrides config file setting.")
-	flag.IntVar(&mtu, "mtu", 1500, "MTU size.")
+	flag.IntVar(&mtu, "mtu", network.DefaultMTU, "MTU size.")
 	flag.Var(&tunAddr, "tun", "Comma separated IPv4 and IPv6 Addresses (CIDR) for Tun interface.")
 	flag.BoolVar(&debug, "debug", false, "Enable debug mode.")
 
