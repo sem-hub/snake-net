@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -18,57 +19,55 @@ import (
 var logger *slog.Logger
 var cfg *configs.RuntimeConfig = nil
 
-func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, port uint16) {
+func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 	logger = configs.InitLogger("protocol")
 	cfg = configs.GetConfig()
 
-	// XXX
-	if host == "" {
-		if cfg.Mode == "server" {
-			host = "0.0.0.0"
-			cfg.LocalAddr = host
-		} else {
-			log.Fatal("Server Address is mandatory for client")
-		}
-	}
-	logger.Debug("URI", "Protocol", cfg.Protocol, "Peer", host, "port", port)
-
+	host := ""
+	port := 0
 	if cfg.Mode == "server" {
-		cfg.LocalPort = port
+		host = cfg.LocalAddr
+		port = int(cfg.LocalPort)
+		if port == 0 {
+			log.Fatal("Local Port is mandatory for server")
+		}
 	} else {
-		cfg.RemotePort = port
-		if cfg.LocalAddr == "" {
-			cfg.LocalAddr = "0.0.0.0"
+		host = cfg.RemoteAddr
+		port = int(cfg.RemotePort)
+		if host == "" || port == 0 {
+			log.Fatal("Remote Address and Port are mandatory for client")
 		}
 	}
+
+	logger.Debug("URI", "Protocol", cfg.Protocol, "address", host, "port", port)
 
 	if strings.HasPrefix((host), "[") && strings.HasSuffix(host, "]") {
 		host = host[1 : len(host)-1]
 	}
 	ip := net.ParseIP(host)
+	var ips []net.IP
 	if ip == nil {
 		logger.Debug("Resolving.")
-		ips, err := net.LookupIP(host)
+		var err error
+		ips, err = net.LookupIP(host)
 		if err != nil {
 			log.Fatalf("Error resolving host: %s", err)
 			os.Exit(1)
 		}
 		logger.Info("Resolving", "host", host, "ips", ips)
-		ip = ips[0]
+	} else {
+		ips = []net.IP{ip}
 	}
 
-	rAddrPort := netip.AddrPortFrom(netip.MustParseAddr(ip.String()).Unmap(), uint16(port))
-	lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
-	logger.Debug("", "ip", ip, "mode", cfg.Mode)
 	if cfg.Mode == "server" {
-		if len(ip) == 16 {
-			cfg.LocalAddr = "[" + ip.String() + "]"
-		} else {
-			cfg.LocalAddr = ip.String()
+		lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
+
+		if lAddrPort.Addr().Is6() {
+			cfg.LocalAddr = "[" + lAddrPort.String() + "]"
 		}
 
 		// Set up transport with callback for new clients
-		err := t.Init("server", rAddrPort, lAddrPort, ProcessNewClient)
+		err := t.Init("server", netip.AddrPort{}, lAddrPort, ProcessNewClient)
 		if err != nil {
 			log.Fatalf("Transport init error %s", err)
 		}
@@ -85,35 +84,78 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport, host string, 
 		logger.Info("Start server", "addr", cfg.LocalAddr, "port", cfg.LocalPort)
 		<-ctx.Done()
 	} else {
-		if len(ip) == 16 {
-			cfg.RemoteAddr = "[" + ip.String() + "]"
-		} else {
-			cfg.RemoteAddr = ip.String()
-		}
+		attempts := 0
+		for tryNo := 0; tryNo < len(ips); tryNo++ {
+			rAddrPort := netip.AddrPortFrom(netip.MustParseAddr(ips[tryNo].String()).Unmap(), uint16(port))
+			lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
 
-		// Set up transport. No callback for client mode
-		err := t.Init("client", rAddrPort, lAddrPort, nil)
-		if err != nil {
-			log.Fatalf("Transport init error %s", err)
-		}
-
-		logger.Info("Connected to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
-
-		// Run client in a goroutine so we can listen for context cancellation
-		v := make(chan struct{})
-		go func() {
-			err := ProcessServer(t, rAddrPort)
-			if err != nil {
-				logger.Error("ProcessServer error", "error", err)
+			if rAddrPort.Addr().Is6() {
+				cfg.RemoteAddr = "[" + ips[tryNo].String() + "]"
+			} else {
+				cfg.RemoteAddr = ips[tryNo].String()
 			}
-			v <- struct{}{}
-		}()
 
-		// Wait for context cancellation (Ctrl-C) or normal exit
-		select {
-		case <-ctx.Done():
-		case <-v:
+			// Set up transport. No callback for client mode
+			err := t.Init("client", rAddrPort, lAddrPort, nil)
+			if err != nil {
+				logger.Error("Transport init error", "error", err)
+				attempts++
+				// MaxAttempts == 0 means infinite attempts
+				if configs.GetConfigFile().Main.Attempts > 0 &&
+					attempts >= configs.GetConfigFile().Main.Attempts {
+					logger.Info("Max attempts reached, give up")
+					return
+				}
+				retryDelay := configs.GetConfigFile().Main.RetryDelay
+				logger.Info("Retrying in", "seconds", retryDelay)
+				time.Sleep(time.Duration(retryDelay) * time.Second)
+				if tryNo == len(ips)-1 {
+					tryNo = -1
+				}
+				continue
+			}
+
+			logger.Info("Connected to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
+
+			// Run client in a goroutine so we can listen for context cancellation
+			v := make(chan bool)
+			go func() {
+				err := ProcessServer(t, rAddrPort)
+				if err != nil {
+					logger.Error("ProcessServer error", "error", err)
+					v <- false
+					return
+				}
+				v <- true
+			}()
+
+			// Wait for context cancellation (Ctrl-C) or normal exit
+			select {
+			case <-ctx.Done():
+				logger.Info("Shutting down client due to context cancellation")
+			case b := <-v:
+				if !b {
+					logger.Info("ProcessServer exited with error")
+					// Try again after delay
+					attempts++
+					// MaxAttempts == 0 means infinite attempts
+					if configs.GetConfigFile().Main.Attempts > 0 &&
+						attempts >= configs.GetConfigFile().Main.Attempts {
+						logger.Info("Max attempts reached, give up")
+						return
+					}
+					retryDelay := configs.GetConfigFile().Main.RetryDelay
+					logger.Info("Retrying in", "seconds", retryDelay)
+					time.Sleep(time.Duration(retryDelay) * time.Second)
+					if tryNo == len(ips)-1 {
+						tryNo = -1
+					}
+					continue
+				} else {
+					logger.Info("ProcessServer exited normally")
+				}
+			}
+			logger.Info("ProcessServer exited")
 		}
-		logger.Info("ProcessServer exited")
 	}
 }

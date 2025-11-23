@@ -46,12 +46,6 @@ func (p *PingerClient) StopPongTimeoutTimer() {
 func (p *PingerClient) sendPing() {
 	// Set timeout timer
 	p.pongTimeoutTimer = time.AfterFunc(pingTimeout, func() { p.PongTimeout() })
-	if p.unansweredPings >= maxUnansweredPings {
-		p.client.logger.Warn("No pong received from client, closing connection", "address", p.client.address.String())
-		// Close the client connection and remove it
-		RemoveClient(p.client.address)
-		return
-	}
 	p.unansweredPings++
 	p.client.logger.Debug("Sending ping to client", "address", p.client.address.String())
 	err := p.client.Write(nil, Ping|WithPadding)
@@ -65,7 +59,8 @@ func (p *PingerClient) sendPing() {
 
 func (p *PingerClient) PongTimeout() {
 	p.client.logger.Warn("Pong timeout, no pong received from client", "address", p.client.address.String())
-	if p.unansweredPings >= maxUnansweredPings {
+	// If client just connected (no packets got from server yet), close after first timeout
+	if p.client.GetClientState() == Connected || p.unansweredPings >= maxUnansweredPings {
 		p.client.logger.Warn("Max unanswered pings reached, closing connection", "address", p.client.address.String())
 		// Close the client connection and remove it
 		RemoveClient(p.client.address)

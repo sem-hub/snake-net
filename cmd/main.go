@@ -192,9 +192,19 @@ func main() {
 			tunAddr = append(tunAddr, cidrStr)
 		}
 	} else {
+		if cfg.Main.Mode == "server" {
+			cfg.Main.LocalAddr = host
+			cfg.Main.LocalPort = uint16(port)
+		} else {
+			cfg.Main.RemoteAddr = host
+			cfg.Main.RemotePort = uint16(port)
+		}
 		cfg.Tun.TunAddrStr = tunAddr
 		cfg.Tun.MTU = mtu
 		cfg.Tun.Name = name
+	}
+	if cfg.Main.LocalAddr == "" {
+		cfg.Main.LocalAddr = "::"
 	}
 
 	if len(tunAddr) == 0 {
@@ -239,7 +249,7 @@ func main() {
 	// Start processing in a goroutine
 	done := make(chan struct{})
 	go func() {
-		protocol.ResolveAndProcess(ctx, t, host, uint16(port))
+		protocol.ResolveAndProcess(ctx, t)
 		close(done)
 	}()
 

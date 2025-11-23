@@ -27,6 +27,8 @@ type Main struct {
 	LocalAddr  string `toml:"local_addr"`
 	LocalPort  uint16 `toml:"local_port"`
 	ClientId   string `toml:"id"`
+	RetryDelay int    `toml:"retry_delay"`
+	Attempts   int    `toml:"attempts"`
 }
 
 type Tls struct {
