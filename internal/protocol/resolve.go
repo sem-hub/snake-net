@@ -69,9 +69,6 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		// Set up transport with callback for new clients
 		err := t.Init("server", netip.AddrPort{}, lAddrPort, ProcessNewClient)
 		if err != nil {
-			// Don't call Fatalf here — return so the goroutine exits cleanly and
-			// main can handle shutdown. Fatalf would call os.Exit and bypass
-			// the normal cleanup in main.
 			logger.Error("Transport init error", "error", err)
 			return
 		}
