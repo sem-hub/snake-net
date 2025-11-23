@@ -112,14 +112,6 @@ func GetConfig() *RuntimeConfig {
 	return config
 }
 
-/*
-func removeTime(groups []string, a slog.Attr) slog.Attr {
-	if a.Key == slog.TimeKey && len(groups) == 0 {
-		return slog.Attr{}
-	}
-	return a
-}*/
-
 func getLevelByString(levelStr string) slog.Level {
 	switch strings.ToLower(levelStr) {
 	case "debug":
@@ -163,16 +155,23 @@ func getLenvelByModule(module string) slog.Level {
 	}
 }
 
+func adjustAttrs(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.TimeKey && len(groups) == 0 {
+		a.Value = slog.StringValue(a.Value.Time().Format("15:04:05.000"))
+	}
+	return a
+}
+
 func InitLogger(module string) *slog.Logger {
 	level := getLenvelByModule(module)
 	logger := slog.New(
 		slog.NewTextHandler(
 			os.Stderr,
 			&slog.HandlerOptions{
-				//ReplaceAttr: removeTime,
-				Level: level,
+				ReplaceAttr: adjustAttrs,
+				Level:       level,
 			},
 		),
-	)
+	).With("module", module)
 	return logger
 }
