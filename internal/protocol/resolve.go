@@ -69,7 +69,11 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		// Set up transport with callback for new clients
 		err := t.Init("server", netip.AddrPort{}, lAddrPort, ProcessNewClient)
 		if err != nil {
-			log.Fatalf("Transport init error %s", err)
+			// Don't call Fatalf here — return so the goroutine exits cleanly and
+			// main can handle shutdown. Fatalf would call os.Exit and bypass
+			// the normal cleanup in main.
+			logger.Error("Transport init error", "error", err)
+			return
 		}
 
 		// Set up TUN interface
@@ -108,7 +112,16 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 				}
 				retryDelay := configs.GetConfigFile().Main.RetryDelay
 				logger.Info("Retrying in", "seconds", retryDelay)
-				time.Sleep(time.Duration(retryDelay) * time.Second)
+
+				// Make retry delay interruptible so we can stop promptly on ctx cancellation
+				select {
+				case <-ctx.Done():
+					logger.Info("Context cancelled during retry delay")
+					return
+				case <-time.After(time.Duration(retryDelay) * time.Second):
+					// continue retrying
+				}
+
 				if tryNo == len(ips)-1 {
 					tryNo = -1
 				}
