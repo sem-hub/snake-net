@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 type TlsTransport struct {
@@ -47,6 +49,20 @@ func (tls *TlsTransport) IsEncrypted() bool {
 }
 
 func getCert() (*mtls.Certificate, error) {
+	cfg := configs.GetConfigFile()
+	cert_file := cfg.Tls.CertFile
+	key_file := cfg.Tls.KeyFile
+
+	// Load certificate from files
+	if cert_file != "" && key_file != "" {
+		cert, err := mtls.LoadX509KeyPair(cert_file, key_file)
+		if err != nil {
+			return nil, err
+		}
+		return &cert, nil
+	}
+
+	// Generate self-signed certificate
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(1658),
 		Subject: pkix.Name{

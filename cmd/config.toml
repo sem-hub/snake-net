@@ -6,15 +6,19 @@ protocol = "tcp"
 debug = false
 remote_addr = "hostname.or.ip"
 remote_port = 12345
+attempts = 1
+[tls]
+cert_file = ""
+key_file = ""
 [tun]
 tun_addr = ["10.0.0.10/24","fd11::10/64"]
 mtu = 1420
 name = "snake"
 [log]
-main="Error"
-protocol="Debug"
-network="Warnings"
-route="Info"
-crypt="Info"
-clients="Info"
-tun="info"
+main = "Error"
+protocol = "Debug"
+network = "Warnings"
+route = "Info"
+crypt = "Info"
+clients = "Info"
+tun = "info"

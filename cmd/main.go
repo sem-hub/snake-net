@@ -219,6 +219,9 @@ func main() {
 	case "tls":
 		logger.Info("Using TLS Transport.")
 		t = transport.NewTlsTransport()
+	case "dtls":
+		logger.Info("Using DTLS Transport.")
+		t = transport.NewDtlsTransport()
 	case "quic":
 		logger.Info("Using QUIC Transport.")
 		t = transport.NewQuicTransport()

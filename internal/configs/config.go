@@ -12,6 +12,7 @@ import (
 
 type ConfigFile struct {
 	Main Main `toml:"main"`
+	Tls  Tls  `toml:"tls"`
 	Tun  Tun  `toml:"tun"`
 	Log  Log  `toml:"log"`
 }
@@ -26,6 +27,12 @@ type Main struct {
 	LocalAddr  string `toml:"local_addr"`
 	LocalPort  uint16 `toml:"local_port"`
 	ClientId   string `toml:"id"`
+}
+
+type Tls struct {
+	CertFile string `toml:"cert_file"`
+	KeyFile  string `toml:"key_file"`
+	CAFile   string `toml:"ca_file"`
 }
 
 type Tun struct {
