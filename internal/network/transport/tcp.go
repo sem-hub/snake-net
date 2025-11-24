@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -46,7 +45,7 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		}()
 	} else {
 		family := "tcp"
-		if strings.Contains(rAddrPort.String(), "[") {
+		if rAddrPort.Addr().Is6() {
 			family = "tcp6"
 		}
 		remoteAddr, err := net.ResolveTCPAddr(family, rAddrPort.String())
@@ -64,7 +63,10 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		}
 		tcp.mainConn = conn
 		tcp.connLock.Lock()
-		tcp.conn[conn.RemoteAddr().(*net.TCPAddr).AddrPort()] = conn
+		netipRemote := conn.RemoteAddr().(*net.TCPAddr).AddrPort()
+		netipRemote = netip.AddrPortFrom(netipRemote.Addr().Unmap(), netipRemote.Port())
+		tcp.logger.Debug("TCP connected", "netipRemote", netipRemote.String())
+		tcp.conn[netipRemote] = conn
 		tcp.connLock.Unlock()
 		tcp.logger.Info("Connected to server", "rAddrPort", rAddrPort, "from", conn.LocalAddr().String())
 	}
