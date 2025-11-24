@@ -19,7 +19,7 @@ func (c *Client) getHeaderInfo(buf []byte) (int, uint32, Cmd, error) {
 		dataHeader = buf
 	} else {
 		var err error
-		dataHeader, err = c.secrets.CryptDecryptConstSize(buf[:HEADER])
+		dataHeader, err = c.secrets.EncryptDecryptNoIV(buf[:HEADER])
 		if err != nil {
 			c.logger.Error("getHeaderInfo decrypt error", "address", c.address.String(), "error", err)
 			return 0, 0, NoneCmd, err

@@ -53,16 +53,19 @@ func (c *Client) ECDH() error {
 	}
 	parsedKey, _ := ecdsaPublicKey.ECDH()
 
-	c.secrets.SharedSecret, err = tempPrivateKey.ECDH(parsedKey)
+	sharedSecret, err := tempPrivateKey.ECDH(parsedKey)
 	if err != nil {
 		return err
 	}
-	c.logger.Debug("ECDH:", "shared secret", hex.EncodeToString(c.secrets.SharedSecret))
+	c.secrets.SetSharedSecret(sharedSecret)
+	c.logger.Debug("ECDH:", "shared secret", hex.EncodeToString(sharedSecret))
 
-	c.secrets.SessionPublicKey, c.secrets.SessionPrivateKey, err =
-		ed25519.GenerateKey(bytes.NewReader(c.secrets.SharedSecret))
+	sessionPublicKey, sessionPrivateKey, err :=
+		ed25519.GenerateKey(bytes.NewReader(sharedSecret))
 	if err != nil {
 		return err
 	}
+	c.secrets.SetPublicKey(sessionPublicKey)
+	c.secrets.SetPrivateKey(sessionPrivateKey)
 	return nil
 }

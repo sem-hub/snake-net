@@ -2,38 +2,39 @@ package crypt
 
 import (
 	"bytes"
-	"crypto/aes"
+	maes "crypto/aes"
 	"crypto/cipher"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
+	"github.com/sem-hub/snake-net/internal/crypt/engines/stream"
+
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
 )
 
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
 
-const SIGNLEN = 64
-
 type Secrets struct {
 	logger            *slog.Logger
-	SharedSecret      []byte
-	SessionPrivateKey ed25519.PrivateKey
-	SessionPublicKey  ed25519.PublicKey
+	sharedSecret      []byte
+	sessionPrivateKey ed25519.PrivateKey
+	sessionPublicKey  ed25519.PublicKey
+	engine            engines.CryptoEngine
 }
 
 var logger *slog.Logger
 
-func NewSecrets(secret string) *Secrets {
+func NewSecrets(engine, secret string) *Secrets {
 	s := Secrets{}
 	logger = configs.InitLogger("crypt")
 	s.logger = logger
 
-	s.SharedSecret = make([]byte, 32)
+	s.sharedSecret = make([]byte, 32)
 	if secret == "" {
 		s.logger.Info("Using default shared secret")
 		secret = FIRSTSECRET
@@ -41,94 +42,61 @@ func NewSecrets(secret string) *Secrets {
 		s.logger.Info("Using provided shared secret")
 	}
 	sum256 := sha256.Sum256([]byte(secret))
-	copy(s.SharedSecret, sum256[:])
+	copy(s.sharedSecret, sum256[:])
+	s.sessionPublicKey, s.sessionPrivateKey, _ =
+		ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
 
-	s.SessionPublicKey, s.SessionPrivateKey, _ =
-		ed25519.GenerateKey(bytes.NewReader([]byte(s.SharedSecret)))
+	switch engine {
+	case "aes":
+		s.logger.Info("Using AES stream cipher")
+		s.engine = stream.NewAesEngine(s.sharedSecret)
 
+	default:
+		s.logger.Info("Using default AES stream cipher")
+	}
 	return &s
 }
 
+func (s *Secrets) SetPublicKey(pub ed25519.PublicKey) {
+	s.sessionPublicKey = pub
+}
+
+func (s *Secrets) SetPrivateKey(priv ed25519.PrivateKey) {
+	s.sessionPrivateKey = priv
+}
+
+func (s *Secrets) SetSharedSecret(secret []byte) {
+	s.sharedSecret = secret
+}
+
 func (s *Secrets) GetPublicKey() *ed25519.PublicKey {
-	return &s.SessionPublicKey
+	return &s.sessionPublicKey
 }
 
 func (s *Secrets) GetPrivateKey() *ed25519.PrivateKey {
-	return &s.SessionPrivateKey
+	return &s.sessionPrivateKey
 }
 
 func (s *Secrets) GetSharedSecret() []byte {
-	return s.SharedSecret
+	return s.sharedSecret
 }
 
-func (s *Secrets) Verify(msg []byte, sig []byte) bool {
-	s.logger.Debug("Verify", "msg len", len(msg), "siglen", len(sig))
-	return ed25519.Verify(s.SessionPublicKey, msg, sig)
-}
+// We just make zero IV and don't keep it.
+// So len(data) == len(bufOut)
+func (s *Secrets) EncryptDecryptNoIV(data []byte) ([]byte, error) {
+	s.logger.Debug("EncryptNoIV", "datalen", len(data))
 
-func (s *Secrets) Sign(msg []byte) []byte {
-	s.logger.Debug("Sign", "msglen", len(msg))
-	return ed25519.Sign(s.SessionPrivateKey, msg)
-}
-
-func (s *Secrets) Encrypt(data []byte) ([]byte, error) {
-	s.logger.Debug("Encrypt", "datalen", len(data))
-
-	block, err := aes.NewCipher(s.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	iv := make([]byte, aes.BlockSize)
-	rand.Read(iv)
-	stream := cipher.NewCTR(block, iv)
-
-	bufOut := make([]byte, len(data)+len(iv))
-	// copy iv to output buf
-	copy(bufOut[:aes.BlockSize], iv)
-
-	stream.XORKeyStream(bufOut[aes.BlockSize:], data)
-	s.logger.Debug("Encrypt", "encryptedlen", len(bufOut))
-	return bufOut, nil
-}
-
-func (s *Secrets) Decrypt(data []byte) ([]byte, error) {
-	s.logger.Debug("Decrypt", "datalen", len(data))
-
-	block, err := aes.NewCipher(s.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	iv := make([]byte, aes.BlockSize)
-	copy(iv, data[:aes.BlockSize])
-	stream := cipher.NewCTR(block, iv)
-
-	bufOut := make([]byte, len(data)-len(iv))
-
-	stream.XORKeyStream(bufOut, data[aes.BlockSize:])
-	s.logger.Debug("Decrypt", "decryptedlen", len(bufOut))
-
-	return bufOut, nil
-}
-
-// We just make zero IV and don't keep it so len(data) == len(bufOut)
-func (s *Secrets) CryptDecryptConstSize(data []byte) ([]byte, error) {
-	s.logger.Debug("CryptDecryptConstSize", "datalen", len(data))
-
-	block, err := aes.NewCipher(s.SharedSecret)
+	block, err := maes.NewCipher(s.sharedSecret)
 	if err != nil {
 		return nil, err
 	}
 
-	iv := make([]byte, aes.BlockSize)
+	iv := make([]byte, maes.BlockSize)
 	stream := cipher.NewCTR(block, iv)
 
 	bufOut := make([]byte, len(data))
 	stream.XORKeyStream(bufOut, data)
 	return bufOut, nil
-}
-
-func SignLen() int {
-	return SIGNLEN
 }
 
 func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error) {
@@ -143,7 +111,7 @@ func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error)
 	// decrypt and verify the packet or just verify if NoEncryptionCmd flag set
 	if (flags & NoEncryption) == 0 {
 		s.logger.Debug("Decrypting")
-		data, err := s.Decrypt(msg[:n-signLen])
+		data, err := s.engine.Decrypt(msg[:n-signLen])
 		if err != nil {
 			s.logger.Error("DecryptAndVerify error", "error", err)
 			return nil, err
@@ -167,7 +135,7 @@ func (s *Secrets) SignAndEncrypt(msg []byte, cmd Cmd) ([]byte, error) {
 	buf := make([]byte, 0)
 	if (cmd & NoEncryption) == 0 {
 		s.logger.Debug("client Write encrypting", "len", len(msg))
-		data, err := s.Encrypt(msg)
+		data, err := s.engine.Encrypt(msg)
 		if err != nil {
 			return nil, err
 		}

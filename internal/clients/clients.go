@@ -118,6 +118,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		clientsLock.Lock()
 		clients[address] = &client
 		clientsLock.Unlock()
+		logger.Debug("Client added", "address", address.String())
 	}
 	return &client
 }

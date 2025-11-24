@@ -63,7 +63,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
 
 		if lAddrPort.Addr().Is6() {
-			cfg.LocalAddr = "[" + lAddrPort.String() + "]"
+			cfg.LocalAddr = "[" + lAddrPort.Addr().String() + "]"
 		}
 
 		// Set up transport with callback for new clients
