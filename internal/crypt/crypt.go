@@ -51,6 +51,9 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "aes-ctr":
 		s.logger.Info("Using AES-CTR stream cipher")
 		s.engine = stream.NewAesCtrEngine(s.sharedSecret)
+	case "aes-cbc":
+		s.logger.Info("Using AES-CBC block cipher")
+		s.engine = block.NewAesCbcEngine(s.sharedSecret)
 	case "present":
 		s.logger.Info("Using Present block cipher")
 		s.engine = block.NewPresentEngine(s.sharedSecret)
