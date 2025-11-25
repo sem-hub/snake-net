@@ -131,7 +131,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	cfg := configs.GetConfig()
 
 	c := clients.NewClient(addr, t)
-	s := crypt.NewSecrets(configs.GetConfigFile().Crypt.Engine, cfg.Secret)
+	s := crypt.NewSecrets(configs.GetConfig().Engine, cfg.Secret)
 	if s == nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}

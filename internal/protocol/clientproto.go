@@ -75,7 +75,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t)
-	s := crypt.NewSecrets(configs.GetConfigFile().Crypt.Engine, cfg.Secret)
+	s := crypt.NewSecrets(configs.GetConfig().Engine, cfg.Secret)
 	if s == nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}

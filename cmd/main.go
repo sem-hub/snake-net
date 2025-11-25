@@ -37,6 +37,11 @@ var (
 	debug      bool
 	clientId   string
 	proto      string
+	remote     string
+	local      string
+	cipher     string
+	cert       string
+	key        string
 )
 
 var flagAlias = map[string]string{
@@ -49,6 +54,9 @@ var flagAlias = map[string]string{
 	"debug":  "d",
 	"id":     "i",
 	"proto":  "p",
+	"remote": "r",
+	"local":  "l",
+	"cipher": "e",
 }
 
 // cidrs type for flag parsing
@@ -78,7 +86,13 @@ func init() {
 	flag.IntVar(&mtu, "mtu", network.DefaultMTU, "MTU size.")
 	flag.Var(&tunAddr, "tun", "Comma separated IPv4 and IPv6 Addresses (CIDR) for Tun interface.")
 	flag.BoolVar(&debug, "debug", false, "Enable debug mode.")
+	flag.StringVar(&remote, "remote", "", "Remote address (overrides config file).")
+	flag.StringVar(&local, "local", "", "Local address (overrides config file).")
+	flag.StringVar(&cipher, "cipher", "", "Cipher to use (overrides config file).")
+	flag.StringVar(&cert, "cert", "", "Path to TLS/DTLS certificate file (overrides config file).")
+	flag.StringVar(&key, "key", "", "Path to TLS/DTLS key file (overrides config file).")
 
+	// Setup flag aliases
 	for from, to := range flagAlias {
 		flagSet := flag.Lookup(from)
 		flag.Var(flagSet.Value, to, fmt.Sprintf("alias to %s", flagSet.Name))
@@ -118,6 +132,45 @@ func main() {
 			cfg.Log.Route = "Debug"
 			cfg.Log.Transport = "Debug"
 		}
+		if clientId != "" {
+			cfg.Main.ClientId = clientId
+		}
+		if secret != "" {
+			cfg.Main.Secret = secret
+		}
+		if remote != "" {
+			p := strings.Split(remote, ":")
+			if len(p) < 2 {
+				log.Fatal("Remote address must be in host:port format")
+			}
+			cfg.Main.RemoteAddr = p[0]
+			port, err := strconv.Atoi(p[1])
+			if err != nil {
+				log.Fatal("Remote address parse error", "error", err)
+			}
+			cfg.Main.RemotePort = uint16(port)
+		}
+		if local != "" {
+			p := strings.Split(local, ":")
+			if len(p) < 2 {
+				log.Fatal("Local address must be in host:port format")
+			}
+			cfg.Main.LocalAddr = p[0]
+			port, err := strconv.Atoi(p[1])
+			if err != nil {
+				log.Fatal("Local address parse error", "error", err)
+			}
+			cfg.Main.LocalPort = uint16(port)
+		}
+		if cipher != "" {
+			cfg.Crypt.Engine = cipher
+		}
+		if cert != "" {
+			cfg.Tls.CertFile = cert
+		}
+		if key != "" {
+			cfg.Tls.KeyFile = key
+		}
 		if cfg.Main.Mode == "server" {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.LocalAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.LocalPort))
@@ -125,9 +178,7 @@ func main() {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.RemoteAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.RemotePort))
 		}
-		slog.Debug(addr)
-		cfg.Main.ClientId = clientId
-
+		slog.Debug("", "addr", addr)
 	} else {
 		cfg.Main.Debug = debug
 		if debug {
@@ -150,13 +201,12 @@ func main() {
 			cfg.Log.Transport = "Info"
 		}
 		if mode != "server" && mode != "client" {
-			log.Fatalln("Invalid mode. Use 'client' or 'server'.")
+			log.Fatal("Invalid mode. Use 'client' or 'server'.")
 		}
 
 		cfg.Main.Mode = mode
 		cfg.Main.Secret = secret
 		addr = strings.ToLower(flag.Arg(0))
-
 	}
 
 	logger := configs.InitLogger("main")
@@ -176,7 +226,7 @@ func main() {
 	host := m[2]
 	port, err := strconv.Atoi(m[3])
 	if err != nil {
-		log.Fatalln("Wrong port number", "port", m[3])
+		log.Fatal("Wrong port number", "port", m[3])
 	}
 
 	// Override config protocol if command line switch is used
@@ -188,7 +238,7 @@ func main() {
 		for _, cidrStr := range cfg.Tun.TunAddrStr {
 			_, _, err := net.ParseCIDR(cidrStr)
 			if err != nil {
-				log.Fatalln("Parse error", "CIDR", cidrStr)
+				log.Fatal("Parse error", "CIDR", cidrStr)
 			}
 			tunAddr = append(tunAddr, cidrStr)
 		}
@@ -209,7 +259,7 @@ func main() {
 	}
 
 	if len(tunAddr) == 0 {
-		log.Fatalln("At least one TUN address (CIDR) is mandatory")
+		log.Fatal("At least one TUN address (CIDR) is mandatory")
 	}
 
 	if cfg.Main.ClientId == "" && cfg.Main.Mode == "client" {

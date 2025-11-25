@@ -16,9 +16,9 @@ import (
 )
 
 func getCert() (*mtls.Certificate, error) {
-	cfg := configs.GetConfigFile()
-	cert_file := cfg.Tls.CertFile
-	key_file := cfg.Tls.KeyFile
+	cfg := configs.GetConfig()
+	cert_file := cfg.CertFile
+	key_file := cfg.KeyFile
 
 	// Load certificate from files
 	if cert_file != "" && key_file != "" {

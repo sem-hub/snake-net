@@ -72,6 +72,12 @@ type RuntimeConfig struct {
 	TunName    string
 	ClientId   string
 	Secret     string
+	CertFile   string
+	KeyFile    string
+	CAFile     string
+	Engine     string
+	Attempts   int
+	RetryDelay int
 }
 
 var (
@@ -101,6 +107,12 @@ func GetConfig() *RuntimeConfig {
 			TunName:    configFile.Tun.Name,
 			ClientId:   configFile.Main.ClientId,
 			Secret:     configFile.Main.Secret,
+			CertFile:   configFile.Tls.CertFile,
+			KeyFile:    configFile.Tls.KeyFile,
+			CAFile:     configFile.Tls.CAFile,
+			Engine:     configFile.Crypt.Engine,
+			Attempts:   configFile.Main.Attempts,
+			RetryDelay: configFile.Main.RetryDelay,
 		}
 		if len(configFile.Tun.TunAddrStr) > 0 {
 			for _, addr := range configFile.Tun.TunAddrStr {

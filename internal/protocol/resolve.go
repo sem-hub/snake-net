@@ -102,12 +102,12 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 				logger.Error("Transport init error", "error", err)
 				attempts++
 				// MaxAttempts == 0 means infinite attempts
-				if configs.GetConfigFile().Main.Attempts > 0 &&
-					attempts >= configs.GetConfigFile().Main.Attempts {
+				if configs.GetConfig().Attempts > 0 &&
+					attempts >= configs.GetConfig().Attempts {
 					logger.Info("Max attempts reached, give up")
 					return
 				}
-				retryDelay := configs.GetConfigFile().Main.RetryDelay
+				retryDelay := configs.GetConfig().RetryDelay
 				logger.Info("Retrying in", "seconds", retryDelay)
 
 				// Make retry delay interruptible so we can stop promptly on ctx cancellation
@@ -149,12 +149,12 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 					// Try again after delay
 					attempts++
 					// MaxAttempts == 0 means infinite attempts
-					if configs.GetConfigFile().Main.Attempts > 0 &&
-						attempts >= configs.GetConfigFile().Main.Attempts {
+					if configs.GetConfig().Attempts > 0 &&
+						attempts >= configs.GetConfig().Attempts {
 						logger.Info("Max attempts reached, give up")
 						return
 					}
-					retryDelay := configs.GetConfigFile().Main.RetryDelay
+					retryDelay := configs.GetConfig().RetryDelay
 					logger.Info("Retrying in", "seconds", retryDelay)
 					time.Sleep(time.Duration(retryDelay) * time.Second)
 					if tryNo == len(ips)-1 {

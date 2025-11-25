@@ -50,12 +50,12 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 
 	iface.tunDev, err = tun.CreateTUN(name, mtu)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal(err)
 	}
 
 	iface.name, err = iface.tunDev.Name()
 	if err != nil {
-		log.Fatalln("Get tun name")
+		log.Fatal("Get tun name")
 	}
 	logger.Info("Interface", "name", iface.name)
 	if err := iface.setUpInterface(); err != nil {
