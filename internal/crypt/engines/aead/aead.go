@@ -24,41 +24,29 @@ func NewAeadEngine(name string, sharedSecret []byte) *AeadEngine {
 	return &engine
 }
 
-func (e *AeadEngine) Encrypt(block cipher.Block, newStream func(cipher.Block) (cipher.AEAD, error),
-	data []byte) ([]byte, error) {
+func (e *AeadEngine) Encrypt(aead cipher.AEAD, data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt AEAD", "datalen", len(data))
 
-	stream, err := newStream(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce := make([]byte, stream.NonceSize())
+	nonce := make([]byte, aead.NonceSize())
 	rand.Read(nonce)
-	bufOut := stream.Seal(nil, nonce, data, nil)
+	bufOut := aead.Seal(nil, nonce, data, nil)
 
 	e.logger.Debug("Encrypt AEAD", "encryptedlen", len(bufOut), "noncelen", len(nonce))
 	bufOut = append(nonce, bufOut...)
 	return bufOut, nil
 }
 
-func (e *AeadEngine) Decrypt(block cipher.Block, newStream func(cipher.Block) (cipher.AEAD, error),
-	data []byte) ([]byte, error) {
+func (e *AeadEngine) Decrypt(aead cipher.AEAD, data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt AEAD", "datalen", len(data))
 
-	stream, err := newStream(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonceSize := stream.NonceSize()
+	nonceSize := aead.NonceSize()
 	e.logger.Debug("Decrypt AEAD", "noncesize", nonceSize)
 	if len(data) < nonceSize {
 		return nil, errors.New("data is too short")
 	}
 
 	nonce, dataEnc := data[:nonceSize], data[nonceSize:]
-	bufOut, err := stream.Open(nil, nonce, dataEnc, nil)
+	bufOut, err := aead.Open(nil, nonce, dataEnc, nil)
 	e.logger.Debug("Decrypt AEAD", "decryptedlen", len(bufOut))
 	return bufOut, err
 }
