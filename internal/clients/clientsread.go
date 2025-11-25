@@ -129,7 +129,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		//return nil, errors.New("incomplete message")
 		return c.ReadBuf(HEADER + n)
 	}
-	// Set flags for NoEncryption and NoSignature if transport does it
+	// Set flags for NoEncryption and NoSignature if transport already does it
 	if c.t.IsEncrypted() {
 		flags |= NoEncryption
 		flags |= NoSignature

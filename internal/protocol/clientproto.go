@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"errors"
+	"log"
 	"net"
 	"net/netip"
 	"strconv"
@@ -76,8 +77,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	c := clients.NewClient(addr, t)
 	s := crypt.NewSecrets(configs.GetConfigFile().Crypt.Engine, cfg.Secret)
 	if s == nil {
-		logger.Error("Failed to create secrets engine", "error", "unknown engine")
-		return errors.New("failed to create secrets engine: unknown engine")
+		log.Fatal("Failed to create secrets engine: unknown engine")
 	}
 	c.AddSecretsToClient(s)
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
+	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/stream"
 
@@ -57,6 +58,9 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "present":
 		s.logger.Info("Using Present block cipher")
 		s.engine = block.NewPresentEngine(s.sharedSecret)
+	case "aes-gcm":
+		s.logger.Info("Using AES-GCM AEAD cipher")
+		s.engine = aead.NewAesGcmEngine(s.sharedSecret)
 	default:
 		s.logger.Info("Unknown cipher")
 		return nil
@@ -107,6 +111,9 @@ func (s *Secrets) EncryptDecryptNoIV(data []byte) ([]byte, error) {
 }
 
 func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error) {
+	if s.engine.GetType() == "aead" {
+		flags |= NoSignature
+	}
 	buf := make([]byte, 0)
 	signLen := 0
 	var signature []byte
@@ -138,9 +145,13 @@ func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error)
 	return buf, nil
 }
 
-func (s *Secrets) SignAndEncrypt(msg []byte, cmd Cmd) ([]byte, error) {
+func (s *Secrets) SignAndEncrypt(msg []byte, flags Cmd) ([]byte, error) {
+	if s.engine.GetType() == "aead" {
+		flags |= NoSignature
+	}
+
 	buf := make([]byte, 0)
-	if (cmd & NoEncryption) == 0 {
+	if (flags & NoEncryption) == 0 {
 		s.logger.Debug("client Write encrypting", "len", len(msg))
 		data, err := s.engine.Encrypt(msg)
 		if err != nil {
@@ -153,7 +164,7 @@ func (s *Secrets) SignAndEncrypt(msg []byte, cmd Cmd) ([]byte, error) {
 
 	// Sign BEFORE encryption
 	// Unencrypted signature at the end
-	if (cmd & NoSignature) == 0 {
+	if (flags & NoSignature) == 0 {
 		s.logger.Debug("client Write signing")
 		signature := s.Sign(msg)
 		buf = append(buf, signature...)
