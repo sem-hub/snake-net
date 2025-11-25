@@ -15,11 +15,11 @@ type StreamEngine struct {
 	logger       *slog.Logger
 }
 
-func NewStreamEngine(sharedSecret []byte) *StreamEngine {
+func NewStreamEngine(name string, sharedSecret []byte) *StreamEngine {
 	engine := StreamEngine{}
-	engine.EngineData = *engines.NewEngineData("aes", "stream")
+	engine.EngineData = *engines.NewEngineData(name, "stream")
 	engine.SharedSecret = sharedSecret
-	engine.logger = configs.InitLogger("aes")
+	engine.logger = configs.InitLogger("stream")
 	return &engine
 }
 
@@ -42,8 +42,7 @@ func (e *StreamEngine) Encrypt(block cipher.Block, newStream func(cipher.Block, 
 func (e *StreamEngine) Decrypt(block cipher.Block, newStream func(cipher.Block, []byte) cipher.Stream, data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt stream", "datalen", len(data))
 
-	iv := make([]byte, block.BlockSize())
-	copy(iv, data[:block.BlockSize()])
+	iv := data[:block.BlockSize()]
 	stream := newStream(block, iv)
 
 	bufOut := make([]byte, len(data)-len(iv))

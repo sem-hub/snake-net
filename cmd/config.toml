@@ -8,6 +8,8 @@ remote_addr = "hostname.or.ip"
 remote_port = 12345
 attempts = 1                    # 0 means infinity
 retry_delay = 5
+[crypt]
+engine = "aes"
 [tls]
 cert_file = ""
 key_file = ""

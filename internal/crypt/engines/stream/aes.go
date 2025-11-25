@@ -15,7 +15,7 @@ type AesEngine struct {
 
 func NewAesEngine(sharedSecret []byte) *AesEngine {
 	engine := AesEngine{}
-	engine.StreamEngine = *NewStreamEngine(sharedSecret)
+	engine.StreamEngine = *NewStreamEngine("aes", sharedSecret)
 	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("aes")
 	return &engine

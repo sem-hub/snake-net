@@ -11,10 +11,11 @@ import (
 )
 
 type ConfigFile struct {
-	Main Main `toml:"main"`
-	Tls  Tls  `toml:"tls"`
-	Tun  Tun  `toml:"tun"`
-	Log  Log  `toml:"log"`
+	Main  Main  `toml:"main"`
+	Tls   Tls   `toml:"tls"`
+	Tun   Tun   `toml:"tun"`
+	Log   Log   `toml:"log"`
+	Crypt Crypt `toml:"crypt"`
 }
 
 type Main struct {
@@ -29,6 +30,10 @@ type Main struct {
 	ClientId   string `toml:"id"`
 	RetryDelay int    `toml:"retry_delay"`
 	Attempts   int    `toml:"attempts"`
+}
+
+type Crypt struct {
+	Engine string `toml:"engine"`
 }
 
 type Tls struct {

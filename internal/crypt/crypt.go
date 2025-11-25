@@ -11,6 +11,7 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
+	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/stream"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
@@ -50,9 +51,12 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "aes":
 		s.logger.Info("Using AES stream cipher")
 		s.engine = stream.NewAesEngine(s.sharedSecret)
-
+	case "present":
+		s.logger.Info("Using Present block cipher")
+		s.engine = block.NewPresentEngine(s.sharedSecret)
 	default:
-		s.logger.Info("Using default AES stream cipher")
+		s.logger.Info("Unknown cipher")
+		return nil
 	}
 	return &s
 }
