@@ -27,6 +27,7 @@ type Secrets struct {
 	sessionPrivateKey ed25519.PrivateKey
 	sessionPublicKey  ed25519.PublicKey
 	engine            engines.CryptoEngine
+	SignatureEngine   SignatureInterface
 }
 
 var logger *slog.Logger
@@ -122,7 +123,7 @@ func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error)
 	var signature []byte
 	// Save signature
 	if (flags & NoSignature) == 0 {
-		signLen = SignLen()
+		signLen = s.SignatureEngine.SignLen()
 		signature = msg[n-signLen : n]
 	}
 	// decrypt and verify the packet or just verify if NoEncryptionCmd flag set
@@ -139,7 +140,7 @@ func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error)
 		buf = append(buf, msg[:n-signLen]...)
 	}
 	if (flags & NoSignature) == 0 {
-		if !s.Verify(buf, signature) {
+		if !s.SignatureEngine.Verify(buf, signature) {
 			s.logger.Error("DecryptAndVerify: verify error")
 			return nil, errors.New("verify error")
 		}
@@ -169,7 +170,7 @@ func (s *Secrets) SignAndEncrypt(msg []byte, flags Cmd) ([]byte, error) {
 	// Unencrypted signature at the end
 	if (flags & NoSignature) == 0 {
 		s.logger.Debug("client Write signing")
-		signature := s.Sign(msg)
+		signature := s.SignatureEngine.Sign(msg)
 		buf = append(buf, signature...)
 	}
 	s.logger.Debug("client Write SignAndEncrypt done", "len", len(buf))

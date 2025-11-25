@@ -29,7 +29,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 		n = len(*msg)
 		c.logger.Debug("client Write data", "len", n, "address", c.address.String())
 
-		if HEADER+n+crypt.SignLen() > BUFSIZE {
+		if HEADER+n+c.secrets.SignatureEngine.SignLen() > BUFSIZE {
 			return errors.New("invalid message size")
 		}
 	}
