@@ -136,7 +136,8 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	if s == nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}
-	sign := signature.NewSignatureEd25519(s)
+	//sign := signature.NewSignatureEd25519(s)
+	sign := signature.NewSignatureHMAC(s)
 	s.SignatureEngine = sign
 	c.AddSecretsToClient(s)
 	c.TransportReadLoop(addr)

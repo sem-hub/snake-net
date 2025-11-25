@@ -14,8 +14,6 @@ type SignatureEd25519 struct {
 	logger *slog.Logger
 }
 
-const SIGNLEN = 64
-
 func NewSignatureEd25519(secret *crypt.Secrets) *SignatureEd25519 {
 	sig := &SignatureEd25519{
 		Signature: *NewSignature(),
@@ -26,7 +24,7 @@ func NewSignatureEd25519(secret *crypt.Secrets) *SignatureEd25519 {
 }
 
 func (s *SignatureEd25519) SignLen() int {
-	return SIGNLEN
+	return 64
 }
 
 func (s *SignatureEd25519) Verify(msg []byte, sig []byte) bool {
