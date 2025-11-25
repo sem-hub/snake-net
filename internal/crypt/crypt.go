@@ -48,9 +48,9 @@ func NewSecrets(engine, secret string) *Secrets {
 		ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
 
 	switch engine {
-	case "aes":
-		s.logger.Info("Using AES stream cipher")
-		s.engine = stream.NewAesEngine(s.sharedSecret)
+	case "aes-ctr":
+		s.logger.Info("Using AES-CTR stream cipher")
+		s.engine = stream.NewAesCtrEngine(s.sharedSecret)
 	case "present":
 		s.logger.Info("Using Present block cipher")
 		s.engine = block.NewPresentEngine(s.sharedSecret)

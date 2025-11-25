@@ -8,32 +8,32 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 )
 
-type AesEngine struct {
+type AesCtrEngine struct {
 	StreamEngine
 	logger *slog.Logger
 }
 
-func NewAesEngine(sharedSecret []byte) *AesEngine {
-	engine := AesEngine{}
-	engine.StreamEngine = *NewStreamEngine("aes", sharedSecret)
+func NewAesCtrEngine(sharedSecret []byte) *AesCtrEngine {
+	engine := AesCtrEngine{}
+	engine.StreamEngine = *NewStreamEngine("aes-ctr", sharedSecret)
 	engine.SharedSecret = sharedSecret
-	engine.logger = configs.InitLogger("aes")
+	engine.logger = configs.InitLogger("aes-ctr")
 	return &engine
 }
 
-func (e *AesEngine) GetName() string {
+func (e *AesCtrEngine) GetName() string {
 	return e.EngineData.Name
 }
 
-func (e *AesEngine) GetType() string {
+func (e *AesCtrEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-func (e *AesEngine) NewCipher(secret []byte) (cipher.Block, error) {
+func (e *AesCtrEngine) NewCipher(secret []byte) (cipher.Block, error) {
 	return aes.NewCipher(secret)
 }
 
-func (e *AesEngine) Encrypt(data []byte) ([]byte, error) {
+func (e *AesCtrEngine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt", "datalen", len(data))
 	block, err := e.NewCipher(e.SharedSecret)
 	if err != nil {
@@ -42,7 +42,7 @@ func (e *AesEngine) Encrypt(data []byte) ([]byte, error) {
 	return e.StreamEngine.Encrypt(block, cipher.NewCTR, data)
 }
 
-func (e *AesEngine) Decrypt(data []byte) ([]byte, error) {
+func (e *AesCtrEngine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt", "datalen", len(data))
 	block, err := e.NewCipher(e.SharedSecret)
 	if err != nil {
