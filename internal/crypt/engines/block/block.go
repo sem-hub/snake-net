@@ -62,5 +62,9 @@ func (e *BlockEngine) Decrypt(block cipher.Block, newBlock func(cipher.Block, []
 
 	// Unpad
 	padding := int(bufOut[len(bufOut)-1])
+	if padding >= len(bufOut) {
+		e.logger.Error("Invalid padding", "padding", padding, "buflen", len(bufOut))
+		return nil, errors.New("invalid padding")
+	}
 	return bufOut[:len(bufOut)-padding], nil
 }
