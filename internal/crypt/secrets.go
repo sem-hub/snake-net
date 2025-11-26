@@ -61,6 +61,9 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "present":
 		s.logger.Info("Using Present block cipher")
 		s.engine = block.NewPresentEngine(s.sharedSecret)
+	case "twofish":
+		s.logger.Info("Using Twofish block cipher")
+		s.engine = block.NewTwofishEngine(s.sharedSecret)
 	case "aes-gcm":
 		s.logger.Info("Using AES-GCM AEAD cipher")
 		s.engine = aead.NewAesGcmEngine(s.sharedSecret)

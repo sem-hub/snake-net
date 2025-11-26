@@ -10,6 +10,9 @@
   придется сохранять данные о клиенте некоторое время.
 * когда-нибудь сделать не разделение на клиент и сервер, а просто узлы, которые могут быть и тем и другим
 
+Blake2b можно использовать для HMAC. (https://pkg.go.dev/golang.org/x/crypto/blake2b)
+HKDF-SHA256 (https://pkg.go.dev/golang.org/x/crypto/hkdf)
+
 Шифры, которые еще можно добавить:
 * IDEA
 * Twofish
@@ -19,7 +22,7 @@
 * CAST5
 * GOST28147-89
 Шифрование с аутентификацией (AEAD):
-* XSalsa20-Poly1305
+* XSalsa20-Poly1305 (https://pkg.go.dev/golang.org/x/crypto/nacl/secretbox)
 * AES-SIV
 * AES-PMAC-SIV
 * AES-EAX
