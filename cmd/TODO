@@ -15,14 +15,10 @@ HKDF-SHA256 (https://pkg.go.dev/golang.org/x/crypto/hkdf)
 
 Шифры, которые еще можно добавить:
 * IDEA
-* Twofish
 * Serpent
 * Camellia
-* Blowfish
-* CAST5
 * GOST28147-89
 Шифрование с аутентификацией (AEAD):
-* XSalsa20-Poly1305 (https://pkg.go.dev/golang.org/x/crypto/nacl/secretbox)
 * AES-SIV
 * AES-PMAC-SIV
 * AES-EAX

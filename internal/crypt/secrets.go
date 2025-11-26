@@ -70,6 +70,9 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "chacha20poly1305":
 		s.logger.Info("Using ChaCha20-Poly1305 AEAD cipher")
 		s.engine = aead.NewChacha20Poly1305Engine(s.sharedSecret)
+	case "xsalsa20poly1305":
+		s.logger.Info("Using XSalsa20-Poly1305 AEAD cipher")
+		s.engine = aead.NewXsalsa20Poly1305Engine(s.sharedSecret)
 	default:
 		s.logger.Info("Unknown cipher")
 		return nil
