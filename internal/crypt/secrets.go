@@ -81,7 +81,7 @@ func (s *Secrets) CreateSignatureEngine(engine string) error {
 		s.SignatureEngine = signature.NewSignatureEd25519(s)
 	case "hmac-sha256":
 		s.logger.Info("Using HMAC-SHA256 signature engine")
-		s.SignatureEngine = signature.NewSignatureHMAC(s)
+		s.SignatureEngine = signature.NewSignatureHMACSHA256(s)
 	default:
 		s.logger.Error("Unknown signature engine: " + engine)
 		return errors.New("unknown signature engine: " + engine)

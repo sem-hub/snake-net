@@ -9,26 +9,26 @@ import (
 	"github.com/sem-hub/snake-net/internal/interfaces"
 )
 
-type SignatureHMAC struct {
+type SignatureHMACSHA256 struct {
 	Signature
 	secret interfaces.SecretsInterface
 	logger *slog.Logger
 }
 
-func NewSignatureHMAC(secret interfaces.SecretsInterface) *SignatureHMAC {
-	sig := &SignatureHMAC{
+func NewSignatureHMACSHA256(secret interfaces.SecretsInterface) *SignatureHMACSHA256 {
+	sig := &SignatureHMACSHA256{
 		Signature: *NewSignature(),
 		secret:    secret,
 	}
-	sig.logger = configs.InitLogger("signature-hmac")
+	sig.logger = configs.InitLogger("signature-hmac-sha256")
 	return sig
 }
 
-func (s *SignatureHMAC) SignLen() int {
+func (s *SignatureHMACSHA256) SignLen() int {
 	return 32
 }
 
-func (s *SignatureHMAC) Verify(msg []byte, sig []byte) bool {
+func (s *SignatureHMACSHA256) Verify(msg []byte, sig []byte) bool {
 	s.logger.Debug("Verify", "msg len", len(msg), "siglen", len(sig))
 	mac := hmac.New(sha256.New, s.secret.GetSharedSecret())
 	mac.Write(msg)
@@ -36,7 +36,7 @@ func (s *SignatureHMAC) Verify(msg []byte, sig []byte) bool {
 	return hmac.Equal(sig, expectedMAC)
 }
 
-func (s *SignatureHMAC) Sign(msg []byte) []byte {
+func (s *SignatureHMACSHA256) Sign(msg []byte) []byte {
 	s.logger.Debug("Sign", "msglen", len(msg))
 	mac := hmac.New(sha256.New, s.secret.GetSharedSecret())
 	mac.Write(msg)
