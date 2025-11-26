@@ -6,19 +6,19 @@ import (
 	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/sem-hub/snake-net/internal/crypt"
+	"github.com/sem-hub/snake-net/internal/interfaces"
 )
 
 type SignatureHMAC struct {
 	Signature
-	secret crypt.Secrets
+	secret interfaces.SecretsInterface
 	logger *slog.Logger
 }
 
-func NewSignatureHMAC(secret *crypt.Secrets) *SignatureHMAC {
+func NewSignatureHMAC(secret interfaces.SecretsInterface) *SignatureHMAC {
 	sig := &SignatureHMAC{
 		Signature: *NewSignature(),
-		secret:    *secret,
+		secret:    secret,
 	}
 	sig.logger = configs.InitLogger("signature-hmac")
 	return sig

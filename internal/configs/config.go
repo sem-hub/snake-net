@@ -30,7 +30,8 @@ type Main struct {
 }
 
 type Crypt struct {
-	Engine string `toml:"engine"`
+	Engine     string `toml:"engine"`
+	SignEngine string `toml:"sign_engine"`
 }
 
 type Tls struct {
@@ -75,6 +76,7 @@ type RuntimeConfig struct {
 	Engine     string
 	Attempts   int
 	RetryDelay int
+	SignEngine string
 }
 
 var (
@@ -110,6 +112,7 @@ func GetConfig() *RuntimeConfig {
 			Engine:     configFile.Crypt.Engine,
 			Attempts:   configFile.Main.Attempts,
 			RetryDelay: configFile.Main.RetryDelay,
+			SignEngine: configFile.Crypt.SignEngine,
 		}
 		if len(configFile.Tun.TunAddrStr) > 0 {
 			for _, addr := range configFile.Tun.TunAddrStr {
@@ -121,6 +124,13 @@ func GetConfig() *RuntimeConfig {
 						Network: network,
 					})
 			}
+		}
+		// Defaults
+		if config.Engine == "" {
+			config.Engine = "aes-cbc"
+		}
+		if config.SignEngine == "" {
+			config.SignEngine = "ed25519"
 		}
 	}
 	return config

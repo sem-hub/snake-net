@@ -57,14 +57,14 @@ func (c *Client) ECDH() error {
 	if err != nil {
 		return err
 	}
-	c.secrets.SetSharedSecret(sharedSecret)
-	c.logger.Debug("ECDH:", "shared secret", hex.EncodeToString(sharedSecret))
-
 	sessionPublicKey, sessionPrivateKey, err :=
 		ed25519.GenerateKey(bytes.NewReader(sharedSecret))
 	if err != nil {
 		return err
 	}
+	// Save the shared secret and session keys
+	c.logger.Debug("ECDH:", "shared secret", hex.EncodeToString(sharedSecret))
+	c.secrets.SetSharedSecret(sharedSecret)
 	c.secrets.SetPublicKey(sessionPublicKey)
 	c.secrets.SetPrivateKey(sessionPrivateKey)
 	return nil

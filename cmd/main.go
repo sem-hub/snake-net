@@ -42,6 +42,7 @@ var (
 	cipher     string
 	cert       string
 	key        string
+	signEngine string
 )
 
 var flagAlias = map[string]string{
@@ -91,6 +92,7 @@ func init() {
 	flag.StringVar(&cipher, "cipher", "", "Cipher to use (overrides config file).")
 	flag.StringVar(&cert, "cert", "", "Path to TLS/DTLS certificate file (overrides config file).")
 	flag.StringVar(&key, "key", "", "Path to TLS/DTLS key file (overrides config file).")
+	flag.StringVar(&signEngine, "sign", "", "Signature engine to use (overrides config file).")
 
 	// Setup flag aliases
 	for from, to := range flagAlias {

@@ -20,7 +20,6 @@
 * CAST5
 * GOST28147-89
 Шифрование с аутентификацией (AEAD):
-* ChaCha20-Poly1305 (быстрее AES)
 * XSalsa20-Poly1305
 * AES-SIV
 * AES-PMAC-SIV

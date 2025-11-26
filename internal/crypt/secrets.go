@@ -14,6 +14,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/stream"
+	"github.com/sem-hub/snake-net/internal/crypt/signature"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
@@ -22,6 +23,7 @@ import (
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
 
 type Secrets struct {
+	SecretsInterface
 	logger            *slog.Logger
 	sharedSecret      []byte
 	sessionPrivateKey ed25519.PrivateKey
@@ -70,6 +72,21 @@ func NewSecrets(engine, secret string) *Secrets {
 		return nil
 	}
 	return &s
+}
+
+func (s *Secrets) CreateSignatureEngine(engine string) error {
+	switch engine {
+	case "ed25519":
+		s.logger.Info("Using Ed25519 signature engine")
+		s.SignatureEngine = signature.NewSignatureEd25519(s)
+	case "hmac-sha256":
+		s.logger.Info("Using HMAC-SHA256 signature engine")
+		s.SignatureEngine = signature.NewSignatureHMAC(s)
+	default:
+		s.logger.Error("Unknown signature engine: " + engine)
+		return errors.New("unknown signature engine: " + engine)
+	}
+	return nil
 }
 
 func (s *Secrets) SetPublicKey(pub ed25519.PublicKey) {

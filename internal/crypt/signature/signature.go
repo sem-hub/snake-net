@@ -7,12 +7,6 @@ import (
 	"github.com/sem-hub/snake-net/internal/interfaces"
 )
 
-type SignatureEngine interface {
-	Sign(msg []byte) []byte
-	Verify(msg []byte, sig []byte) bool
-	SignLen() int
-}
-
 type Signature struct {
 	interfaces.SignatureInterface
 	logger *slog.Logger

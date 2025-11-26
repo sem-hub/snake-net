@@ -10,7 +10,6 @@ import (
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
-	"github.com/sem-hub/snake-net/internal/crypt/signature"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
@@ -136,9 +135,8 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	if s == nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}
-	//sign := signature.NewSignatureEd25519(s)
-	sign := signature.NewSignatureHMAC(s)
-	s.SignatureEngine = sign
+	// XXX It's the must be after NewSecrets
+	s.CreateSignatureEngine(configs.GetConfig().SignEngine)
 	c.AddSecretsToClient(s)
 	c.TransportReadLoop(addr)
 
