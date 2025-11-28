@@ -61,12 +61,24 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "present":
 		s.logger.Info("Using Present block cipher")
 		s.engine = block.NewPresentEngine(s.sharedSecret)
+	case "idea":
+		s.logger.Info("Using Idea block cipher")
+		s.engine = block.NewIdeaEngine(s.sharedSecret)
 	case "twofish":
 		s.logger.Info("Using Twofish block cipher")
 		s.engine = block.NewTwofishEngine(s.sharedSecret)
+	case "threefish":
+		s.logger.Info("Using Threefish block cipher")
+		s.engine = block.NewThreefishEngine(s.sharedSecret)
+	case "rc6":
+		s.logger.Info("Using RC6 block cipher")
+		s.engine = block.NewRc6Engine(s.sharedSecret)
 	case "aes-gcm":
 		s.logger.Info("Using AES-GCM AEAD cipher")
 		s.engine = aead.NewAesGcmEngine(s.sharedSecret)
+	case "salsa20":
+		s.logger.Info("Using Salsa20 stream cipher")
+		s.engine = stream.NewSalsa20Engine(s.sharedSecret)
 	case "chacha20poly1305":
 		s.logger.Info("Using ChaCha20-Poly1305 AEAD cipher")
 		s.engine = aead.NewChacha20Poly1305Engine(s.sharedSecret)

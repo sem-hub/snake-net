@@ -14,7 +14,6 @@ Blake2b можно использовать для HMAC. (https://pkg.go.dev/gol
 HKDF-SHA256 (https://pkg.go.dev/golang.org/x/crypto/hkdf)
 
 Шифры, которые еще можно добавить:
-* IDEA
 * Serpent
 * Camellia
 * GOST28147-89
@@ -27,4 +26,3 @@ HKDF-SHA256 (https://pkg.go.dev/golang.org/x/crypto/hkdf)
 * AES-GCM-SIV
 * SM4-GCM
 * *-MGM
-
