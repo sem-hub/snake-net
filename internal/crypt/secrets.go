@@ -79,6 +79,9 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "salsa20":
 		s.logger.Info("Using Salsa20 stream cipher")
 		s.engine = stream.NewSalsa20Engine(s.sharedSecret)
+	case "chacha20":
+		s.logger.Info("Using ChaCha20 stream cipher")
+		s.engine = stream.NewChacha20Engine(s.sharedSecret)
 	case "chacha20poly1305":
 		s.logger.Info("Using ChaCha20-Poly1305 AEAD cipher")
 		s.engine = aead.NewChacha20Poly1305Engine(s.sharedSecret)
