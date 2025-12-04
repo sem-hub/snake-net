@@ -29,7 +29,6 @@ func (e *IdeaEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-// Only 80 or 128 bits key size supported. Using 128 bits
 func (e *IdeaEngine) NewCipher(secret []byte) (cipher.Block, error) {
 	return idea.NewCipher(secret)
 }

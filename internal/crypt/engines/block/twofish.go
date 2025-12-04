@@ -29,7 +29,6 @@ func (e *TwofishEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-// Only 80 or 128 bits key size supported. Using 128 bits
 func (e *TwofishEngine) NewCipher(secret []byte) (cipher.Block, error) {
 	return twofish.NewCipher(secret)
 }

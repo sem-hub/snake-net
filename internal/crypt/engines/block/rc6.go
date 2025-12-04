@@ -29,7 +29,6 @@ func (e *Rc6Engine) GetType() string {
 	return e.EngineData.Type
 }
 
-// Only 80 or 128 bits key size supported. Using 128 bits
 func (e *Rc6Engine) NewCipher(secret []byte) (cipher.Block, error) {
 	return rc6.NewCipher(secret), nil
 }
