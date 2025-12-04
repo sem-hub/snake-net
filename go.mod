@@ -5,6 +5,8 @@ go 1.24.5
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/CampNowhere/golang-rc6 v0.0.0-20230626132049-3a4643c6ae7f
+	github.com/aead/camellia v0.0.0-20160715082721-02c306d3605b
+	github.com/aead/serpent v0.0.0-20160714141033-fba169763ea6
 	github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb
 	github.com/ebfe/estream v0.0.0-20150613152650-6f7a4538d35a
 	github.com/google/uuid v1.6.0

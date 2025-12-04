@@ -73,6 +73,12 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "rc6":
 		s.logger.Info("Using RC6 block cipher")
 		s.engine = block.NewRc6Engine(s.sharedSecret)
+	case "serpent":
+		s.logger.Info("Using Serpent block cipher")
+		s.engine = block.NewSerpentEngine(s.sharedSecret)
+	case "camellia":
+		s.logger.Info("Using Camellia block cipher")
+		s.engine = block.NewCamelliaEngine(s.sharedSecret)
 	case "aes-gcm":
 		s.logger.Info("Using AES-GCM AEAD cipher")
 		s.engine = aead.NewAesGcmEngine(s.sharedSecret)
