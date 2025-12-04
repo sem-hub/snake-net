@@ -16,7 +16,7 @@ type IdeaEngine struct {
 func NewIdeaEngine(sharedSecret []byte) *IdeaEngine {
 	engine := IdeaEngine{}
 	engine.BlockEngine = *NewBlockEngine("idea", sharedSecret)
-	engine.SharedSecret = sharedSecret
+	engine.SharedSecret = sharedSecret[:16]
 	engine.logger = configs.InitLogger("idea")
 	return &engine
 }
@@ -31,7 +31,7 @@ func (e *IdeaEngine) GetType() string {
 
 // Only 80 or 128 bits key size supported. Using 128 bits
 func (e *IdeaEngine) NewCipher(secret []byte) (cipher.Block, error) {
-	return idea.NewCipher(secret[:16])
+	return idea.NewCipher(secret)
 }
 
 func (e *IdeaEngine) Encrypt(data []byte) ([]byte, error) {

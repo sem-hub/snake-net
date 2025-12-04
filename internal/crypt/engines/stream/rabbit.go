@@ -20,7 +20,7 @@ type RabbitEngine struct {
 func NewRabbitEngine(sharedSecret []byte) *RabbitEngine {
 	engine := RabbitEngine{}
 	engine.StreamEngine = *NewStreamEngine("rabbit", sharedSecret)
-	engine.SharedSecret = sharedSecret
+	engine.SharedSecret = sharedSecret[:16]
 	engine.logger = configs.InitLogger("rabbit")
 	return &engine
 }

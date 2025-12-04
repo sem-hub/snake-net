@@ -16,7 +16,7 @@ type Rc6Engine struct {
 func NewRc6Engine(sharedSecret []byte) *Rc6Engine {
 	engine := Rc6Engine{}
 	engine.BlockEngine = *NewBlockEngine("rc6", sharedSecret)
-	engine.SharedSecret = sharedSecret
+	engine.SharedSecret = sharedSecret[:16]
 	engine.logger = configs.InitLogger("rc6")
 	return &engine
 }
@@ -31,7 +31,7 @@ func (e *Rc6Engine) GetType() string {
 
 // Only 80 or 128 bits key size supported. Using 128 bits
 func (e *Rc6Engine) NewCipher(secret []byte) (cipher.Block, error) {
-	return rc6.NewCipher(secret[:16]), nil
+	return rc6.NewCipher(secret), nil
 }
 
 func (e *Rc6Engine) Encrypt(data []byte) ([]byte, error) {

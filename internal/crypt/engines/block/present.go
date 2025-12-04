@@ -16,7 +16,7 @@ type PresentEngine struct {
 func NewPresentEngine(sharedSecret []byte) *PresentEngine {
 	engine := PresentEngine{}
 	engine.BlockEngine = *NewBlockEngine("present", sharedSecret)
-	engine.SharedSecret = sharedSecret
+	engine.SharedSecret = sharedSecret[:16]
 	engine.logger = configs.InitLogger("present")
 	return &engine
 }
@@ -31,7 +31,7 @@ func (e *PresentEngine) GetType() string {
 
 // Only 80 or 128 bits key size supported. Using 128 bits
 func (e *PresentEngine) NewCipher(secret []byte) (cipher.Block, error) {
-	return present.NewCipher(secret[:16])
+	return present.NewCipher(secret)
 }
 
 func (e *PresentEngine) Encrypt(data []byte) ([]byte, error) {
