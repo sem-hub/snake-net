@@ -76,6 +76,9 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "aes-gcm":
 		s.logger.Info("Using AES-GCM AEAD cipher")
 		s.engine = aead.NewAesGcmEngine(s.sharedSecret)
+	case "aes-ccm":
+		s.logger.Info("Using AES-CCM AEAD cipher")
+		s.engine = aead.NewAesCcmEngine(s.sharedSecret)
 	case "salsa20":
 		s.logger.Info("Using Salsa20 stream cipher")
 		s.engine = stream.NewSalsa20Engine(s.sharedSecret)
