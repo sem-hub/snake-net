@@ -63,26 +63,28 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 	}
 	if str[0] == "Welcome" {
 		i := 1
-		for _, addr := range str[i : i+1] {
+		for _, addr := range str[i : i+2] {
 			logger.Debug("Server IPs", "addr", addr)
-			ip, err := netip.ParseAddr(addr)
+			ip, network, err := net.ParseCIDR(addr)
+			netIp, _ := netip.AddrFromSlice(ip)
 			if err != nil {
 				// XXX send not OK to server
 				logger.Error("invalid IP from welcome string", "addr", addr)
 				return nil, nil, "", "", errors.New("invalid IP from welcome string: " + addr)
 			}
-			serverIPs = append(serverIPs, utils.Cidr{IP: ip, Network: &net.IPNet{}})
+			serverIPs = append(serverIPs, utils.Cidr{IP: netIp.Unmap(), Network: network})
 			i++
 		}
-		for _, addr := range str[i : i+1] {
+		for _, addr := range str[i : i+2] {
 			logger.Debug("Client IPs", "addr", addr)
-			ip, err := netip.ParseAddr(addr)
+			ip, network, err := net.ParseCIDR(addr)
+			netIp, _ := netip.AddrFromSlice(ip)
 			if err != nil {
 				// XXX send not OK to server
 				logger.Error("invalid IP from welcome string", "addr", addr)
 				return nil, nil, "", "", errors.New("invalid IP from welcome string: " + addr)
 			}
-			clientIPs = append(clientIPs, utils.Cidr{IP: ip, Network: &net.IPNet{}})
+			clientIPs = append(clientIPs, utils.Cidr{IP: netIp.Unmap(), Network: network})
 			i++
 		}
 		chipherName = str[i]
