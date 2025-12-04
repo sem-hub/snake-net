@@ -22,7 +22,29 @@ import (
 
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
 
-var EngineList = [16]string{"aes-ctr", "aes-cbc", "present", "idea", "twofish", "threefish", "rc6", "serpent", "camellia", "aes-gcm", "aes-ccm", "salsa20", "chacha20", "rabbit", "chacha20poly1305", "xsalsa20poly1305"}
+var EngineList = [18]string{
+	// Block
+	"aes-cbc",
+	"present",
+	"idea",
+	"twofish",
+	"threefish",
+	"rc6",
+	"serpent",
+	"camellia",
+	"gost",
+	// Stream
+	"aes-ctr",
+	"salsa20",
+	"chacha20",
+	"rabbit",
+	// AEAD
+	"aes-gcm",
+	"aes-ccm",
+	"aes-ocb",
+	"chacha20poly1305",
+	"xsalsa20poly1305",
+}
 
 type Secrets struct {
 	SecretsInterface
@@ -54,9 +76,6 @@ func NewSecrets(engine, secret string) *Secrets {
 		ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
 
 	switch engine {
-	case "aes-ctr":
-		s.logger.Info("Using AES-CTR stream cipher")
-		s.Engine = stream.NewAesCtrEngine(s.sharedSecret)
 	case "aes-cbc":
 		s.logger.Info("Using AES-CBC block cipher")
 		s.Engine = block.NewAesCbcEngine(s.sharedSecret)
@@ -81,12 +100,12 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "camellia":
 		s.logger.Info("Using Camellia block cipher")
 		s.Engine = block.NewCamelliaEngine(s.sharedSecret)
-	case "aes-gcm":
-		s.logger.Info("Using AES-GCM AEAD cipher")
-		s.Engine = aead.NewAesGcmEngine(s.sharedSecret)
-	case "aes-ccm":
-		s.logger.Info("Using AES-CCM AEAD cipher")
-		s.Engine = aead.NewAesCcmEngine(s.sharedSecret)
+	case "gost":
+		s.logger.Info("Using GOST block cipher")
+		s.Engine = block.NewGostEngine(s.sharedSecret)
+	case "aes-ctr":
+		s.logger.Info("Using AES-CTR stream cipher")
+		s.Engine = stream.NewAesCtrEngine(s.sharedSecret)
 	case "salsa20":
 		s.logger.Info("Using Salsa20 stream cipher")
 		s.Engine = stream.NewSalsa20Engine(s.sharedSecret)
@@ -96,6 +115,15 @@ func NewSecrets(engine, secret string) *Secrets {
 	case "rabbit":
 		s.logger.Info("Using Rabbit stream cipher")
 		s.Engine = stream.NewRabbitEngine(s.sharedSecret)
+	case "aes-gcm":
+		s.logger.Info("Using AES-GCM AEAD cipher")
+		s.Engine = aead.NewAesGcmEngine(s.sharedSecret)
+	case "aes-ccm":
+		s.logger.Info("Using AES-CCM AEAD cipher")
+		s.Engine = aead.NewAesCcmEngine(s.sharedSecret)
+	case "aes-ocb":
+		s.logger.Info("Using AES-OCB AEAD cipher")
+		s.Engine = aead.NewAesOcbEngine(s.sharedSecret)
 	case "chacha20poly1305":
 		s.logger.Info("Using ChaCha20-Poly1305 AEAD cipher")
 		s.Engine = aead.NewChacha20Poly1305Engine(s.sharedSecret)

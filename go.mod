@@ -12,7 +12,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/pion/dtls/v3 v3.0.7
 	github.com/quic-go/quic-go v0.56.0
+	github.com/rmuch/gost v0.0.0-20220527191022-9035252d8496
 	github.com/schultz-is/go-threefish v1.0.2
+	github.com/starainrt/go-crypto v0.0.0-20250629090207-3b746ebd98c2
 	github.com/vishvananda/netlink v1.3.1
 	github.com/yi-jiayu/PRESENT.go v0.0.0-20180830042344-3a4450fb5c26
 	gitlab.com/go-extension/aes-ccm v0.0.0-20230221065045-e58665ef23c7
