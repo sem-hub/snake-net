@@ -17,7 +17,7 @@ type GostEngine struct {
 func NewGostEngine(sharedSecret []byte) *GostEngine {
 	engine := GostEngine{}
 	engine.BlockEngine = *NewBlockEngine("gost", sharedSecret)
-	engine.SharedSecret = sharedSecret[:16]
+	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("gost")
 	return &engine
 }
