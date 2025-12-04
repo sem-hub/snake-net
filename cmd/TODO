@@ -18,7 +18,6 @@
 * HKDF-SHA256 (https://pkg.go.dev/golang.org/x/crypto/hkdf)
 
 Шифры, которые еще можно добавить:
-* Rabbit (https://pkg.go.dev/golang.org/x/crypto/rabbit)
 * Serpent
 * Camellia
 * GOST28147-89
