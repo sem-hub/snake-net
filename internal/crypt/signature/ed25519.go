@@ -5,24 +5,27 @@ import (
 	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
-
-	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
-	. "github.com/sem-hub/snake-net/internal/interfaces"
+	"github.com/sem-hub/snake-net/internal/interfaces"
 )
 
 type SignatureEd25519 struct {
 	Signature
-	secret SecretsInterface
+	secret interfaces.SecretsInterface
 	logger *slog.Logger
 }
 
-func NewSignatureEd25519(secret SecretsInterface) *SignatureEd25519 {
+func NewSignatureEd25519(secret interfaces.SecretsInterface) *SignatureEd25519 {
 	sig := &SignatureEd25519{
 		Signature: *NewSignature(),
 		secret:    secret,
 	}
+	sig.name = "ed25519"
 	sig.logger = configs.InitLogger("signature-ed25519")
 	return sig
+}
+
+func (s *SignatureEd25519) GetName() string {
+	return s.name
 }
 
 func (s *SignatureEd25519) SignLen() int {

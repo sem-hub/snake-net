@@ -19,10 +19,19 @@ import (
 	"github.com/sem-hub/snake-net/internal/utils"
 )
 
-func Identification(c *clients.Client) ([]utils.Cidr, error) {
-	cidrs := make([]utils.Cidr, 0)
+/*
+Client sends string: "Hello <client-id> <tun-addr1> <tun-addr2>"
 
+	If everything is OK server responds with: "Welcome <server-ip1> <server-ip2> [<client-ip1> <client-ip2>] <cipher-name> [<signature-name>]"
+	Otherwise server responds with error message.
+	If client wants to get IP addresses from server it does not add TUN addresses to the message.
+*/
+func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, string, error) {
 	cfg := configs.GetConfig()
+	serverIPs := make([]utils.Cidr, 0)
+	clientIPs := make([]utils.Cidr, 0)
+	chipherName := ""
+	signatureName := ""
 
 	msg := []byte("Hello " + cfg.ClientId)
 
@@ -32,42 +41,63 @@ func Identification(c *clients.Client) ([]utils.Cidr, error) {
 		prefLen, _ := addr.Network.Mask.Size()
 		msg = append(msg, []byte(addr.IP.Unmap().String()+"/"+strconv.Itoa(prefLen))...)
 	}
+	msg = append(msg, ' ')
+	msg = append(msg, []byte(cfg.Engine)...)
+	msg = append(msg, ' ')
+	msg = append(msg, []byte(cfg.SignEngine)...)
 	logger.Debug("Identification", "msg", string(msg))
 	err := c.Write(&msg, WithPadding)
 	if err != nil {
-		return nil, err
+		return nil, nil, "", "", err
 	}
 
 	msg1, err := c.ReadBuf(HEADER)
 	if err != nil {
-		return nil, err
+		return nil, nil, "", "", err
 	}
 	str := strings.Fields(string(msg1))
 	logger.Debug("ID", "msg", string(msg1))
 
 	if len(str) == 0 {
-		return nil, errors.New("invalid welcome string")
+		return nil, nil, "", "", errors.New("invalid welcome string")
 	}
 	if str[0] == "Welcome" {
-		for _, addr := range str[1:] {
+		i := 1
+		for _, addr := range str[i : i+1] {
 			logger.Debug("Server IPs", "addr", addr)
 			ip, err := netip.ParseAddr(addr)
 			if err != nil {
 				// XXX send not OK to server
 				logger.Error("invalid IP from welcome string", "addr", addr)
-				return nil, errors.New("invalid IP from welcome string: " + addr)
+				return nil, nil, "", "", errors.New("invalid IP from welcome string: " + addr)
 			}
-			cidrs = append(cidrs, utils.Cidr{IP: ip, Network: &net.IPNet{}})
+			serverIPs = append(serverIPs, utils.Cidr{IP: ip, Network: &net.IPNet{}})
+			i++
+		}
+		for _, addr := range str[i : i+1] {
+			logger.Debug("Client IPs", "addr", addr)
+			ip, err := netip.ParseAddr(addr)
+			if err != nil {
+				// XXX send not OK to server
+				logger.Error("invalid IP from welcome string", "addr", addr)
+				return nil, nil, "", "", errors.New("invalid IP from welcome string: " + addr)
+			}
+			clientIPs = append(clientIPs, utils.Cidr{IP: ip, Network: &net.IPNet{}})
+			i++
+		}
+		chipherName = str[i]
+		if len(str) > i+1 {
+			signatureName = str[i+1]
 		}
 	} else {
-		return nil, errors.New("Identification " + string(msg1))
+		return nil, nil, "", "", errors.New("Identification " + string(msg1))
 	}
 	buf := []byte{'O', 'K'}
 	if err := c.Write(&buf, WithPadding); err != nil {
 		logger.Error("Failed to write OK message", "error", err)
-		return nil, err
+		return nil, nil, "", "", err
 	}
-	return cidrs, nil
+	return serverIPs, clientIPs, chipherName, signatureName, nil
 }
 
 func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
@@ -79,7 +109,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	if s == nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}
-	// XXX It's the must be after NewSecrets
+	// XXX We need a basic Engine. It will be change after Identification
 	s.CreateSignatureEngine(configs.GetConfig().SignEngine)
 
 	c.AddSecretsToClient(s)
@@ -87,15 +117,31 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	c.TransportReadLoop(addr)
 	c.CreatePinger()
 
-	serverIPs, err := Identification(c)
+	serverIPs, clientIPs, chipherName, signatureName, err := Identification(c)
 	if err != nil {
 		logger.Error("Identification Fails", "error", err)
 		clients.RemoveClient(addr)
 		return errors.New("Identification failed: " + err.Error())
 	}
-	logger.Info("Identification Success")
+	logger.Info("Server accepted connection", "cipher", chipherName, "signature", signatureName)
 
 	c.AddTunAddressesToClient(serverIPs)
+	cfg.TunAddrs = clientIPs
+	cfg.Engine = chipherName
+	cfg.SignEngine = signatureName
+	// Recreate secrets with new cipher if needed
+	if s.Engine.GetName() != chipherName {
+		sNew := crypt.NewSecrets(chipherName, cfg.Secret)
+		if sNew == nil {
+			logger.Error("Failed to create secrets engine: unknown engine", "cipher", chipherName)
+			clients.RemoveClient(addr)
+			return errors.New("Failed to create secrets engine: unknown engine: " + chipherName)
+		}
+		// XXX It's the must be after NewSecrets
+		sNew.CreateSignatureEngine(signatureName)
+		c.AddSecretsToClient(sNew)
+		logger.Info("Secrets engine changed", "old", s.Engine.GetName(), "new", sNew.Engine.GetName())
+	}
 
 	c.SetClientState(clients.Authenticated)
 

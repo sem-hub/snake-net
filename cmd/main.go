@@ -260,8 +260,8 @@ func main() {
 		cfg.Main.LocalAddr = "::"
 	}
 
-	if len(tunAddr) == 0 {
-		log.Fatal("At least one TUN address (CIDR) is mandatory")
+	if len(tunAddr) == 0 && cfg.Main.Mode == "server" {
+		log.Fatal("At least one TUN address (CIDR) is mandatory for server")
 	}
 
 	if cfg.Main.ClientId == "" && cfg.Main.Mode == "client" {

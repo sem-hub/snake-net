@@ -20,8 +20,13 @@ func NewSignatureHMACSHA256(secret interfaces.SecretsInterface) *SignatureHMACSH
 		Signature: *NewSignature(),
 		secret:    secret,
 	}
+	sig.name = "hmac-sha256"
 	sig.logger = configs.InitLogger("signature-hmac-sha256")
 	return sig
+}
+
+func (s *SignatureHMACSHA256) GetName() string {
+	return s.name
 }
 
 func (s *SignatureHMACSHA256) SignLen() int {

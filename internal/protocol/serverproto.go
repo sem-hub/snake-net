@@ -46,7 +46,7 @@ func checkIP(cidrStr string) error {
 }
 
 func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
-	cidrs := make([]utils.Cidr, 0)
+	clientIPs := make([]utils.Cidr, 0)
 	cfg := configs.GetConfig()
 
 	buf, err := c.ReadBuf(HEADER)
@@ -84,8 +84,8 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 			// IP is good, add it to list
 			ip, network, _ := net.ParseCIDR(clientNet)
 			netIp, _ := netip.AddrFromSlice(ip)
-			cidrs = append(cidrs, utils.Cidr{IP: netIp.Unmap(), Network: network})
-			logger.Debug("Added CIDR from client", "cidrs", cidrs)
+			clientIPs = append(clientIPs, utils.Cidr{IP: netIp.Unmap(), Network: network})
+			logger.Debug("Added CIDR from client", "cidrs", clientIPs)
 		}
 		c.SetClientId(clientId)
 	} else {
@@ -100,11 +100,23 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	}
 
 	logger.Info("IdentifyClient OK", "addr", c.GetClientAddr().String())
+	if len(clientIPs) == 0 {
+		logger.Info("Client requested IPs from server")
+	}
+
 	msg := []byte("Welcome")
 	for _, cidr := range cfg.TunAddrs {
 		msg = append(msg, ' ')
 		msg = append(msg, []byte(cidr.IP.Unmap().String())...)
 	}
+	for _, cidr := range clientIPs {
+		msg = append(msg, ' ')
+		msg = append(msg, []byte(cidr.IP.Unmap().String())...)
+	}
+	msg = append(msg, ' ')
+	msg = append(msg, []byte(c.GetSecrets().Engine.GetName())...)
+	msg = append(msg, ' ')
+	msg = append(msg, []byte(c.GetSecrets().SignatureEngine.GetName())...)
 	logger.Debug("Welcome message", "msg", msg)
 	if err := c.Write(&msg, WithPadding); err != nil {
 		logger.Error("Failed to write Welcome message", "error", err)
@@ -122,8 +134,8 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, error) {
 	if string(buf[:2]) != "OK" {
 		return nil, errors.New("Identification not OK")
 	}
-	logger.Debug("CIDR from client", "cidrs", cidrs)
-	return cidrs, nil
+	logger.Debug("CIDR from client", "cidrs", clientIPs)
+	return clientIPs, nil
 }
 
 func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {

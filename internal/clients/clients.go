@@ -72,6 +72,10 @@ func (c *Client) CreatePinger() {
 	c.pinger = NewPingerForClient(c)
 }
 
+func (c *Client) GetSecrets() *crypt.Secrets {
+	return c.secrets
+}
+
 func (c *Client) GetClientAddr() netip.AddrPort {
 	return c.address
 }

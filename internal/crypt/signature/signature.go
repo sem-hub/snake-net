@@ -9,6 +9,7 @@ import (
 
 type Signature struct {
 	interfaces.SignatureInterface
+	name   string
 	logger *slog.Logger
 }
 

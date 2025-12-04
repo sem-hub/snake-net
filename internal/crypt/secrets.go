@@ -22,13 +22,15 @@ import (
 
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
 
+var EngineList = [16]string{"aes-ctr", "aes-cbc", "present", "idea", "twofish", "threefish", "rc6", "serpent", "camellia", "aes-gcm", "aes-ccm", "salsa20", "chacha20", "rabbit", "chacha20poly1305", "xsalsa20poly1305"}
+
 type Secrets struct {
 	SecretsInterface
 	logger            *slog.Logger
 	sharedSecret      []byte
 	sessionPrivateKey ed25519.PrivateKey
 	sessionPublicKey  ed25519.PublicKey
-	engine            engines.CryptoEngine
+	Engine            engines.CryptoEngine
 	SignatureEngine   SignatureInterface
 }
 
@@ -54,52 +56,52 @@ func NewSecrets(engine, secret string) *Secrets {
 	switch engine {
 	case "aes-ctr":
 		s.logger.Info("Using AES-CTR stream cipher")
-		s.engine = stream.NewAesCtrEngine(s.sharedSecret)
+		s.Engine = stream.NewAesCtrEngine(s.sharedSecret)
 	case "aes-cbc":
 		s.logger.Info("Using AES-CBC block cipher")
-		s.engine = block.NewAesCbcEngine(s.sharedSecret)
+		s.Engine = block.NewAesCbcEngine(s.sharedSecret)
 	case "present":
 		s.logger.Info("Using Present block cipher")
-		s.engine = block.NewPresentEngine(s.sharedSecret)
+		s.Engine = block.NewPresentEngine(s.sharedSecret)
 	case "idea":
 		s.logger.Info("Using Idea block cipher")
-		s.engine = block.NewIdeaEngine(s.sharedSecret)
+		s.Engine = block.NewIdeaEngine(s.sharedSecret)
 	case "twofish":
 		s.logger.Info("Using Twofish block cipher")
-		s.engine = block.NewTwofishEngine(s.sharedSecret)
+		s.Engine = block.NewTwofishEngine(s.sharedSecret)
 	case "threefish":
 		s.logger.Info("Using Threefish block cipher")
-		s.engine = block.NewThreefishEngine(s.sharedSecret)
+		s.Engine = block.NewThreefishEngine(s.sharedSecret)
 	case "rc6":
 		s.logger.Info("Using RC6 block cipher")
-		s.engine = block.NewRc6Engine(s.sharedSecret)
+		s.Engine = block.NewRc6Engine(s.sharedSecret)
 	case "serpent":
 		s.logger.Info("Using Serpent block cipher")
-		s.engine = block.NewSerpentEngine(s.sharedSecret)
+		s.Engine = block.NewSerpentEngine(s.sharedSecret)
 	case "camellia":
 		s.logger.Info("Using Camellia block cipher")
-		s.engine = block.NewCamelliaEngine(s.sharedSecret)
+		s.Engine = block.NewCamelliaEngine(s.sharedSecret)
 	case "aes-gcm":
 		s.logger.Info("Using AES-GCM AEAD cipher")
-		s.engine = aead.NewAesGcmEngine(s.sharedSecret)
+		s.Engine = aead.NewAesGcmEngine(s.sharedSecret)
 	case "aes-ccm":
 		s.logger.Info("Using AES-CCM AEAD cipher")
-		s.engine = aead.NewAesCcmEngine(s.sharedSecret)
+		s.Engine = aead.NewAesCcmEngine(s.sharedSecret)
 	case "salsa20":
 		s.logger.Info("Using Salsa20 stream cipher")
-		s.engine = stream.NewSalsa20Engine(s.sharedSecret)
+		s.Engine = stream.NewSalsa20Engine(s.sharedSecret)
 	case "chacha20":
 		s.logger.Info("Using ChaCha20 stream cipher")
-		s.engine = stream.NewChacha20Engine(s.sharedSecret)
+		s.Engine = stream.NewChacha20Engine(s.sharedSecret)
 	case "rabbit":
 		s.logger.Info("Using Rabbit stream cipher")
-		s.engine = stream.NewRabbitEngine(s.sharedSecret)
+		s.Engine = stream.NewRabbitEngine(s.sharedSecret)
 	case "chacha20poly1305":
 		s.logger.Info("Using ChaCha20-Poly1305 AEAD cipher")
-		s.engine = aead.NewChacha20Poly1305Engine(s.sharedSecret)
+		s.Engine = aead.NewChacha20Poly1305Engine(s.sharedSecret)
 	case "xsalsa20poly1305":
 		s.logger.Info("Using XSalsa20-Poly1305 AEAD cipher")
-		s.engine = aead.NewXsalsa20Poly1305Engine(s.sharedSecret)
+		s.Engine = aead.NewXsalsa20Poly1305Engine(s.sharedSecret)
 	default:
 		s.logger.Info("Unknown cipher")
 		return nil
@@ -165,7 +167,7 @@ func (s *Secrets) EncryptDecryptNoIV(data []byte) ([]byte, error) {
 }
 
 func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error) {
-	if s.engine.GetType() == "aead" {
+	if s.Engine.GetType() == "aead" {
 		flags |= NoSignature
 	}
 	buf := make([]byte, 0)
@@ -179,7 +181,7 @@ func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error)
 	// decrypt and verify the packet or just verify if NoEncryptionCmd flag set
 	if (flags & NoEncryption) == 0 {
 		s.logger.Debug("Decrypting")
-		data, err := s.engine.Decrypt(msg[:n-signLen])
+		data, err := s.Engine.Decrypt(msg[:n-signLen])
 		if err != nil {
 			s.logger.Error("DecryptAndVerify error", "error", err)
 			return nil, err
@@ -200,14 +202,14 @@ func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error)
 }
 
 func (s *Secrets) SignAndEncrypt(msg []byte, flags Cmd) ([]byte, error) {
-	if s.engine.GetType() == "aead" {
+	if s.Engine.GetType() == "aead" {
 		flags |= NoSignature
 	}
 
 	buf := make([]byte, 0)
 	if (flags & NoEncryption) == 0 {
 		s.logger.Debug("client Write encrypting", "len", len(msg))
-		data, err := s.engine.Encrypt(msg)
+		data, err := s.Engine.Encrypt(msg)
 		if err != nil {
 			return nil, err
 		}
