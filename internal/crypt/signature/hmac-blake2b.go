@@ -27,14 +27,14 @@ func (s *SignatureHMACBlake) GetName() string {
 }
 
 func (s *SignatureHMACBlake) SignLen() int {
-	return 32
+	return 64
 }
 
 func (s *SignatureHMACBlake) Verify(msg []byte, sig []byte) bool {
 	s.logger.Debug("Verify", "msg len", len(msg), "siglen", len(sig))
-	hash, err := blake2b.New256(s.sharedSecret)
+	hash, err := blake2b.New512(s.sharedSecret)
 	if err != nil {
-		s.logger.Error("blake2b.New256 error", "error", err)
+		s.logger.Error("blake2b.New512", "error", err)
 		return false
 	}
 	hash.Write(msg)
@@ -44,9 +44,9 @@ func (s *SignatureHMACBlake) Verify(msg []byte, sig []byte) bool {
 
 func (s *SignatureHMACBlake) Sign(msg []byte) []byte {
 	s.logger.Debug("Sign", "msglen", len(msg))
-	hash, err := blake2b.New256(s.sharedSecret)
+	hash, err := blake2b.New512(s.sharedSecret)
 	if err != nil {
-		s.logger.Error("blake2b.New256 error", "error", err)
+		s.logger.Error("blake2b.New512", "error", err)
 		return nil
 	}
 	hash.Write(msg)
