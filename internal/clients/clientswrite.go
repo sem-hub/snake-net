@@ -73,7 +73,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	data[7] = byte((crc >> 8) & 0xff)
 	data[8] = byte(crc & 0xff)
 
-	// Encrypt header if transport is not Encrypted. Must not change buf size!
+	// Encrypt header if transport is not Encrypted. Must not change message size!
 	if !c.t.IsEncrypted() {
 		encryptData, err := c.secrets.EncryptDecryptNoIV(data)
 		if err != nil {

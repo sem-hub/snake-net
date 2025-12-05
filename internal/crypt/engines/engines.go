@@ -1,6 +1,8 @@
 package engines
 
-var EngineList = [18]string{
+import "slices"
+
+var EngineList = []string{
 	// Block
 	"aes-cbc",
 	"present",
@@ -41,4 +43,8 @@ func NewEngineData(Name, Type string) *EngineData {
 		Name: Name,
 		Type: Type,
 	}
+}
+
+func IsEngineSupported(engine string) bool {
+	return slices.Contains(EngineList, engine)
 }

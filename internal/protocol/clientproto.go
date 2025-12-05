@@ -132,12 +132,12 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	if s.Engine.GetName() != chipherName {
 		sNew, err := crypt.NewSecrets(chipherName, cfg.Secret, signatureName)
 		if err != nil {
-			logger.Error("Failed to create secrets engine: unknown engine", "cipher", chipherName)
+			logger.Error("Failed to create secrets engine", "err", err)
 			clients.RemoveClient(addr)
-			return errors.New("Failed to create secrets engine: unknown engine: " + chipherName)
+			return errors.New("Failed to create secrets engine: " + err.Error())
 		}
-		c.AddSecretsToClient(sNew)
 		logger.Info("Secrets engine changed", "old", s.Engine.GetName(), "new", sNew.Engine.GetName())
+		c.AddSecretsToClient(sNew)
 	}
 
 	c.SetClientState(clients.Authenticated)

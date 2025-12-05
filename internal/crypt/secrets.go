@@ -112,6 +112,9 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	case "hmac-sha256":
 		s.logger.Info("Using HMAC-SHA256 signature engine")
 		s.SignatureEngine = signature.NewSignatureHMACSHA256(s.sharedSecret)
+	case "hmac-blake2b":
+		s.logger.Info("Using HMAC-Blake2b signature engine")
+		s.SignatureEngine = signature.NewSignatureHMACBlake(s.sharedSecret)
 	default:
 		s.logger.Error("Unknown signature engine: " + engine)
 		return nil, errors.New("unknown signature engine: " + signEngine)

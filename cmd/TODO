@@ -1,7 +1,6 @@
 * Логи сделать красивыми и цветными (https://habr.com/ru/companies/slurm/articles/798207/)
 * Ревизия всех логов
 * По хорошему, при получении retransmit пакета, надо снижать packet rate
-* Проверка названий шифров на стороне клиента и сервера через slice.contains()
 * Через некоторое время пересогласование ключей.
 * Улучшить stream cipher engines, чтобы ножно было использовать block ciphers в режиме CTR
 
@@ -12,7 +11,6 @@
 * Сделать поддержку прокси (SOCKS5, HTTP CONNECT)
 
 Подписи:
-* Blake2b можно использовать для HMAC. (https://pkg.go.dev/golang.org/x/crypto/blake2b)
 * HKDF-SHA256 (https://pkg.go.dev/golang.org/x/crypto/hkdf)
  
 Шифрование с аутентификацией (AEAD):

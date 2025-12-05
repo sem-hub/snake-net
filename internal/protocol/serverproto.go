@@ -193,12 +193,12 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	if s.Engine.GetName() != engineName {
 		sNew, err := crypt.NewSecrets(engineName, cfg.Secret, signatureName)
 		if err != nil {
-			logger.Error("Failed to create secrets engine: unknown engine", "cipher", engineName)
+			logger.Error("Failed to create secrets engine", "err", err)
 			clients.RemoveClient(addr)
 			return
 		}
-		c.AddSecretsToClient(sNew)
 		logger.Info("Secrets engine changed", "old", s.Engine.GetName(), "new", sNew.Engine.GetName())
+		c.AddSecretsToClient(sNew)
 	}
 	c.AddTunAddressesToClient(clientTunIPs)
 

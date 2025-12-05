@@ -3,9 +3,16 @@ package signature
 import (
 	"crypto/ed25519"
 	"log/slog"
+	"slices"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
+
+var SignatureList = []string{
+	"hmac-sha256",
+	"hmac-blake2b",
+	"ed25519",
+}
 
 type SignatureInterface interface {
 	GetName() string
@@ -54,4 +61,8 @@ func (s *Signature) GetPrivateKey() *ed25519.PrivateKey {
 
 func (s *Signature) GetPublicKey() *ed25519.PublicKey {
 	return &s.sessionPublicKey
+}
+
+func IsEngineSupported(engine string) bool {
+	return slices.Contains(SignatureList, engine)
 }
