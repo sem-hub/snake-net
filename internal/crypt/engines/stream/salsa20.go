@@ -39,6 +39,7 @@ func (e *Salsa20Engine) Encrypt(data []byte) ([]byte, error) {
 	// copy nonce to output buf
 	copy(bufOut[:8], nonce)
 
+	// secret must be array not slice
 	var secret [32]byte
 	copy(secret[:], e.SharedSecret)
 	salsa20.XORKeyStream(bufOut[8:], data, nonce, &secret)
@@ -55,6 +56,7 @@ func (e *Salsa20Engine) Decrypt(data []byte) ([]byte, error) {
 
 	e.logger.Debug("Decrypt", "decryptedlen", len(data))
 	bufOut := make([]byte, len(data))
+	// secret must be array not slice
 	var secret [32]byte
 	copy(secret[:], e.SharedSecret)
 	salsa20.XORKeyStream(bufOut, data, nonce, &secret)

@@ -23,31 +23,36 @@ func NewStreamEngine(name string, sharedSecret []byte) *StreamEngine {
 	return &engine
 }
 
-func (e *StreamEngine) Encrypt(block cipher.Block, newStream func(cipher.Block, []byte) cipher.Stream, data []byte) ([]byte, error) {
+func (e *StreamEngine) StreamEncrypt(addBlockSize int, newStream func([]byte) (cipher.Stream, error), data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt stream", "datalen", len(data))
 
-	iv := make([]byte, block.BlockSize())
+	iv := make([]byte, addBlockSize)
 	rand.Read(iv)
-	stream := newStream(block, iv)
+	stream, err := newStream(iv)
+	if err != nil {
+		return nil, err
+	}
 
 	bufOut := make([]byte, len(data)+len(iv))
 	// copy iv to output buf
-	copy(bufOut[:block.BlockSize()], iv)
+	copy(bufOut[:addBlockSize], iv)
 
-	stream.XORKeyStream(bufOut[block.BlockSize():], data)
+	stream.XORKeyStream(bufOut[addBlockSize:], data)
 	e.logger.Debug("Encrypt stream", "encryptedlen", len(bufOut))
 	return bufOut, nil
 }
 
-func (e *StreamEngine) Decrypt(block cipher.Block, newStream func(cipher.Block, []byte) cipher.Stream, data []byte) ([]byte, error) {
+func (e *StreamEngine) StreamDecrypt(addBlockSize int, newStream func([]byte) (cipher.Stream, error), data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt stream", "datalen", len(data))
 
-	iv := data[:block.BlockSize()]
-	stream := newStream(block, iv)
-
+	iv := data[:addBlockSize]
+	stream, err := newStream(iv)
+	if err != nil {
+		return nil, err
+	}
 	bufOut := make([]byte, len(data)-len(iv))
 
-	stream.XORKeyStream(bufOut, data[block.BlockSize():])
+	stream.XORKeyStream(bufOut, data[addBlockSize:])
 	e.logger.Debug("Decrypt stream", "decryptedlen", len(bufOut))
 
 	return bufOut, nil

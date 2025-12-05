@@ -1,5 +1,29 @@
 package engines
 
+var EngineList = [18]string{
+	// Block
+	"aes-cbc",
+	"present",
+	"idea",
+	"twofish",
+	"threefish",
+	"rc6",
+	"serpent",
+	"camellia",
+	"gost",
+	// Stream
+	"aes-ctr",
+	"salsa20",
+	"chacha20",
+	"rabbit",
+	// AEAD
+	"aes-gcm",
+	"aes-ccm",
+	"aes-ocb",
+	"chacha20poly1305",
+	"xsalsa20poly1305",
+}
+
 type EngineData struct {
 	Name string
 	Type string

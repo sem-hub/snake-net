@@ -29,24 +29,20 @@ func (e *AesCtrEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-func (e *AesCtrEngine) NewCipher(secret []byte) (cipher.Block, error) {
-	return aes.NewCipher(secret)
+func (e *AesCtrEngine) NewStream(iv []byte) (cipher.Stream, error) {
+	block, err := aes.NewCipher(e.SharedSecret)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewCTR(block, iv), nil
 }
 
 func (e *AesCtrEngine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.StreamEngine.Encrypt(block, cipher.NewCTR, data)
+	return e.StreamEngine.StreamEncrypt(aes.BlockSize, e.NewStream, data)
 }
 
 func (e *AesCtrEngine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.StreamEngine.Decrypt(block, cipher.NewCTR, data)
+	return e.StreamEngine.StreamDecrypt(aes.BlockSize, e.NewStream, data)
 }
