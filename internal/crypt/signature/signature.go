@@ -5,11 +5,22 @@ import (
 	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/sem-hub/snake-net/internal/interfaces"
 )
 
+type SignatureInterface interface {
+	GetName() string
+	SignLen() int
+	Verify(msg []byte, sig []byte) bool
+	Sign(msg []byte) []byte
+	SetSharedSecret(secret []byte)
+	SetPublicKey(pub ed25519.PublicKey)
+	SetPrivateKey(priv ed25519.PrivateKey)
+	GetPrivateKey() *ed25519.PrivateKey
+	GetPublicKey() *ed25519.PublicKey
+}
+
 type Signature struct {
-	interfaces.SignatureInterface
+	SignatureInterface
 	name              string
 	logger            *slog.Logger
 	sessionPrivateKey ed25519.PrivateKey

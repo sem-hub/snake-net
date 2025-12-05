@@ -23,11 +23,10 @@ import (
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
 
 type Secrets struct {
-	SecretsInterface
 	logger          *slog.Logger
 	sharedSecret    []byte
 	Engine          engines.CryptoEngine
-	SignatureEngine SignatureInterface
+	SignatureEngine signature.SignatureInterface
 }
 
 var logger *slog.Logger
