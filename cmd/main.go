@@ -19,6 +19,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
+	"github.com/sem-hub/snake-net/internal/crypt/signature"
 	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
 	"github.com/sem-hub/snake-net/internal/protocol"
@@ -167,6 +169,9 @@ func main() {
 		if cipher != "" {
 			cfg.Crypt.Engine = cipher
 		}
+		if signEngine != "" {
+			cfg.Crypt.SignEngine = signEngine
+		}
 		if cert != "" {
 			cfg.Tls.CertFile = cert
 		}
@@ -258,6 +263,14 @@ func main() {
 	}
 	if cfg.Main.LocalAddr == "" {
 		cfg.Main.LocalAddr = "::"
+	}
+
+	if !engines.IsEngineSupported(cfg.Crypt.Engine) {
+		log.Fatal("Unsupported cryptographic engine: " + cfg.Crypt.Engine)
+	}
+
+	if !signature.IsEngineSupported(cfg.Crypt.SignEngine) {
+		log.Fatal("Unsupported signature engine: " + cfg.Crypt.SignEngine)
 	}
 
 	if len(tunAddr) == 0 && cfg.Main.Mode == "server" {
