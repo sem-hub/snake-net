@@ -9,7 +9,8 @@ remote_port = 12345
 attempts = 1                    # 0 means infinity
 retry_delay = 5
 [crypt]
-engine = "aes"
+engine = "aes-cbc"
+sign_engine = "ed25519"
 [tls]
 cert_file = ""
 key_file = ""
@@ -25,3 +26,4 @@ route = "Info"
 crypt = "Info"
 clients = "Info"
 tun = "info"
+transport = "info"
