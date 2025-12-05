@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	"github.com/ebfe/estream/rabbit"
-	"golang.org/x/crypto/chacha20"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
@@ -43,7 +42,7 @@ func (e *RabbitEngine) Encrypt(data []byte) ([]byte, error) {
 	}
 	bufOut := make([]byte, len(iv)+len(data))
 	// copy nonce to output buf
-	copy(bufOut[:chacha20.NonceSize], iv)
+	copy(bufOut[:ivSize], iv)
 
 	cipher.XORKeyStream(bufOut[ivSize:], data)
 	e.logger.Debug("Encrypt", "encryptedlen", len(bufOut))

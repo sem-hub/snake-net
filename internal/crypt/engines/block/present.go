@@ -30,24 +30,16 @@ func (e *PresentEngine) GetType() string {
 }
 
 // Only 80 or 128 bits key size supported. Using 128 bits
-func (e *PresentEngine) NewCipher(secret []byte) (cipher.Block, error) {
-	return present.NewCipher(secret)
+func (e *PresentEngine) NewCipher() (cipher.Block, error) {
+	return present.NewCipher(e.SharedSecret)
 }
 
 func (e *PresentEngine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Encrypt(block, cipher.NewCBCEncrypter, data)
+	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *PresentEngine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Decrypt(block, cipher.NewCBCDecrypter, data)
+	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

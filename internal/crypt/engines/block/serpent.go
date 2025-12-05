@@ -29,24 +29,16 @@ func (e *SerpentEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-func (e *SerpentEngine) NewCipher(secret []byte) (cipher.Block, error) {
-	return serpent.NewCipher(secret)
+func (e *SerpentEngine) NewCipher() (cipher.Block, error) {
+	return serpent.NewCipher(e.SharedSecret)
 }
 
 func (e *SerpentEngine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Encrypt(block, cipher.NewCBCEncrypter, data)
+	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *SerpentEngine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Decrypt(block, cipher.NewCBCDecrypter, data)
+	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

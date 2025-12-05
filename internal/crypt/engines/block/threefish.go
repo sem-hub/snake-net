@@ -9,9 +9,12 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 )
 
+const tweakSize = 16
+
 type ThreefishEngine struct {
 	BlockEngine
 	logger *slog.Logger
+	tweak  []byte
 }
 
 func NewThreefishEngine(sharedSecret []byte) *ThreefishEngine {
@@ -30,33 +33,25 @@ func (e *ThreefishEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-func (e *ThreefishEngine) NewCipher(secret, tweak []byte) (cipher.Block, error) {
-	return threefish.New256(secret, tweak)
+func (e *ThreefishEngine) NewCipher() (cipher.Block, error) {
+	return threefish.New256(e.SharedSecret, e.tweak)
 }
 
 func (e *ThreefishEngine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt", "datalen", len(data))
-	tweak := make([]byte, 16)
-	rand.Read(tweak)
-	block, err := e.NewCipher(e.SharedSecret, tweak)
+	e.tweak = make([]byte, tweakSize)
+	rand.Read(e.tweak)
+	chiperData, err := e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 	if err != nil {
 		return nil, err
 	}
-	chiperData, err := e.BlockEngine.Encrypt(block, cipher.NewCBCEncrypter, data)
-	if err != nil {
-		return nil, err
-	}
-	chiperData = append(tweak, chiperData...)
+	chiperData = append(e.tweak, chiperData...)
 	return chiperData, nil
 }
 
 func (e *ThreefishEngine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt", "datalen", len(data))
-	tweak := data[:16]
-	data = data[16:]
-	block, err := e.NewCipher(e.SharedSecret, tweak)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Decrypt(block, cipher.NewCBCDecrypter, data)
+	e.tweak = data[:tweakSize]
+	data = data[tweakSize:]
+	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

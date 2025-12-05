@@ -30,24 +30,16 @@ func (e *AesCbcEngine) GetType() string {
 }
 
 // Only 80 or 128 bits key size supported. Using 128 bits
-func (e *AesCbcEngine) NewCipher(secret []byte) (cipher.Block, error) {
-	return aes.NewCipher(secret)
+func (e *AesCbcEngine) NewCipher() (cipher.Block, error) {
+	return aes.NewCipher(e.SharedSecret)
 }
 
 func (e *AesCbcEngine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Encrypt(block, cipher.NewCBCEncrypter, data)
+	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *AesCbcEngine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Decrypt(block, cipher.NewCBCDecrypter, data)
+	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

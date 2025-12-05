@@ -25,40 +25,51 @@ func NewBlockEngine(name string, sharedSecret []byte) *BlockEngine {
 	return &engine
 }
 
-func (e *BlockEngine) Encrypt(block cipher.Block, newBlock func(cipher.Block, []byte) cipher.BlockMode, data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt block", "datalen", len(data))
+func (e *BlockEngine) BlockEncrypt(NewCipher func() (cipher.Block, error), data []byte) ([]byte, error) {
+	e.logger.Debug("BlockEncrypt", "datalen", len(data))
+
+	block, err := NewCipher()
+	if err != nil {
+		return nil, err
+	}
 
 	padding := block.BlockSize() - len(data)%block.BlockSize()
 	padData := append(data, bytes.Repeat([]byte{byte(padding)}, padding)...)
 
 	iv := make([]byte, block.BlockSize())
 	rand.Read(iv)
-	blockCipher := newBlock(block, iv)
+	blockCipher := cipher.NewCBCEncrypter(block, iv)
 
 	bufOut := make([]byte, len(padData)+len(iv))
 	// copy iv to output buf
 	copy(bufOut[:block.BlockSize()], iv)
 
 	blockCipher.CryptBlocks(bufOut[block.BlockSize():], padData)
-	e.logger.Debug("Encrypt block", "encryptedlen", len(bufOut))
+	e.logger.Debug("BlockEncrypt", "encryptedlen", len(bufOut))
 	return bufOut, nil
 }
 
-func (e *BlockEngine) Decrypt(block cipher.Block, newBlock func(cipher.Block, []byte) cipher.BlockMode, data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt block", "datalen", len(data))
+func (e *BlockEngine) BlockDecrypt(NewCipher func() (cipher.Block, error), data []byte) ([]byte, error) {
+	e.logger.Debug("BlockDecrypt", "datalen", len(data))
+
+	block, err := NewCipher()
+	if err != nil {
+		return nil, err
+	}
+
 	if len(data) < block.BlockSize() {
 		e.logger.Error("Data too short for this cipher", "datalen", len(data), "blocksize", block.BlockSize())
 		return nil, errors.New("data is too short for this block cipher")
 	}
 
 	iv := data[:block.BlockSize()]
-	blockCipher := newBlock(block, iv)
+	blockCipher := cipher.NewCBCDecrypter(block, iv)
 
 	bufOut := make([]byte, len(data)-len(iv))
 
-	e.logger.Debug("before Decrypt block", "buflen", len(bufOut))
+	e.logger.Debug("before BlockDecrypt", "buflen", len(bufOut))
 	blockCipher.CryptBlocks(bufOut, data[block.BlockSize():])
-	e.logger.Debug("Decrypt block", "decryptedlen", len(bufOut))
+	e.logger.Debug("BlockDecrypt", "decryptedlen", len(bufOut))
 
 	// Unpad
 	padding := int(bufOut[len(bufOut)-1])

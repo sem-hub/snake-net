@@ -30,24 +30,16 @@ func (e *GostEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-func (e *GostEngine) NewCipher(secret []byte) (cipher.Block, error) {
-	return gost.NewBlockCipher(secret, gost.SboxIdtc26gost28147paramZ)
+func (e *GostEngine) NewCipher() (cipher.Block, error) {
+	return gost.NewBlockCipher(e.SharedSecret, gost.SboxIdtc26gost28147paramZ)
 }
 
 func (e *GostEngine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Encrypt(block, cipher.NewCBCEncrypter, data)
+	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *GostEngine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Decrypt(block, cipher.NewCBCDecrypter, data)
+	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

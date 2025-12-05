@@ -29,24 +29,16 @@ func (e *IdeaEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-func (e *IdeaEngine) NewCipher(secret []byte) (cipher.Block, error) {
-	return idea.NewCipher(secret)
+func (e *IdeaEngine) NewCipher() (cipher.Block, error) {
+	return idea.NewCipher(e.SharedSecret)
 }
 
 func (e *IdeaEngine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Encrypt(block, cipher.NewCBCEncrypter, data)
+	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *IdeaEngine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt", "datalen", len(data))
-	block, err := e.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.BlockEngine.Decrypt(block, cipher.NewCBCDecrypter, data)
+	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }
