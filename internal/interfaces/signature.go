@@ -7,6 +7,11 @@ type SignatureInterface interface {
 	Verify(msg []byte, sig []byte) bool
 	SignLen() int
 	GetName() string
+	SetPublicKey(pub ed25519.PublicKey)
+	SetPrivateKey(priv ed25519.PrivateKey)
+	SetSharedSecret(secret []byte)
+	GetPublicKey() *ed25519.PublicKey
+	GetPrivateKey() *ed25519.PrivateKey
 }
 
 type SecretsInterface interface {

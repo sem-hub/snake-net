@@ -24,17 +24,15 @@ const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
 
 type Secrets struct {
 	SecretsInterface
-	logger            *slog.Logger
-	sharedSecret      []byte
-	sessionPrivateKey ed25519.PrivateKey
-	sessionPublicKey  ed25519.PublicKey
-	Engine            engines.CryptoEngine
-	SignatureEngine   SignatureInterface
+	logger          *slog.Logger
+	sharedSecret    []byte
+	Engine          engines.CryptoEngine
+	SignatureEngine SignatureInterface
 }
 
 var logger *slog.Logger
 
-func NewSecrets(engine, secret string) *Secrets {
+func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	s := Secrets{}
 	logger = configs.InitLogger("crypt")
 	s.logger = logger
@@ -48,8 +46,6 @@ func NewSecrets(engine, secret string) *Secrets {
 	}
 	sum256 := sha256.Sum256([]byte(secret))
 	copy(s.sharedSecret, sum256[:])
-	s.sessionPublicKey, s.sessionPrivateKey, _ =
-		ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
 
 	switch engine {
 	case "aes-cbc":
@@ -108,44 +104,32 @@ func NewSecrets(engine, secret string) *Secrets {
 		s.Engine = aead.NewXsalsa20Poly1305Engine(s.sharedSecret)
 	default:
 		s.logger.Info("Unknown cipher")
-		return nil
+		return nil, errors.New("unknown cipher: " + engine)
 	}
-	return &s
-}
-
-func (s *Secrets) CreateSignatureEngine(engine string) error {
-	switch engine {
+	switch signEngine {
 	case "ed25519":
 		s.logger.Info("Using Ed25519 signature engine")
-		s.SignatureEngine = signature.NewSignatureEd25519(s)
+		s.SignatureEngine = signature.NewSignatureEd25519(s.sharedSecret)
 	case "hmac-sha256":
 		s.logger.Info("Using HMAC-SHA256 signature engine")
-		s.SignatureEngine = signature.NewSignatureHMACSHA256(s)
+		s.SignatureEngine = signature.NewSignatureHMACSHA256(s.sharedSecret)
 	default:
 		s.logger.Error("Unknown signature engine: " + engine)
-		return errors.New("unknown signature engine: " + engine)
+		return nil, errors.New("unknown signature engine: " + signEngine)
 	}
-	return nil
-}
+	sessionPublicKey, sessionPrivateKey, err := ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
+	if err != nil {
+		s.logger.Error("Failed to generate session keys", "error", err)
+		return nil, err
+	}
+	s.SignatureEngine.SetPublicKey(sessionPublicKey)
+	s.SignatureEngine.SetPrivateKey(sessionPrivateKey)
 
-func (s *Secrets) SetPublicKey(pub ed25519.PublicKey) {
-	s.sessionPublicKey = pub
-}
-
-func (s *Secrets) SetPrivateKey(priv ed25519.PrivateKey) {
-	s.sessionPrivateKey = priv
+	return &s, nil
 }
 
 func (s *Secrets) SetSharedSecret(secret []byte) {
 	s.sharedSecret = secret
-}
-
-func (s *Secrets) GetPublicKey() *ed25519.PublicKey {
-	return &s.sessionPublicKey
-}
-
-func (s *Secrets) GetPrivateKey() *ed25519.PrivateKey {
-	return &s.sessionPrivateKey
 }
 
 func (s *Secrets) GetSharedSecret() []byte {

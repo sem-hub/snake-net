@@ -166,12 +166,10 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	cfg := configs.GetConfig()
 
 	c := clients.NewClient(addr, t)
-	s := crypt.NewSecrets(configs.GetConfig().Engine, cfg.Secret)
-	if s == nil {
+	s, err := crypt.NewSecrets(configs.GetConfig().Engine, cfg.Secret, configs.GetConfig().SignEngine)
+	if err != nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}
-	// XXX It's the must be after NewSecrets
-	s.CreateSignatureEngine(configs.GetConfig().SignEngine)
 	c.AddSecretsToClient(s)
 	c.TransportReadLoop(addr)
 
@@ -193,14 +191,12 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	cfg.SignEngine = signatureName
 	// Recreate secrets with new cipher if needed
 	if s.Engine.GetName() != engineName {
-		sNew := crypt.NewSecrets(engineName, cfg.Secret)
-		if sNew == nil {
+		sNew, err := crypt.NewSecrets(engineName, cfg.Secret, signatureName)
+		if err != nil {
 			logger.Error("Failed to create secrets engine: unknown engine", "cipher", engineName)
 			clients.RemoveClient(addr)
 			return
 		}
-		// XXX It's the must be after NewSecrets
-		sNew.CreateSignatureEngine(signatureName)
 		c.AddSecretsToClient(sNew)
 		logger.Info("Secrets engine changed", "old", s.Engine.GetName(), "new", sNew.Engine.GetName())
 	}
