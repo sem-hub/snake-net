@@ -29,28 +29,20 @@ func (e *AesGcmEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-func (e *AesGcmEngine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Seal", "datalen", len(data))
+func (e *AesGcmEngine) NewAEAD() (cipher.AEAD, error) {
 	block, err := aes.NewCipher(e.SharedSecret)
 	if err != nil {
 		return nil, err
 	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	return e.AeadEngine.Encrypt(aead, data)
+	return cipher.NewGCM(block)
+}
+
+func (e *AesGcmEngine) Encrypt(data []byte) ([]byte, error) {
+	e.logger.Debug("Seal", "datalen", len(data))
+	return e.AeadEngine.Seal(e.NewAEAD, data)
 }
 
 func (e *AesGcmEngine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Open", "datalen", len(data))
-	block, err := aes.NewCipher(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	return e.AeadEngine.Decrypt(aead, data)
+	return e.AeadEngine.Open(e.NewAEAD, data)
 }

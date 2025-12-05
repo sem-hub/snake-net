@@ -1,6 +1,7 @@
 package aead
 
 import (
+	"crypto/cipher"
 	"log/slog"
 
 	"golang.org/x/crypto/chacha20poly1305"
@@ -29,20 +30,16 @@ func (e *Chacha20Poly1305Engine) GetType() string {
 	return e.EngineData.Type
 }
 
+func (e *Chacha20Poly1305Engine) NewAEAD() (cipher.AEAD, error) {
+	return chacha20poly1305.New(e.SharedSecret)
+}
+
 func (e *Chacha20Poly1305Engine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Seal", "datalen", len(data))
-	aead, err := chacha20poly1305.New(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.AeadEngine.Encrypt(aead, data)
+	return e.AeadEngine.Seal(e.NewAEAD, data)
 }
 
 func (e *Chacha20Poly1305Engine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Open", "datalen", len(data))
-	aead, err := chacha20poly1305.New(e.SharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return e.AeadEngine.Decrypt(aead, data)
+	return e.AeadEngine.Open(e.NewAEAD, data)
 }

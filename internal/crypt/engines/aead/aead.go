@@ -24,9 +24,12 @@ func NewAeadEngine(name string, sharedSecret []byte) *AeadEngine {
 	return &engine
 }
 
-func (e *AeadEngine) Encrypt(aead cipher.AEAD, data []byte) ([]byte, error) {
+func (e *AeadEngine) Seal(NewAEAD func() (cipher.AEAD, error), data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt AEAD", "datalen", len(data))
-
+	aead, err := NewAEAD()
+	if err != nil {
+		return nil, err
+	}
 	nonce := make([]byte, aead.NonceSize())
 	rand.Read(nonce)
 	bufOut := aead.Seal(nil, nonce, data, nil)
@@ -36,9 +39,12 @@ func (e *AeadEngine) Encrypt(aead cipher.AEAD, data []byte) ([]byte, error) {
 	return bufOut, nil
 }
 
-func (e *AeadEngine) Decrypt(aead cipher.AEAD, data []byte) ([]byte, error) {
+func (e *AeadEngine) Open(NewAEAD func() (cipher.AEAD, error), data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt AEAD", "datalen", len(data))
-
+	aead, err := NewAEAD()
+	if err != nil {
+		return nil, err
+	}
 	nonceSize := aead.NonceSize()
 	e.logger.Debug("Decrypt AEAD", "noncesize", nonceSize)
 	if len(data) < nonceSize {

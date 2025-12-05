@@ -65,14 +65,16 @@ func (e *Xsalsa20Poly1305Engine) GetType() string {
 	return e.EngineData.Type
 }
 
+func (e *Xsalsa20Poly1305Engine) NewAEAD() (cipher.AEAD, error) {
+	return NewXsalsa20Poly1305(e.SharedSecret), nil
+}
+
 func (e *Xsalsa20Poly1305Engine) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Seal", "datalen", len(data))
-	aead := NewXsalsa20Poly1305(e.SharedSecret)
-	return e.AeadEngine.Encrypt(aead, data)
+	return e.AeadEngine.Seal(e.NewAEAD, data)
 }
 
 func (e *Xsalsa20Poly1305Engine) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Open", "datalen", len(data))
-	aead := NewXsalsa20Poly1305(e.SharedSecret)
-	return e.AeadEngine.Decrypt(aead, data)
+	return e.AeadEngine.Open(e.NewAEAD, data)
 }
