@@ -3,7 +3,6 @@ package block
 import (
 	"crypto/cipher"
 	"errors"
-	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"golang.org/x/crypto/twofish"
@@ -12,7 +11,6 @@ import (
 type TwofishEngine struct {
 	BlockEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 func NewTwofishEngine(sharedSecret []byte, size int) (*TwofishEngine, error) {

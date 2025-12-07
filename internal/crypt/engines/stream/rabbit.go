@@ -2,7 +2,6 @@ package stream
 
 import (
 	"crypto/cipher"
-	"log/slog"
 
 	"github.com/ebfe/estream/rabbit"
 
@@ -14,7 +13,6 @@ const ivSize = 8
 type RabbitEngine struct {
 	StreamEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 // Only 128 bits key size

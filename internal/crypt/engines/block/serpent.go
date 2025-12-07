@@ -3,7 +3,6 @@ package block
 import (
 	"crypto/cipher"
 	"errors"
-	"log/slog"
 
 	"github.com/aead/serpent"
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -12,7 +11,6 @@ import (
 type SerpentEngine struct {
 	BlockEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 func NewSerpentEngine(sharedSecret []byte, size int) (*SerpentEngine, error) {

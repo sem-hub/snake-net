@@ -3,7 +3,6 @@ package aead
 import (
 	"crypto/cipher"
 	"errors"
-	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"golang.org/x/crypto/nacl/secretbox"
@@ -12,7 +11,6 @@ import (
 type Xsalsa20Poly1305Engine struct {
 	AeadEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 type Xsalsa20Poly1305 struct {

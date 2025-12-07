@@ -3,7 +3,6 @@ package block
 import (
 	"crypto/cipher"
 	"errors"
-	"log/slog"
 
 	"github.com/aead/camellia"
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -12,7 +11,6 @@ import (
 type CamelliaEngine struct {
 	BlockEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 func NewCamelliaEngine(sharedSecret []byte, size int) (*CamelliaEngine, error) {

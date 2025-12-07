@@ -2,7 +2,6 @@ package block
 
 import (
 	"crypto/cipher"
-	"log/slog"
 
 	"github.com/dgryski/go-idea"
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -11,7 +10,6 @@ import (
 type IdeaEngine struct {
 	BlockEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 // Only 128 bits key size

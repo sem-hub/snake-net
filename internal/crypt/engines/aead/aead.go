@@ -18,7 +18,7 @@ type AeadEngine struct {
 func NewAeadEngine(name string) *AeadEngine {
 	engine := AeadEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "aead")
-	engine.logger = configs.InitLogger("aead")
+	engine.logger = configs.InitLogger("aead-" + name)
 	return &engine
 }
 

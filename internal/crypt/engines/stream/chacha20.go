@@ -2,7 +2,6 @@ package stream
 
 import (
 	"crypto/cipher"
-	"log/slog"
 
 	"golang.org/x/crypto/chacha20"
 
@@ -12,7 +11,6 @@ import (
 type Chacha20Engine struct {
 	StreamEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 func NewChacha20Engine(sharedSecret []byte) (*Chacha20Engine, error) {

@@ -3,7 +3,6 @@ package block
 import (
 	"crypto/cipher"
 	"errors"
-	"log/slog"
 
 	rc6 "github.com/CampNowhere/golang-rc6"
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -12,7 +11,6 @@ import (
 type Rc6Engine struct {
 	BlockEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 func NewRc6Engine(sharedSecret []byte, size int) (*Rc6Engine, error) {

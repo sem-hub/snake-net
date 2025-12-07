@@ -2,7 +2,6 @@ package aead
 
 import (
 	"crypto/cipher"
-	"log/slog"
 
 	"golang.org/x/crypto/chacha20poly1305"
 
@@ -12,7 +11,6 @@ import (
 type Chacha20Poly1305Engine struct {
 	AeadEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 func NewChacha20Poly1305Engine(sharedSecret []byte) (*Chacha20Poly1305Engine, error) {

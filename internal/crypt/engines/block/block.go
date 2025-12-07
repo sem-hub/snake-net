@@ -19,7 +19,7 @@ type BlockEngine struct {
 func NewBlockEngine(name string) *BlockEngine {
 	engine := BlockEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "block")
-	engine.logger = configs.InitLogger("block")
+	engine.logger = configs.InitLogger("block-" + name)
 	return &engine
 }
 

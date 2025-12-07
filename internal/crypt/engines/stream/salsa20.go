@@ -2,7 +2,6 @@ package stream
 
 import (
 	"crypto/rand"
-	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"golang.org/x/crypto/salsa20"
@@ -11,7 +10,6 @@ import (
 type Salsa20Engine struct {
 	StreamEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 func NewSalsa20Engine(sharedSecret []byte) (*Salsa20Engine, error) {

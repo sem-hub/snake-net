@@ -2,7 +2,6 @@ package block
 
 import (
 	"crypto/cipher"
-	"log/slog"
 
 	"github.com/rmuch/gost"
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -12,7 +11,6 @@ import (
 type GostEngine struct {
 	BlockEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 // Only 256 bits key size

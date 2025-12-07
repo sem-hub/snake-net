@@ -17,7 +17,7 @@ type StreamEngine struct {
 func NewStreamEngine(name string) *StreamEngine {
 	engine := StreamEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "stream")
-	engine.logger = configs.InitLogger("stream")
+	engine.logger = configs.InitLogger("stream-" + name)
 	return &engine
 }
 

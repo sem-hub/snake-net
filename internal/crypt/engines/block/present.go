@@ -3,7 +3,6 @@ package block
 import (
 	"crypto/cipher"
 	"errors"
-	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	present "github.com/yi-jiayu/PRESENT.go"
@@ -12,7 +11,6 @@ import (
 type PresentEngine struct {
 	BlockEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 }
 
 // Only 80 or 128 bits key size supported. Using 128 bits

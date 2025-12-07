@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
-	"log/slog"
 
 	"github.com/schultz-is/go-threefish"
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -18,7 +17,6 @@ const tweakSize = 16
 type ThreefishEngine struct {
 	BlockEngine
 	SharedSecret []byte
-	logger       *slog.Logger
 	tweak        []byte
 	keySize      int
 }
