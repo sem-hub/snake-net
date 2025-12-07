@@ -11,7 +11,8 @@ import (
 
 type Chacha20Engine struct {
 	StreamEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 func NewChacha20Engine(sharedSecret []byte) (*Chacha20Engine, error) {

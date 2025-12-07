@@ -11,7 +11,8 @@ import (
 
 type Chacha20Poly1305Engine struct {
 	AeadEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 func NewChacha20Poly1305Engine(sharedSecret []byte) (*Chacha20Poly1305Engine, error) {
@@ -23,11 +24,11 @@ func NewChacha20Poly1305Engine(sharedSecret []byte) (*Chacha20Poly1305Engine, er
 }
 
 func (e *Chacha20Poly1305Engine) GetName() string {
-	return e.EngineData.Name
+	return e.AeadEngine.Name
 }
 
 func (e *Chacha20Poly1305Engine) GetType() string {
-	return e.EngineData.Type
+	return e.AeadEngine.Type
 }
 
 func (e *Chacha20Poly1305Engine) NewAEAD() (cipher.AEAD, error) {

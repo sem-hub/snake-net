@@ -11,7 +11,8 @@ import (
 
 type Xsalsa20Poly1305Engine struct {
 	AeadEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 type Xsalsa20Poly1305 struct {
@@ -58,11 +59,11 @@ func NewXsalsa20Poly1305Engine(sharedSecret []byte) (*Xsalsa20Poly1305Engine, er
 }
 
 func (e *Xsalsa20Poly1305Engine) GetName() string {
-	return e.EngineData.Name
+	return e.AeadEngine.Name
 }
 
 func (e *Xsalsa20Poly1305Engine) GetType() string {
-	return e.EngineData.Type
+	return e.AeadEngine.Type
 }
 
 func (e *Xsalsa20Poly1305Engine) NewAEAD() (cipher.AEAD, error) {

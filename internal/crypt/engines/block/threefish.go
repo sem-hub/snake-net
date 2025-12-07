@@ -17,9 +17,10 @@ const tweakSize = 16
 
 type ThreefishEngine struct {
 	BlockEngine
-	logger  *slog.Logger
-	tweak   []byte
-	keySize int
+	SharedSecret []byte
+	logger       *slog.Logger
+	tweak        []byte
+	keySize      int
 }
 
 func NewThreefishEngine(sharedSecret []byte, size int) (*ThreefishEngine, error) {
@@ -43,7 +44,7 @@ func NewThreefishEngine(sharedSecret []byte, size int) (*ThreefishEngine, error)
 	}
 
 	engine := ThreefishEngine{}
-	engine.BlockEngine = *NewBlockEngine("threefish", sharedSecret)
+	engine.BlockEngine = *NewBlockEngine("threefish")
 	engine.keySize = size
 
 	// Expand key if size > 256 bits
@@ -62,11 +63,11 @@ func NewThreefishEngine(sharedSecret []byte, size int) (*ThreefishEngine, error)
 }
 
 func (e *ThreefishEngine) GetName() string {
-	return e.EngineData.Name
+	return e.BlockEngine.Name
 }
 
 func (e *ThreefishEngine) GetType() string {
-	return e.EngineData.Type
+	return e.BlockEngine.Type
 }
 
 func (e *ThreefishEngine) NewCipher() (cipher.Block, error) {

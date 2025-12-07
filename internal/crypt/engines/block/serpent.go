@@ -11,7 +11,8 @@ import (
 
 type SerpentEngine struct {
 	BlockEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 func NewSerpentEngine(sharedSecret []byte, size int) (*SerpentEngine, error) {
@@ -36,18 +37,18 @@ func NewSerpentEngine(sharedSecret []byte, size int) (*SerpentEngine, error) {
 	keySize := size / 8
 
 	engine := SerpentEngine{}
-	engine.BlockEngine = *NewBlockEngine("serpent", sharedSecret)
+	engine.BlockEngine = *NewBlockEngine("serpent")
 	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("serpent")
 	return &engine, nil
 }
 
 func (e *SerpentEngine) GetName() string {
-	return e.EngineData.Name
+	return e.BlockEngine.Name
 }
 
 func (e *SerpentEngine) GetType() string {
-	return e.EngineData.Type
+	return e.BlockEngine.Type
 }
 
 func (e *SerpentEngine) NewCipher() (cipher.Block, error) {

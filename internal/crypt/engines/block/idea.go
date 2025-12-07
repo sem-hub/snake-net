@@ -10,24 +10,25 @@ import (
 
 type IdeaEngine struct {
 	BlockEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 // Only 128 bits key size
 func NewIdeaEngine(sharedSecret []byte) (*IdeaEngine, error) {
 	engine := IdeaEngine{}
-	engine.BlockEngine = *NewBlockEngine("idea", sharedSecret)
+	engine.BlockEngine = *NewBlockEngine("idea")
 	engine.SharedSecret = sharedSecret[:16]
 	engine.logger = configs.InitLogger("idea")
 	return &engine, nil
 }
 
 func (e *IdeaEngine) GetName() string {
-	return e.EngineData.Name
+	return e.BlockEngine.Name
 }
 
 func (e *IdeaEngine) GetType() string {
-	return e.EngineData.Type
+	return e.BlockEngine.Type
 }
 
 func (e *IdeaEngine) NewCipher() (cipher.Block, error) {

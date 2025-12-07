@@ -11,24 +11,25 @@ import (
 // GOST28147-89 block cipher engine
 type GostEngine struct {
 	BlockEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 // Only 256 bits key size
 func NewGostEngine(sharedSecret []byte) (*GostEngine, error) {
 	engine := GostEngine{}
-	engine.BlockEngine = *NewBlockEngine("gost", sharedSecret)
+	engine.BlockEngine = *NewBlockEngine("gost")
 	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("gost")
 	return &engine, nil
 }
 
 func (e *GostEngine) GetName() string {
-	return e.EngineData.Name
+	return e.BlockEngine.Name
 }
 
 func (e *GostEngine) GetType() string {
-	return e.EngineData.Type
+	return e.BlockEngine.Type
 }
 
 func (e *GostEngine) NewCipher() (cipher.Block, error) {

@@ -12,8 +12,7 @@ import (
 
 type AeadEngine struct {
 	engines.EngineData
-	SharedSecret []byte
-	logger       *slog.Logger
+	logger *slog.Logger
 }
 
 func NewAeadEngine(name string) *AeadEngine {

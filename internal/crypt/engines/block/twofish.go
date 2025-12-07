@@ -11,7 +11,8 @@ import (
 
 type TwofishEngine struct {
 	BlockEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 func NewTwofishEngine(sharedSecret []byte, size int) (*TwofishEngine, error) {
@@ -36,18 +37,18 @@ func NewTwofishEngine(sharedSecret []byte, size int) (*TwofishEngine, error) {
 	keySize := size / 8
 
 	engine := TwofishEngine{}
-	engine.BlockEngine = *NewBlockEngine("twofish", sharedSecret)
+	engine.BlockEngine = *NewBlockEngine("twofish")
 	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("twofish")
 	return &engine, nil
 }
 
 func (e *TwofishEngine) GetName() string {
-	return e.EngineData.Name
+	return e.BlockEngine.Name
 }
 
 func (e *TwofishEngine) GetType() string {
-	return e.EngineData.Type
+	return e.BlockEngine.Type
 }
 
 func (e *TwofishEngine) NewCipher() (cipher.Block, error) {

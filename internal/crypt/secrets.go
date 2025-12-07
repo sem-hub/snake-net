@@ -15,6 +15,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
+	"github.com/sem-hub/snake-net/internal/crypt/engines/ciphers"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/stream"
 	"github.com/sem-hub/snake-net/internal/crypt/signature"
 
@@ -65,15 +66,12 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 			mode = parts[1]
 		}
 	}
-	if cipher == "aes" {
-		cipher = "aes-" + mode
-	}
 	s.logger.Info("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
 	var err error = nil
 	switch cipher {
-	case "aes-cbc":
+	case "aes":
 		s.logger.Info("Using AES-CBC block cipher")
-		s.Engine, err = block.NewAesCbcEngine(s.sharedSecret, size)
+		s.Engine, err = ciphers.NewAesEngine(s.sharedSecret, size, mode)
 	case "present":
 		s.logger.Info("Using Present block cipher")
 		s.Engine, err = block.NewPresentEngine(s.sharedSecret, size)
@@ -98,9 +96,6 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	case "gost":
 		s.logger.Info("Using GOST block cipher")
 		s.Engine, err = block.NewGostEngine(s.sharedSecret)
-	case "aes-ctr":
-		s.logger.Info("Using AES-CTR stream cipher")
-		s.Engine, err = stream.NewAesCtrEngine(s.sharedSecret, size)
 	case "salsa20":
 		s.logger.Info("Using Salsa20 stream cipher")
 		s.Engine, err = stream.NewSalsa20Engine(s.sharedSecret)
@@ -110,15 +105,6 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	case "rabbit":
 		s.logger.Info("Using Rabbit stream cipher")
 		s.Engine, err = stream.NewRabbitEngine(s.sharedSecret)
-	case "aes-gcm":
-		s.logger.Info("Using AES-GCM AEAD cipher")
-		s.Engine, err = aead.NewAesGcmEngine(s.sharedSecret, size)
-	case "aes-ccm":
-		s.logger.Info("Using AES-CCM AEAD cipher")
-		s.Engine, err = aead.NewAesCcmEngine(s.sharedSecret, size)
-	case "aes-ocb":
-		s.logger.Info("Using AES-OCB AEAD cipher")
-		s.Engine, err = aead.NewAesOcbEngine(s.sharedSecret, size)
 	case "chacha20poly1305":
 		s.logger.Info("Using ChaCha20-Poly1305 AEAD cipher")
 		s.Engine, err = aead.NewChacha20Poly1305Engine(s.sharedSecret)

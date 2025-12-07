@@ -11,7 +11,8 @@ import (
 
 type CamelliaEngine struct {
 	BlockEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 func NewCamelliaEngine(sharedSecret []byte, size int) (*CamelliaEngine, error) {
@@ -36,18 +37,18 @@ func NewCamelliaEngine(sharedSecret []byte, size int) (*CamelliaEngine, error) {
 	keySize := size / 8
 
 	engine := CamelliaEngine{}
-	engine.BlockEngine = *NewBlockEngine("camellia", sharedSecret)
+	engine.BlockEngine = *NewBlockEngine("camellia")
 	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("camellia")
 	return &engine, nil
 }
 
 func (e *CamelliaEngine) GetName() string {
-	return e.EngineData.Name
+	return e.BlockEngine.Name
 }
 
 func (e *CamelliaEngine) GetType() string {
-	return e.EngineData.Type
+	return e.BlockEngine.Type
 }
 
 func (e *CamelliaEngine) NewCipher() (cipher.Block, error) {

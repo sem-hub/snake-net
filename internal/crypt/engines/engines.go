@@ -3,8 +3,9 @@ package engines
 import "slices"
 
 var EngineList = []string{
+	// AES
+	"aes",
 	// Block
-	"aes-cbc",
 	"present",
 	"idea",
 	"twofish",
@@ -14,16 +15,22 @@ var EngineList = []string{
 	"camellia",
 	"gost",
 	// Stream
-	"aes-ctr",
 	"salsa20",
 	"chacha20",
 	"rabbit",
 	// AEAD
-	"aes-gcm",
-	"aes-ccm",
-	"aes-ocb",
 	"chacha20poly1305",
 	"xsalsa20poly1305",
+}
+
+var ModeList = []string{
+	"cbc",
+	"ctr",
+	"cfb",
+	"ofb",
+	"gcm",
+	"ccm",
+	"ocb",
 }
 
 type EngineData struct {
@@ -47,4 +54,8 @@ func NewEngineData(Name, Type string) *EngineData {
 
 func IsEngineSupported(engine string) bool {
 	return slices.Contains(EngineList, engine)
+}
+
+func IsModeSupported(mode string) bool {
+	return slices.Contains(ModeList, mode)
 }

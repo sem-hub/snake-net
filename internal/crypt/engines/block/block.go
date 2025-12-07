@@ -13,14 +13,12 @@ import (
 
 type BlockEngine struct {
 	engines.EngineData
-	SharedSecret []byte
-	logger       *slog.Logger
+	logger *slog.Logger
 }
 
-func NewBlockEngine(name string, sharedSecret []byte) *BlockEngine {
+func NewBlockEngine(name string) *BlockEngine {
 	engine := BlockEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "block")
-	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("block")
 	return &engine
 }

@@ -11,7 +11,8 @@ import (
 
 type Rc6Engine struct {
 	BlockEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 func NewRc6Engine(sharedSecret []byte, size int) (*Rc6Engine, error) {
@@ -36,18 +37,18 @@ func NewRc6Engine(sharedSecret []byte, size int) (*Rc6Engine, error) {
 	keySize := size / 8
 
 	engine := Rc6Engine{}
-	engine.BlockEngine = *NewBlockEngine("rc6", sharedSecret)
+	engine.BlockEngine = *NewBlockEngine("rc6")
 	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("rc6")
 	return &engine, nil
 }
 
 func (e *Rc6Engine) GetName() string {
-	return e.EngineData.Name
+	return e.BlockEngine.Name
 }
 
 func (e *Rc6Engine) GetType() string {
-	return e.EngineData.Type
+	return e.BlockEngine.Type
 }
 
 func (e *Rc6Engine) NewCipher() (cipher.Block, error) {

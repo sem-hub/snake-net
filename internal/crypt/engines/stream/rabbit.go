@@ -13,7 +13,8 @@ const ivSize = 8
 
 type RabbitEngine struct {
 	StreamEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 // Only 128 bits key size

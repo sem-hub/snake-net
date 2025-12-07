@@ -11,7 +11,8 @@ import (
 
 type PresentEngine struct {
 	BlockEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 // Only 80 or 128 bits key size supported. Using 128 bits
@@ -25,18 +26,18 @@ func NewPresentEngine(sharedSecret []byte, size int) (*PresentEngine, error) {
 		return nil, errors.New("invalid key size")
 	}
 	engine := PresentEngine{}
-	engine.BlockEngine = *NewBlockEngine("present", sharedSecret)
+	engine.BlockEngine = *NewBlockEngine("present")
 	engine.SharedSecret = sharedSecret[:size/8]
 	engine.logger = configs.InitLogger("present")
 	return &engine, nil
 }
 
 func (e *PresentEngine) GetName() string {
-	return e.EngineData.Name
+	return e.BlockEngine.Name
 }
 
 func (e *PresentEngine) GetType() string {
-	return e.EngineData.Type
+	return e.BlockEngine.Type
 }
 
 func (e *PresentEngine) NewCipher() (cipher.Block, error) {

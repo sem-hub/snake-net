@@ -11,8 +11,7 @@ import (
 
 type StreamEngine struct {
 	engines.EngineData
-	SharedSecret []byte
-	logger       *slog.Logger
+	logger *slog.Logger
 }
 
 func NewStreamEngine(name string) *StreamEngine {

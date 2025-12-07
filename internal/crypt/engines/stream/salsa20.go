@@ -10,7 +10,8 @@ import (
 
 type Salsa20Engine struct {
 	StreamEngine
-	logger *slog.Logger
+	SharedSecret []byte
+	logger       *slog.Logger
 }
 
 func NewSalsa20Engine(sharedSecret []byte) (*Salsa20Engine, error) {
