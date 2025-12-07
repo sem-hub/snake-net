@@ -70,7 +70,7 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	var err error = nil
 	switch cipher {
 	case "aes":
-		s.logger.Info("Using AES-CBC block cipher")
+		s.logger.Info("Using AES " + mode + " cipher")
 		s.Engine, err = ciphers.NewAesEngine(s.sharedSecret, size, mode)
 	case "present":
 		s.logger.Info("Using Present block cipher")

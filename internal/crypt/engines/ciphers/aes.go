@@ -46,15 +46,17 @@ func NewAesEngine(sharedSecret []byte, size int, mode string) (*AesEngine, error
 	}
 
 	engine := AesEngine{}
-	engine.EngineData = *engines.NewEngineData("aes", mode)
 	if mode == "ccm" || mode == "gcm" || mode == "ocb" {
 		engine.AeadEngine = *aead.NewAeadEngine("aes-" + mode)
+		engine.EngineData = engine.AeadEngine.EngineData
 	}
 	if mode == "cbc" {
 		engine.BlockEngine = *block.NewBlockEngine("aes-" + mode)
+		engine.EngineData = engine.BlockEngine.EngineData
 	}
 	if mode == "ctr" {
 		engine.StreamEngine = *stream.NewStreamEngine("aes-" + mode)
+		engine.EngineData = engine.StreamEngine.EngineData
 	}
 	engine.Mode = mode
 	engine.SharedSecret = sharedSecret[:keySize]
