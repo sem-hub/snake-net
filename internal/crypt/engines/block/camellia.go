@@ -2,6 +2,7 @@ package block
 
 import (
 	"crypto/cipher"
+	"errors"
 	"log/slog"
 
 	"github.com/aead/camellia"
@@ -13,12 +14,32 @@ type CamelliaEngine struct {
 	logger *slog.Logger
 }
 
-func NewCamelliaEngine(sharedSecret []byte) *CamelliaEngine {
+func NewCamelliaEngine(sharedSecret []byte, size int) (*CamelliaEngine, error) {
+	allowedKeySizes := []int{128, 192, 256}
+	if size == 0 {
+		size = 256
+	}
+
+	found := false
+	for _, s := range allowedKeySizes {
+		if size == s {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		logger := configs.InitLogger("camellia")
+		logger.Error("Invalid key size for CAMELLIA", "size", size)
+		return nil, errors.New("invalid key size")
+	}
+	keySize := size / 8
+
 	engine := CamelliaEngine{}
 	engine.BlockEngine = *NewBlockEngine("camellia", sharedSecret)
-	engine.SharedSecret = sharedSecret[:16]
+	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("camellia")
-	return &engine
+	return &engine, nil
 }
 
 func (e *CamelliaEngine) GetName() string {

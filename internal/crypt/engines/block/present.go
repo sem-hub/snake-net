@@ -2,6 +2,7 @@ package block
 
 import (
 	"crypto/cipher"
+	"errors"
 	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -13,12 +14,21 @@ type PresentEngine struct {
 	logger *slog.Logger
 }
 
-func NewPresentEngine(sharedSecret []byte) *PresentEngine {
+// Only 80 or 128 bits key size supported. Using 128 bits
+func NewPresentEngine(sharedSecret []byte, size int) (*PresentEngine, error) {
+	if size == 0 {
+		size = 128
+	}
+	if size != 80 && size != 128 {
+		logger := configs.InitLogger("present")
+		logger.Error("Invalid key size for PRESENT", "size", size)
+		return nil, errors.New("invalid key size")
+	}
 	engine := PresentEngine{}
 	engine.BlockEngine = *NewBlockEngine("present", sharedSecret)
-	engine.SharedSecret = sharedSecret[:16]
+	engine.SharedSecret = sharedSecret[:size/8]
 	engine.logger = configs.InitLogger("present")
-	return &engine
+	return &engine, nil
 }
 
 func (e *PresentEngine) GetName() string {
@@ -29,7 +39,6 @@ func (e *PresentEngine) GetType() string {
 	return e.EngineData.Type
 }
 
-// Only 80 or 128 bits key size supported. Using 128 bits
 func (e *PresentEngine) NewCipher() (cipher.Block, error) {
 	return present.NewCipher(e.SharedSecret)
 }

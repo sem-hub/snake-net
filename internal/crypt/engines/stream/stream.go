@@ -15,10 +15,9 @@ type StreamEngine struct {
 	logger       *slog.Logger
 }
 
-func NewStreamEngine(name string, sharedSecret []byte) *StreamEngine {
+func NewStreamEngine(name string) *StreamEngine {
 	engine := StreamEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "stream")
-	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("stream")
 	return &engine
 }

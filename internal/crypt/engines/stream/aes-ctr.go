@@ -3,6 +3,7 @@ package stream
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -13,12 +14,33 @@ type AesCtrEngine struct {
 	logger *slog.Logger
 }
 
-func NewAesCtrEngine(sharedSecret []byte) *AesCtrEngine {
+func NewAesCtrEngine(sharedSecret []byte, size int) (*AesCtrEngine, error) {
+	allowedKeySizes := []int{128, 192, 256}
+	if size == 0 {
+		size = 256
+	}
+
+	found := false
+	for _, s := range allowedKeySizes {
+		if size == s {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		logger := configs.InitLogger("aes-ctr")
+		logger.Error("Invalid key size for AES-CTR", "size", size)
+		return nil, errors.New("invalid key size")
+	}
+
+	keySize := size / 8
+
 	engine := AesCtrEngine{}
-	engine.StreamEngine = *NewStreamEngine("aes-ctr", sharedSecret)
-	engine.SharedSecret = sharedSecret
+	engine.StreamEngine = *NewStreamEngine("aes-ctr")
+	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("aes-ctr")
-	return &engine
+	return &engine, nil
 }
 
 func (e *AesCtrEngine) GetName() string {

@@ -3,6 +3,7 @@ package block
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -13,12 +14,32 @@ type AesCbcEngine struct {
 	logger *slog.Logger
 }
 
-func NewAesCbcEngine(sharedSecret []byte) *AesCbcEngine {
+func NewAesCbcEngine(sharedSecret []byte, size int) (*AesCbcEngine, error) {
+	allowedKeySizes := []int{128, 192, 256}
+	if size == 0 {
+		size = 256
+	}
+
+	found := false
+	for _, s := range allowedKeySizes {
+		if size == s {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		logger := configs.InitLogger("aes-cbc")
+		logger.Error("Invalid key size for AES-CBC", "size", size)
+		return nil, errors.New("invalid key size")
+	}
+	keySize := size / 8
+
 	engine := AesCbcEngine{}
 	engine.BlockEngine = *NewBlockEngine("aes-cbc", sharedSecret)
-	engine.SharedSecret = sharedSecret
+	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("aes-cbc")
-	return &engine
+	return &engine, nil
 }
 
 func (e *AesCbcEngine) GetName() string {

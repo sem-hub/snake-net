@@ -14,12 +14,12 @@ type Chacha20Poly1305Engine struct {
 	logger *slog.Logger
 }
 
-func NewChacha20Poly1305Engine(sharedSecret []byte) *Chacha20Poly1305Engine {
+func NewChacha20Poly1305Engine(sharedSecret []byte) (*Chacha20Poly1305Engine, error) {
 	engine := Chacha20Poly1305Engine{}
-	engine.AeadEngine = *NewAeadEngine("chacha20poly1305", sharedSecret)
+	engine.AeadEngine = *NewAeadEngine("chacha20poly1305")
 	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("chacha20poly1305")
-	return &engine
+	return &engine, nil
 }
 
 func (e *Chacha20Poly1305Engine) GetName() string {

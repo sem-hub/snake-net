@@ -3,6 +3,7 @@ package aead
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 	"log/slog"
 
 	ccm "gitlab.com/go-extension/aes-ccm"
@@ -15,12 +16,32 @@ type AesCcmEngine struct {
 	logger *slog.Logger
 }
 
-func NewAesCcmEngine(sharedSecret []byte) *AesCcmEngine {
+func NewAesCcmEngine(sharedSecret []byte, size int) (*AesCcmEngine, error) {
+	if size == 0 {
+		size = 256
+	}
+	allowedKeySizes := []int{128, 192, 256}
+
+	found := false
+	for _, s := range allowedKeySizes {
+		if size == s {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		logger := configs.InitLogger("aes-ccm")
+		logger.Error("Invalid key size for AES-CCM", "size", size)
+		return nil, errors.New("invalid key size")
+	}
+
+	keySize := size / 8
 	engine := AesCcmEngine{}
-	engine.AeadEngine = *NewAeadEngine("aes-ccm", sharedSecret)
-	engine.SharedSecret = sharedSecret
+	engine.AeadEngine = *NewAeadEngine("aes-ccm")
+	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("aes-ccm")
-	return &engine
+	return &engine, nil
 }
 
 func (e *AesCcmEngine) GetName() string {

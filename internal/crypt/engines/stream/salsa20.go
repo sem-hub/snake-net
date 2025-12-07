@@ -13,12 +13,12 @@ type Salsa20Engine struct {
 	logger *slog.Logger
 }
 
-func NewSalsa20Engine(sharedSecret []byte) *Salsa20Engine {
+func NewSalsa20Engine(sharedSecret []byte) (*Salsa20Engine, error) {
 	engine := Salsa20Engine{}
-	engine.StreamEngine = *NewStreamEngine("salsa20", sharedSecret)
+	engine.StreamEngine = *NewStreamEngine("salsa20")
 	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("salsa20")
-	return &engine
+	return &engine, nil
 }
 
 func (e *Salsa20Engine) GetName() string {

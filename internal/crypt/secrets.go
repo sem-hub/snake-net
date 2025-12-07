@@ -8,6 +8,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"log/slog"
+	"strconv"
+	"strings"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
@@ -46,65 +48,92 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	sum256 := sha256.Sum256([]byte(secret))
 	copy(s.sharedSecret, sum256[:])
 
-	switch engine {
+	size := 0
+	cipher := engine
+	mode := ""
+	parts := strings.Split(engine, "-")
+	if len(parts) > 0 {
+		cipher = parts[0]
+	}
+	if len(parts) > 1 {
+		if strconvVal, err := strconv.Atoi(parts[1]); err == nil {
+			size = strconvVal
+			if len(parts) > 2 {
+				mode = parts[2]
+			}
+		} else {
+			mode = parts[1]
+		}
+	}
+	if cipher == "aes" {
+		cipher = "aes-" + mode
+	}
+	s.logger.Info("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
+	var err error = nil
+	switch cipher {
 	case "aes-cbc":
 		s.logger.Info("Using AES-CBC block cipher")
-		s.Engine = block.NewAesCbcEngine(s.sharedSecret)
+		s.Engine, err = block.NewAesCbcEngine(s.sharedSecret, size)
 	case "present":
 		s.logger.Info("Using Present block cipher")
-		s.Engine = block.NewPresentEngine(s.sharedSecret)
+		s.Engine, err = block.NewPresentEngine(s.sharedSecret, size)
 	case "idea":
 		s.logger.Info("Using Idea block cipher")
-		s.Engine = block.NewIdeaEngine(s.sharedSecret)
+		s.Engine, err = block.NewIdeaEngine(s.sharedSecret)
 	case "twofish":
 		s.logger.Info("Using Twofish block cipher")
-		s.Engine = block.NewTwofishEngine(s.sharedSecret)
+		s.Engine, err = block.NewTwofishEngine(s.sharedSecret, size)
 	case "threefish":
 		s.logger.Info("Using Threefish block cipher")
-		s.Engine = block.NewThreefishEngine(s.sharedSecret)
+		s.Engine, err = block.NewThreefishEngine(s.sharedSecret, size)
 	case "rc6":
 		s.logger.Info("Using RC6 block cipher")
-		s.Engine = block.NewRc6Engine(s.sharedSecret)
+		s.Engine, err = block.NewRc6Engine(s.sharedSecret, size)
 	case "serpent":
 		s.logger.Info("Using Serpent block cipher")
-		s.Engine = block.NewSerpentEngine(s.sharedSecret)
+		s.Engine, err = block.NewSerpentEngine(s.sharedSecret, size)
 	case "camellia":
 		s.logger.Info("Using Camellia block cipher")
-		s.Engine = block.NewCamelliaEngine(s.sharedSecret)
+		s.Engine, err = block.NewCamelliaEngine(s.sharedSecret, size)
 	case "gost":
 		s.logger.Info("Using GOST block cipher")
-		s.Engine = block.NewGostEngine(s.sharedSecret)
+		s.Engine, err = block.NewGostEngine(s.sharedSecret)
 	case "aes-ctr":
 		s.logger.Info("Using AES-CTR stream cipher")
-		s.Engine = stream.NewAesCtrEngine(s.sharedSecret)
+		s.Engine, err = stream.NewAesCtrEngine(s.sharedSecret, size)
 	case "salsa20":
 		s.logger.Info("Using Salsa20 stream cipher")
-		s.Engine = stream.NewSalsa20Engine(s.sharedSecret)
+		s.Engine, err = stream.NewSalsa20Engine(s.sharedSecret)
 	case "chacha20":
 		s.logger.Info("Using ChaCha20 stream cipher")
-		s.Engine = stream.NewChacha20Engine(s.sharedSecret)
+		s.Engine, err = stream.NewChacha20Engine(s.sharedSecret)
 	case "rabbit":
 		s.logger.Info("Using Rabbit stream cipher")
-		s.Engine = stream.NewRabbitEngine(s.sharedSecret)
+		s.Engine, err = stream.NewRabbitEngine(s.sharedSecret)
 	case "aes-gcm":
 		s.logger.Info("Using AES-GCM AEAD cipher")
-		s.Engine = aead.NewAesGcmEngine(s.sharedSecret)
+		s.Engine, err = aead.NewAesGcmEngine(s.sharedSecret, size)
 	case "aes-ccm":
 		s.logger.Info("Using AES-CCM AEAD cipher")
-		s.Engine = aead.NewAesCcmEngine(s.sharedSecret)
+		s.Engine, err = aead.NewAesCcmEngine(s.sharedSecret, size)
 	case "aes-ocb":
 		s.logger.Info("Using AES-OCB AEAD cipher")
-		s.Engine = aead.NewAesOcbEngine(s.sharedSecret)
+		s.Engine, err = aead.NewAesOcbEngine(s.sharedSecret, size)
 	case "chacha20poly1305":
 		s.logger.Info("Using ChaCha20-Poly1305 AEAD cipher")
-		s.Engine = aead.NewChacha20Poly1305Engine(s.sharedSecret)
+		s.Engine, err = aead.NewChacha20Poly1305Engine(s.sharedSecret)
 	case "xsalsa20poly1305":
 		s.logger.Info("Using XSalsa20-Poly1305 AEAD cipher")
-		s.Engine = aead.NewXsalsa20Poly1305Engine(s.sharedSecret)
+		s.Engine, err = aead.NewXsalsa20Poly1305Engine(s.sharedSecret)
 	default:
 		s.logger.Info("Unknown cipher")
 		return nil, errors.New("unknown cipher: " + engine)
 	}
+	if err != nil {
+		s.logger.Error("Failed to create crypto engine", "error", err)
+		return nil, err
+	}
+
 	switch signEngine {
 	case "ed25519":
 		s.logger.Info("Using Ed25519 signature engine")

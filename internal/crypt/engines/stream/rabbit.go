@@ -16,12 +16,13 @@ type RabbitEngine struct {
 	logger *slog.Logger
 }
 
-func NewRabbitEngine(sharedSecret []byte) *RabbitEngine {
+// Only 128 bits key size
+func NewRabbitEngine(sharedSecret []byte) (*RabbitEngine, error) {
 	engine := RabbitEngine{}
-	engine.StreamEngine = *NewStreamEngine("rabbit", sharedSecret)
+	engine.StreamEngine = *NewStreamEngine("rabbit")
 	engine.SharedSecret = sharedSecret[:16]
 	engine.logger = configs.InitLogger("rabbit")
-	return &engine
+	return &engine, nil
 }
 
 func (e *RabbitEngine) GetName() string {

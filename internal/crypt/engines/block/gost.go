@@ -14,12 +14,13 @@ type GostEngine struct {
 	logger *slog.Logger
 }
 
-func NewGostEngine(sharedSecret []byte) *GostEngine {
+// Only 256 bits key size
+func NewGostEngine(sharedSecret []byte) (*GostEngine, error) {
 	engine := GostEngine{}
 	engine.BlockEngine = *NewBlockEngine("gost", sharedSecret)
 	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("gost")
-	return &engine
+	return &engine, nil
 }
 
 func (e *GostEngine) GetName() string {

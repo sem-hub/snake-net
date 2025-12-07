@@ -2,6 +2,7 @@ package block
 
 import (
 	"crypto/cipher"
+	"errors"
 	"log/slog"
 
 	rc6 "github.com/CampNowhere/golang-rc6"
@@ -13,12 +14,32 @@ type Rc6Engine struct {
 	logger *slog.Logger
 }
 
-func NewRc6Engine(sharedSecret []byte) *Rc6Engine {
+func NewRc6Engine(sharedSecret []byte, size int) (*Rc6Engine, error) {
+	allowedKeySizes := []int{128, 192, 256}
+	if size == 0 {
+		size = 256
+	}
+
+	found := false
+	for _, s := range allowedKeySizes {
+		if size == s {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		logger := configs.InitLogger("rc6")
+		logger.Error("Invalid key size for RC6", "size", size)
+		return nil, errors.New("invalid key size")
+	}
+	keySize := size / 8
+
 	engine := Rc6Engine{}
 	engine.BlockEngine = *NewBlockEngine("rc6", sharedSecret)
-	engine.SharedSecret = sharedSecret[:16]
+	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("rc6")
-	return &engine
+	return &engine, nil
 }
 
 func (e *Rc6Engine) GetName() string {

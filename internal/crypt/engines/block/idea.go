@@ -13,12 +13,13 @@ type IdeaEngine struct {
 	logger *slog.Logger
 }
 
-func NewIdeaEngine(sharedSecret []byte) *IdeaEngine {
+// Only 128 bits key size
+func NewIdeaEngine(sharedSecret []byte) (*IdeaEngine, error) {
 	engine := IdeaEngine{}
 	engine.BlockEngine = *NewBlockEngine("idea", sharedSecret)
 	engine.SharedSecret = sharedSecret[:16]
 	engine.logger = configs.InitLogger("idea")
-	return &engine
+	return &engine, nil
 }
 
 func (e *IdeaEngine) GetName() string {

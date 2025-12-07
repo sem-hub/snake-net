@@ -85,8 +85,17 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 	h := str[0]
 	clientId := str[1]
 	clientCidr := make([]string, 0)
+	i := 2
 	if len(str) > 2 {
-		clientCidr = str[2:4]
+		for _, addr := range str[2 : len(str)-1] {
+			err := checkIP(addr)
+			if err != nil {
+				logger.Debug("Not IP string: ", "err", err)
+				break
+			}
+			clientCidr = append(clientCidr, addr)
+			i++
+		}
 	}
 	logger.Debug("IdentifyClient", "h", h, "clientId", clientId, "clientCidrs", clientCidr)
 	if h == "Hello" {
@@ -123,10 +132,12 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 
 	engineName := cfg.Engine
 	signatureName := cfg.SignEngine
-	if len(str) > 2 {
+	if len(str) > i {
 		// last two are engine and signature
-		engineName = str[len(str)-2]
-		signatureName = str[len(str)-1]
+		engineName = str[i]
+		if len(str) > i+1 {
+			signatureName = str[i+1]
+		}
 		logger.Info("Client requested engines", "engine", engineName, "signature", signatureName)
 	}
 

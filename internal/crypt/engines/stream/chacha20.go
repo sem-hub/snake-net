@@ -14,12 +14,12 @@ type Chacha20Engine struct {
 	logger *slog.Logger
 }
 
-func NewChacha20Engine(sharedSecret []byte) *Chacha20Engine {
+func NewChacha20Engine(sharedSecret []byte) (*Chacha20Engine, error) {
 	engine := Chacha20Engine{}
-	engine.StreamEngine = *NewStreamEngine("chacha20", sharedSecret)
+	engine.StreamEngine = *NewStreamEngine("chacha20")
 	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("chacha20")
-	return &engine
+	return &engine, nil
 }
 
 func (e *Chacha20Engine) GetName() string {

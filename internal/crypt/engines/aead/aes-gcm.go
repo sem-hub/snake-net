@@ -3,6 +3,7 @@ package aead
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 	"log/slog"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -13,12 +14,33 @@ type AesGcmEngine struct {
 	logger *slog.Logger
 }
 
-func NewAesGcmEngine(sharedSecret []byte) *AesGcmEngine {
+func NewAesGcmEngine(sharedSecret []byte, size int) (*AesGcmEngine, error) {
+	allowedKeySizes := []int{128, 192, 256}
+	if size == 0 {
+		size = 256
+	}
+
+	found := false
+	for _, s := range allowedKeySizes {
+		if size == s {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		logger := configs.InitLogger("aes-gcm")
+		logger.Error("Invalid key size for AES-GCM", "size", size)
+		return nil, errors.New("invalid key size")
+	}
+
+	keySize := size / 8
+
 	engine := AesGcmEngine{}
-	engine.AeadEngine = *NewAeadEngine("aes-gcm", sharedSecret)
-	engine.SharedSecret = sharedSecret
+	engine.AeadEngine = *NewAeadEngine("aes-gcm")
+	engine.SharedSecret = sharedSecret[:keySize]
 	engine.logger = configs.InitLogger("aes-gcm")
-	return &engine
+	return &engine, nil
 }
 
 func (e *AesGcmEngine) GetName() string {

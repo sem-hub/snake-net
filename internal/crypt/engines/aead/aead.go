@@ -16,10 +16,9 @@ type AeadEngine struct {
 	logger       *slog.Logger
 }
 
-func NewAeadEngine(name string, sharedSecret []byte) *AeadEngine {
+func NewAeadEngine(name string) *AeadEngine {
 	engine := AeadEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "aead")
-	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("aead")
 	return &engine
 }

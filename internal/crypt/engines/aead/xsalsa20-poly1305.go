@@ -49,12 +49,12 @@ func (x *Xsalsa20Poly1305) Open(dst, nonce, ciphertext, additionalData []byte) (
 	return plaintext, nil
 }
 
-func NewXsalsa20Poly1305Engine(sharedSecret []byte) *Xsalsa20Poly1305Engine {
+func NewXsalsa20Poly1305Engine(sharedSecret []byte) (*Xsalsa20Poly1305Engine, error) {
 	engine := Xsalsa20Poly1305Engine{}
-	engine.AeadEngine = *NewAeadEngine("xsalsa20poly1305", sharedSecret)
+	engine.AeadEngine = *NewAeadEngine("xsalsa20poly1305")
 	engine.SharedSecret = sharedSecret
 	engine.logger = configs.InitLogger("xsalsa20poly1305")
-	return &engine
+	return &engine, nil
 }
 
 func (e *Xsalsa20Poly1305Engine) GetName() string {
