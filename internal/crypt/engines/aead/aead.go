@@ -4,26 +4,22 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"errors"
-	"log/slog"
 
-	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
 
 type AeadEngine struct {
 	engines.EngineData
-	logger *slog.Logger
 }
 
 func NewAeadEngine(name string) *AeadEngine {
 	engine := AeadEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "aead")
-	engine.logger = configs.InitLogger("aead-" + name)
 	return &engine
 }
 
 func (e *AeadEngine) Seal(NewAEAD func() (cipher.AEAD, error), data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt AEAD", "datalen", len(data))
+	e.Logger.Debug("Encrypt AEAD", "datalen", len(data))
 	aead, err := NewAEAD()
 	if err != nil {
 		return nil, err
@@ -32,25 +28,25 @@ func (e *AeadEngine) Seal(NewAEAD func() (cipher.AEAD, error), data []byte) ([]b
 	rand.Read(nonce)
 	bufOut := aead.Seal(nil, nonce, data, nil)
 
-	e.logger.Debug("Encrypt AEAD", "encryptedlen", len(bufOut), "noncelen", len(nonce))
+	e.Logger.Debug("Encrypt AEAD", "encryptedlen", len(bufOut), "noncelen", len(nonce))
 	bufOut = append(nonce, bufOut...)
 	return bufOut, nil
 }
 
 func (e *AeadEngine) Open(NewAEAD func() (cipher.AEAD, error), data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt AEAD", "datalen", len(data))
+	e.Logger.Debug("Decrypt AEAD", "datalen", len(data))
 	aead, err := NewAEAD()
 	if err != nil {
 		return nil, err
 	}
 	nonceSize := aead.NonceSize()
-	e.logger.Debug("Decrypt AEAD", "noncesize", nonceSize)
+	e.Logger.Debug("Decrypt AEAD", "noncesize", nonceSize)
 	if len(data) < nonceSize {
 		return nil, errors.New("data is too short")
 	}
 
 	nonce, dataEnc := data[:nonceSize], data[nonceSize:]
 	bufOut, err := aead.Open(nil, nonce, dataEnc, nil)
-	e.logger.Debug("Decrypt AEAD", "decryptedlen", len(bufOut))
+	e.Logger.Debug("Decrypt AEAD", "decryptedlen", len(bufOut))
 	return bufOut, err
 }

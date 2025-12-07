@@ -4,9 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"errors"
-	"log/slog"
 
-	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
@@ -22,7 +20,6 @@ type AesEngine struct {
 	aead.AeadEngine
 	SharedSecret []byte
 	Mode         string
-	logger       *slog.Logger
 }
 
 func NewAesEngine(sharedSecret []byte, size int, mode string) (*AesEngine, error) {
@@ -40,21 +37,18 @@ func NewAesEngine(sharedSecret []byte, size int, mode string) (*AesEngine, error
 	}
 
 	if !found {
-		logger := configs.InitLogger("aes-" + mode)
-		logger.Error("Invalid key size for AES-"+mode, "size", size)
 		return nil, errors.New("invalid key size")
 	}
 	keySize := size / 8
 
 	if !engines.IsModeSupported(mode) {
-		logger := configs.InitLogger("aes-" + mode)
-		logger.Error("Unsupported mode for AES", "mode", mode)
 		return nil, errors.New("unsupported mode")
 	}
 
 	engine := AesEngine{}
+	engine.EngineData = *engines.NewEngineData("aes", mode)
 	if mode == "ccm" || mode == "gcm" || mode == "ocb" {
-		engine.AeadEngine = *aead.NewAeadEngine("aes-ccm")
+		engine.AeadEngine = *aead.NewAeadEngine("aes-" + mode)
 	}
 	if mode == "cbc" {
 		engine.BlockEngine = *block.NewBlockEngine("aes-" + mode)
@@ -64,7 +58,6 @@ func NewAesEngine(sharedSecret []byte, size int, mode string) (*AesEngine, error
 	}
 	engine.Mode = mode
 	engine.SharedSecret = sharedSecret[:keySize]
-	engine.logger = configs.InitLogger("aes-" + mode)
 	return &engine, nil
 }
 
@@ -115,7 +108,7 @@ func (e *AesEngine) NewAEAD() (cipher.AEAD, error) {
 }
 
 func (e *AesEngine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt", "datalen", len(data))
+	e.Logger.Debug("Encrypt", "datalen", len(data))
 	if e.Mode == "cbc" {
 		return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 	}
@@ -129,7 +122,7 @@ func (e *AesEngine) Encrypt(data []byte) ([]byte, error) {
 }
 
 func (e *AesEngine) Decrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt", "datalen", len(data))
+	e.Logger.Debug("Decrypt", "datalen", len(data))
 	if e.Mode == "cbc" {
 		return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 	}

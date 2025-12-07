@@ -4,7 +4,6 @@ import (
 	"crypto/cipher"
 
 	"github.com/dgryski/go-idea"
-	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 type IdeaEngine struct {
@@ -17,7 +16,6 @@ func NewIdeaEngine(sharedSecret []byte) (*IdeaEngine, error) {
 	engine := IdeaEngine{}
 	engine.BlockEngine = *NewBlockEngine("idea")
 	engine.SharedSecret = sharedSecret[:16]
-	engine.logger = configs.InitLogger("idea")
 	return &engine, nil
 }
 
@@ -34,11 +32,11 @@ func (e *IdeaEngine) NewCipher() (cipher.Block, error) {
 }
 
 func (e *IdeaEngine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt", "datalen", len(data))
+	e.Logger.Debug("Encrypt", "datalen", len(data))
 	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *IdeaEngine) Decrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt", "datalen", len(data))
+	e.Logger.Debug("Decrypt", "datalen", len(data))
 	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

@@ -26,7 +26,6 @@ func NewPresentEngine(sharedSecret []byte, size int) (*PresentEngine, error) {
 	engine := PresentEngine{}
 	engine.BlockEngine = *NewBlockEngine("present")
 	engine.SharedSecret = sharedSecret[:size/8]
-	engine.logger = configs.InitLogger("present")
 	return &engine, nil
 }
 
@@ -43,11 +42,11 @@ func (e *PresentEngine) NewCipher() (cipher.Block, error) {
 }
 
 func (e *PresentEngine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt", "datalen", len(data))
+	e.Logger.Debug("Encrypt", "datalen", len(data))
 	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *PresentEngine) Decrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt", "datalen", len(data))
+	e.Logger.Debug("Decrypt", "datalen", len(data))
 	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

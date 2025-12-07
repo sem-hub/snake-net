@@ -4,7 +4,6 @@ import (
 	"crypto/cipher"
 	"errors"
 
-	"github.com/sem-hub/snake-net/internal/configs"
 	"golang.org/x/crypto/nacl/secretbox"
 )
 
@@ -52,7 +51,6 @@ func NewXsalsa20Poly1305Engine(sharedSecret []byte) (*Xsalsa20Poly1305Engine, er
 	engine := Xsalsa20Poly1305Engine{}
 	engine.AeadEngine = *NewAeadEngine("xsalsa20poly1305")
 	engine.SharedSecret = sharedSecret
-	engine.logger = configs.InitLogger("xsalsa20poly1305")
 	return &engine, nil
 }
 
@@ -69,11 +67,11 @@ func (e *Xsalsa20Poly1305Engine) NewAEAD() (cipher.AEAD, error) {
 }
 
 func (e *Xsalsa20Poly1305Engine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Seal", "datalen", len(data))
+	e.Logger.Debug("Seal", "datalen", len(data))
 	return e.AeadEngine.Seal(e.NewAEAD, data)
 }
 
 func (e *Xsalsa20Poly1305Engine) Decrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Open", "datalen", len(data))
+	e.Logger.Debug("Open", "datalen", len(data))
 	return e.AeadEngine.Open(e.NewAEAD, data)
 }

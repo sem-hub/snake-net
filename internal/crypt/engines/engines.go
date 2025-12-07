@@ -1,6 +1,11 @@
 package engines
 
-import "slices"
+import (
+	"log/slog"
+	"slices"
+
+	"github.com/sem-hub/snake-net/internal/configs"
+)
 
 var EngineList = []string{
 	// AES
@@ -34,8 +39,9 @@ var ModeList = []string{
 }
 
 type EngineData struct {
-	Name string
-	Type string
+	Name   string
+	Type   string
+	Logger *slog.Logger
 }
 
 type CryptoEngine interface {
@@ -47,8 +53,9 @@ type CryptoEngine interface {
 
 func NewEngineData(Name, Type string) *EngineData {
 	return &EngineData{
-		Name: Name,
-		Type: Type,
+		Name:   Name,
+		Type:   Type,
+		Logger: configs.InitLogger(Type + "-" + Name),
 	}
 }
 

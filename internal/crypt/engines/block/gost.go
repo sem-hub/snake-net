@@ -4,7 +4,6 @@ import (
 	"crypto/cipher"
 
 	"github.com/rmuch/gost"
-	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 // GOST28147-89 block cipher engine
@@ -18,7 +17,6 @@ func NewGostEngine(sharedSecret []byte) (*GostEngine, error) {
 	engine := GostEngine{}
 	engine.BlockEngine = *NewBlockEngine("gost")
 	engine.SharedSecret = sharedSecret
-	engine.logger = configs.InitLogger("gost")
 	return &engine, nil
 }
 
@@ -35,11 +33,11 @@ func (e *GostEngine) NewCipher() (cipher.Block, error) {
 }
 
 func (e *GostEngine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt", "datalen", len(data))
+	e.Logger.Debug("Encrypt", "datalen", len(data))
 	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *GostEngine) Decrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt", "datalen", len(data))
+	e.Logger.Debug("Decrypt", "datalen", len(data))
 	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

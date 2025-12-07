@@ -29,17 +29,19 @@ type SignatureInterface interface {
 type Signature struct {
 	SignatureInterface
 	name              string
-	logger            *slog.Logger
+	Logger            *slog.Logger
 	sessionPrivateKey ed25519.PrivateKey
 	sessionPublicKey  ed25519.PublicKey
 	sharedSecret      []byte
 }
 
-func NewSignature(secret []byte) *Signature {
+func NewSignature(secret []byte, name string) *Signature {
 	sig := &Signature{
 		sharedSecret: secret,
+		name:         name,
 	}
-	sig.logger = configs.InitLogger("signature")
+
+	sig.Logger = configs.InitLogger("signature-" + sig.name)
 	return sig
 }
 

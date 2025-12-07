@@ -2,23 +2,18 @@ package signature
 
 import (
 	"crypto/hmac"
-	"golang.org/x/crypto/blake2b"
-	"log/slog"
 
-	"github.com/sem-hub/snake-net/internal/configs"
+	"golang.org/x/crypto/blake2b"
 )
 
 type SignatureHMACBlake struct {
 	Signature
-	logger *slog.Logger
 }
 
 func NewSignatureHMACBlake(secret []byte) *SignatureHMACBlake {
 	sig := &SignatureHMACBlake{
-		Signature: *NewSignature(secret),
+		Signature: *NewSignature(secret, "hmac-blake2b"),
 	}
-	sig.name = "hmac-blake2b"
-	sig.logger = configs.InitLogger("signature-hmac-blake2b")
 	return sig
 }
 
@@ -31,10 +26,10 @@ func (s *SignatureHMACBlake) SignLen() int {
 }
 
 func (s *SignatureHMACBlake) Verify(msg []byte, sig []byte) bool {
-	s.logger.Debug("Verify", "msg len", len(msg), "siglen", len(sig))
+	s.Logger.Debug("Verify", "msg len", len(msg), "siglen", len(sig))
 	hash, err := blake2b.New512(s.sharedSecret)
 	if err != nil {
-		s.logger.Error("blake2b.New512", "error", err)
+		s.Logger.Error("blake2b.New512", "error", err)
 		return false
 	}
 	hash.Write(msg)
@@ -43,10 +38,10 @@ func (s *SignatureHMACBlake) Verify(msg []byte, sig []byte) bool {
 }
 
 func (s *SignatureHMACBlake) Sign(msg []byte) []byte {
-	s.logger.Debug("Sign", "msglen", len(msg))
+	s.Logger.Debug("Sign", "msglen", len(msg))
 	hash, err := blake2b.New512(s.sharedSecret)
 	if err != nil {
-		s.logger.Error("blake2b.New512", "error", err)
+		s.Logger.Error("blake2b.New512", "error", err)
 		return nil
 	}
 	hash.Write(msg)

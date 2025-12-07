@@ -37,7 +37,6 @@ func NewCamelliaEngine(sharedSecret []byte, size int) (*CamelliaEngine, error) {
 	engine := CamelliaEngine{}
 	engine.BlockEngine = *NewBlockEngine("camellia")
 	engine.SharedSecret = sharedSecret[:keySize]
-	engine.logger = configs.InitLogger("camellia")
 	return &engine, nil
 }
 
@@ -54,11 +53,11 @@ func (e *CamelliaEngine) NewCipher() (cipher.Block, error) {
 }
 
 func (e *CamelliaEngine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt", "datalen", len(data))
+	e.Logger.Debug("Encrypt", "datalen", len(data))
 	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *CamelliaEngine) Decrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt", "datalen", len(data))
+	e.Logger.Debug("Decrypt", "datalen", len(data))
 	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

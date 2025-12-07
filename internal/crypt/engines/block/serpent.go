@@ -37,7 +37,6 @@ func NewSerpentEngine(sharedSecret []byte, size int) (*SerpentEngine, error) {
 	engine := SerpentEngine{}
 	engine.BlockEngine = *NewBlockEngine("serpent")
 	engine.SharedSecret = sharedSecret[:keySize]
-	engine.logger = configs.InitLogger("serpent")
 	return &engine, nil
 }
 
@@ -54,11 +53,11 @@ func (e *SerpentEngine) NewCipher() (cipher.Block, error) {
 }
 
 func (e *SerpentEngine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt", "datalen", len(data))
+	e.Logger.Debug("Encrypt", "datalen", len(data))
 	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *SerpentEngine) Decrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt", "datalen", len(data))
+	e.Logger.Debug("Decrypt", "datalen", len(data))
 	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

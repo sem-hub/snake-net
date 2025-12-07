@@ -37,7 +37,6 @@ func NewRc6Engine(sharedSecret []byte, size int) (*Rc6Engine, error) {
 	engine := Rc6Engine{}
 	engine.BlockEngine = *NewBlockEngine("rc6")
 	engine.SharedSecret = sharedSecret[:keySize]
-	engine.logger = configs.InitLogger("rc6")
 	return &engine, nil
 }
 
@@ -54,11 +53,11 @@ func (e *Rc6Engine) NewCipher() (cipher.Block, error) {
 }
 
 func (e *Rc6Engine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt", "datalen", len(data))
+	e.Logger.Debug("Encrypt", "datalen", len(data))
 	return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 }
 
 func (e *Rc6Engine) Decrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt", "datalen", len(data))
+	e.Logger.Debug("Decrypt", "datalen", len(data))
 	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 }

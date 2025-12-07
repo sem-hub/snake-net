@@ -56,7 +56,6 @@ func NewThreefishEngine(sharedSecret []byte, size int) (*ThreefishEngine, error)
 	} else {
 		engine.SharedSecret = sharedSecret
 	}
-	engine.logger = configs.InitLogger("threefish")
 	return &engine, nil
 }
 
@@ -81,7 +80,7 @@ func (e *ThreefishEngine) NewCipher() (cipher.Block, error) {
 }
 
 func (e *ThreefishEngine) Encrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Encrypt", "datalen", len(data))
+	e.Logger.Debug("Encrypt", "datalen", len(data))
 	e.tweak = make([]byte, tweakSize)
 	rand.Read(e.tweak)
 	chiperData, err := e.BlockEngine.BlockEncrypt(e.NewCipher, data)
@@ -93,7 +92,7 @@ func (e *ThreefishEngine) Encrypt(data []byte) ([]byte, error) {
 }
 
 func (e *ThreefishEngine) Decrypt(data []byte) ([]byte, error) {
-	e.logger.Debug("Decrypt", "datalen", len(data))
+	e.Logger.Debug("Decrypt", "datalen", len(data))
 	e.tweak = data[:tweakSize]
 	data = data[tweakSize:]
 	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
