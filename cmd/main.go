@@ -265,11 +265,11 @@ func main() {
 		cfg.Main.LocalAddr = "::"
 	}
 
-	if !engines.IsEngineSupported(cfg.Crypt.Engine) {
+	if cfg.Crypt.Engine != "" && !engines.IsEngineSupported(cfg.Crypt.Engine) {
 		log.Fatal("Unsupported cryptographic engine: " + cfg.Crypt.Engine)
 	}
 
-	if !signature.IsEngineSupported(cfg.Crypt.SignEngine) {
+	if cfg.Crypt.SignEngine != "" && !signature.IsEngineSupported(cfg.Crypt.SignEngine) {
 		log.Fatal("Unsupported signature engine: " + cfg.Crypt.SignEngine)
 	}
 

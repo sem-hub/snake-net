@@ -22,6 +22,8 @@ var cfg *configs.RuntimeConfig = nil
 func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 	logger = configs.InitLogger("protocol")
 	cfg = configs.GetConfig()
+	logger.Debug("Crypto engine: " + cfg.Engine)
+	logger.Debug("Signature engine: " + cfg.SignEngine)
 
 	host := ""
 	port := 0

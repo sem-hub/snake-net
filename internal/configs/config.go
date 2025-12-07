@@ -125,11 +125,11 @@ func GetConfig() *RuntimeConfig {
 					})
 			}
 		}
-		// Defaults
-		if config.Engine == "" {
+		// Defaults for server. Client may leave them empty to get from server.
+		if config.Engine == "" && config.Mode == "server" {
 			config.Engine = "aes-cbc"
 		}
-		if config.SignEngine == "" {
+		if config.SignEngine == "" && config.Mode == "server" {
 			config.SignEngine = "ed25519"
 		}
 	}

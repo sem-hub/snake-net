@@ -41,10 +41,14 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 		prefLen, _ := addr.Network.Mask.Size()
 		msg = append(msg, []byte(addr.IP.Unmap().String()+"/"+strconv.Itoa(prefLen))...)
 	}
-	msg = append(msg, ' ')
-	msg = append(msg, []byte(cfg.Engine)...)
-	msg = append(msg, ' ')
-	msg = append(msg, []byte(cfg.SignEngine)...)
+	if cfg.Engine != "" {
+		msg = append(msg, ' ')
+		msg = append(msg, []byte(cfg.Engine)...)
+	}
+	if cfg.SignEngine != "" {
+		msg = append(msg, ' ')
+		msg = append(msg, []byte(cfg.SignEngine)...)
+	}
 	logger.Debug("Identification", "msg", string(msg))
 	err := c.Write(&msg, WithPadding)
 	if err != nil {
@@ -87,7 +91,9 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 			clientIPs = append(clientIPs, utils.Cidr{IP: netIp.Unmap(), Network: network})
 			i++
 		}
-		chipherName = str[i]
+		if len(str) > i {
+			chipherName = str[i]
+		}
 		if len(str) > i+1 {
 			signatureName = str[i+1]
 		}
@@ -107,7 +113,8 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t)
-	s, err := crypt.NewSecrets(configs.GetConfig().Engine, cfg.Secret, configs.GetConfig().SignEngine)
+	// Bootstrap engine and signature
+	s, err := crypt.NewSecrets("aes-cbc", cfg.Secret, "ed25519")
 	if err != nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}

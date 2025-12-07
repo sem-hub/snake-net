@@ -84,7 +84,10 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 	}
 	h := str[0]
 	clientId := str[1]
-	clientCidr := str[2:4]
+	clientCidr := make([]string, 0)
+	if len(str) > 2 {
+		clientCidr = str[2:4]
+	}
 	logger.Debug("IdentifyClient", "h", h, "clientId", clientId, "clientCidrs", clientCidr)
 	if h == "Hello" {
 		for _, clientNet := range clientCidr {
@@ -113,7 +116,6 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 		return nil, "", "", errors.New("Identification error on first word")
 	}
 
-	logger.Info("IdentifyClient OK", "addr", c.GetClientAddr().String())
 	if len(clientIPs) == 0 {
 		logger.Info("Client requested IPs from server")
 		clientIPs = DynamicClientIPs(cfg.TunAddrs)
@@ -128,6 +130,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 		logger.Info("Client requested engines", "engine", engineName, "signature", signatureName)
 	}
 
+	logger.Info("IdentifyClient OK", "addr", c.GetClientAddr().String())
 	msg := []byte("Welcome")
 	for _, cidr := range cfg.TunAddrs {
 		msg = append(msg, ' ')
@@ -140,9 +143,9 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 		msg = append(msg, []byte(cidr.IP.Unmap().String()+"/"+strconv.Itoa(prefLen))...)
 	}
 	msg = append(msg, ' ')
-	msg = append(msg, []byte(c.GetSecrets().Engine.GetName())...)
+	msg = append(msg, []byte(engineName)...)
 	msg = append(msg, ' ')
-	msg = append(msg, []byte(c.GetSecrets().SignatureEngine.GetName())...)
+	msg = append(msg, []byte(signatureName)...)
 	logger.Debug("Welcome message", "msg", msg)
 	if err := c.Write(&msg, WithPadding); err != nil {
 		logger.Error("Failed to write Welcome message", "error", err)
@@ -166,7 +169,8 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	cfg := configs.GetConfig()
 
 	c := clients.NewClient(addr, t)
-	s, err := crypt.NewSecrets(configs.GetConfig().Engine, cfg.Secret, configs.GetConfig().SignEngine)
+	// Bootstrap engine and signature
+	s, err := crypt.NewSecrets("aes-cbc", cfg.Secret, "ed25519")
 	if err != nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}
