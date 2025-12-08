@@ -28,14 +28,14 @@ var EngineList = []string{
 	"xsalsa20poly1305",
 }
 
-var ModeList = []string{
-	"cbc",
-	"ctr",
-	"cfb",
-	"ofb",
-	"gcm",
-	"ccm",
-	"ocb",
+var ModeList = map[string]string{
+	"cbc": "block",
+	"ctr": "stream",
+	"cfb": "stream",
+	"ofb": "stream",
+	"gcm": "aead",
+	"ccm": "aead",
+	"ocb": "aead",
 }
 
 type EngineData struct {
@@ -64,5 +64,6 @@ func IsEngineSupported(engine string) bool {
 }
 
 func IsModeSupported(mode string) bool {
-	return slices.Contains(ModeList, mode)
+	_, exists := ModeList[mode]
+	return exists
 }
