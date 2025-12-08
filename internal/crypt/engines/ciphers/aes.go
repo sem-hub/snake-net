@@ -71,6 +71,10 @@ func (e *AesEngine) GetType() string {
 	return e.EngineData.Type
 }
 
+func (e *AesEngine) BlockSize() int {
+	return aes.BlockSize
+}
+
 func (e *AesEngine) NewCipher() (cipher.Block, error) {
 	if e.Mode == "cbc" {
 		return aes.NewCipher(e.SharedSecret)
@@ -79,7 +83,7 @@ func (e *AesEngine) NewCipher() (cipher.Block, error) {
 }
 
 func (e *AesEngine) NewStream(iv []byte) (cipher.Stream, error) {
-	block, err := aes.NewCipher(e.SharedSecret)
+	block, err := e.NewCipher()
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +97,7 @@ func (e *AesEngine) NewStream(iv []byte) (cipher.Stream, error) {
 }
 
 func (e *AesEngine) NewAEAD() (cipher.AEAD, error) {
-	block, err := aes.NewCipher(e.SharedSecret)
+	block, err := e.NewCipher()
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +122,7 @@ func (e *AesEngine) Encrypt(data []byte) ([]byte, error) {
 		return e.AeadEngine.Seal(e.NewAEAD, data)
 	}
 	if e.Mode == "ctr" {
-		return e.StreamEngine.StreamEncrypt(aes.BlockSize, e.NewStream, data)
+		return e.StreamEngine.StreamEncrypt(e.BlockSize(), e.NewStream, data)
 	}
 	return nil, errors.New("unsupported mode")
 }
@@ -132,7 +136,7 @@ func (e *AesEngine) Decrypt(data []byte) ([]byte, error) {
 		return e.AeadEngine.Open(e.NewAEAD, data)
 	}
 	if e.Mode == "ctr" {
-		return e.StreamEngine.StreamDecrypt(aes.BlockSize, e.NewStream, data)
+		return e.StreamEngine.StreamDecrypt(e.BlockSize(), e.NewStream, data)
 	}
 	return nil, errors.New("unsupported mode")
 }
