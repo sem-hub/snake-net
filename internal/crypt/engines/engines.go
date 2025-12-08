@@ -8,16 +8,16 @@ import (
 )
 
 var EngineList = []string{
-	// AES
+	// Universal
 	"aes",
+	"serpent",
+	"camellia",
+	"twofish",
+	"rc6",
 	// Block
 	"present",
 	"idea",
-	"twofish",
 	"threefish",
-	"rc6",
-	"serpent",
-	"camellia",
 	"gost",
 	// Stream
 	"salsa20",
