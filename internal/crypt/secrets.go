@@ -76,11 +76,11 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		s.logger.Info("Using AES " + mode + " cipher")
 		s.Engine, err = ciphers.NewAesEngine(s.sharedSecret, size, mode)
 	case "present":
-		s.logger.Info("Using Present block cipher")
-		s.Engine, err = block.NewPresentEngine(s.sharedSecret, size)
+		s.logger.Info("Using Present " + mode + " cipher")
+		s.Engine, err = ciphers.NewPresentEngine(s.sharedSecret, size, mode)
 	case "idea":
 		s.logger.Info("Using Idea block cipher")
-		s.Engine, err = block.NewIdeaEngine(s.sharedSecret)
+		s.Engine, err = ciphers.NewIdeaEngine(s.sharedSecret, mode)
 	case "twofish":
 		s.logger.Info("Using Twofish " + mode + " cipher")
 		s.Engine, err = ciphers.NewTwofishEngine(s.sharedSecret, size, mode)
@@ -98,7 +98,7 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		s.Engine, err = ciphers.NewCamelliaEngine(s.sharedSecret, size, mode)
 	case "gost":
 		s.logger.Info("Using GOST block cipher")
-		s.Engine, err = block.NewGostEngine(s.sharedSecret)
+		s.Engine, err = ciphers.NewGostEngine(s.sharedSecret, mode)
 	case "salsa20":
 		s.logger.Info("Using Salsa20 stream cipher")
 		s.Engine, err = stream.NewSalsa20Engine(s.sharedSecret)
