@@ -36,6 +36,7 @@ var ModeList = map[string]string{
 	"gcm": "aead",
 	"ccm": "aead",
 	"ocb": "aead",
+	"eax": "aead",
 }
 
 type EngineData struct {

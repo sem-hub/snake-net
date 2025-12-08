@@ -10,6 +10,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/crypt/engines/stream"
 	"github.com/starainrt/go-crypto/ocb"
 	ccm "gitlab.com/go-extension/aes-ccm"
+	"go.gnd.pw/crypto/eax"
 )
 
 type Modes struct {
@@ -115,6 +116,9 @@ func (e *Modes) NewAEAD() (cipher.AEAD, error) {
 	}
 	if e.Mode == "ocb" {
 		return ocb.NewOCB(block)
+	}
+	if e.Mode == "eax" {
+		return eax.NewEAX(block)
 	}
 	return nil, errors.New("unsupported mode")
 }
