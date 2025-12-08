@@ -16,7 +16,7 @@ type IdeaEngine struct {
 // Only 128 bits key size
 func NewIdeaEngine(sharedSecret []byte, mode string) (*IdeaEngine, error) {
 	if engines.ModeList[mode] == "aead" {
-		return nil, errors.New("idea cipher does not support aead modes")
+		return nil, errors.New("idea cipher does not support aead modes (BlockSize < 16)")
 	}
 	engine := IdeaEngine{}
 

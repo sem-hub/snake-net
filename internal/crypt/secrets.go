@@ -14,7 +14,6 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
-	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/ciphers"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/stream"
 	"github.com/sem-hub/snake-net/internal/crypt/signature"
@@ -79,14 +78,14 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		s.logger.Info("Using Present " + mode + " cipher")
 		s.Engine, err = ciphers.NewPresentEngine(s.sharedSecret, size, mode)
 	case "idea":
-		s.logger.Info("Using Idea block cipher")
+		s.logger.Info("Using Idea " + mode + " cipher")
 		s.Engine, err = ciphers.NewIdeaEngine(s.sharedSecret, mode)
 	case "twofish":
 		s.logger.Info("Using Twofish " + mode + " cipher")
 		s.Engine, err = ciphers.NewTwofishEngine(s.sharedSecret, size, mode)
 	case "threefish":
-		s.logger.Info("Using Threefish block cipher")
-		s.Engine, err = block.NewThreefishEngine(s.sharedSecret, size)
+		s.logger.Info("Using Threefish " + mode + " cipher")
+		s.Engine, err = ciphers.NewThreefishEngine(s.sharedSecret, size, mode)
 	case "rc6":
 		s.logger.Info("Using RC6 " + mode + " cipher")
 		s.Engine, err = ciphers.NewRc6Engine(s.sharedSecret, size, mode)
@@ -97,7 +96,7 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		s.logger.Info("Using Camellia " + mode + " cipher")
 		s.Engine, err = ciphers.NewCamelliaEngine(s.sharedSecret, size, mode)
 	case "gost":
-		s.logger.Info("Using GOST block cipher")
+		s.logger.Info("Using GOST " + mode + " cipher")
 		s.Engine, err = ciphers.NewGostEngine(s.sharedSecret, mode)
 	case "salsa20":
 		s.logger.Info("Using Salsa20 stream cipher")

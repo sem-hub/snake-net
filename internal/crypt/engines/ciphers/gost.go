@@ -16,7 +16,7 @@ type GostEngine struct {
 // Only 256 bits key size
 func NewGostEngine(sharedSecret []byte, mode string) (*GostEngine, error) {
 	if engines.ModeList[mode] == "aead" {
-		return nil, errors.New("gost cipher does not support aead modes")
+		return nil, errors.New("gost cipher does not support aead modes (BlockSize < 16)")
 	}
 	engine := GostEngine{}
 

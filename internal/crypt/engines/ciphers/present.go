@@ -17,7 +17,7 @@ type PresentEngine struct {
 // Only 80 or 128 bits key size supported. Using 128 bits
 func NewPresentEngine(sharedSecret []byte, size int, mode string) (*PresentEngine, error) {
 	if engines.ModeList[mode] == "aead" {
-		return nil, errors.New("present cipher does not support aead modes")
+		return nil, errors.New("present cipher does not support aead modes (BlockSize < 16)")
 	}
 	engine := PresentEngine{}
 	allowedKeySizes := []int{80, 128}

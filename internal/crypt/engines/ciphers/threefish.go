@@ -1,4 +1,4 @@
-package block
+package ciphers
 
 import (
 	"crypto/cipher"
@@ -8,42 +8,31 @@ import (
 	"io"
 
 	"github.com/schultz-is/go-threefish"
-	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"golang.org/x/crypto/hkdf"
 )
 
 const tweakSize = 16
 
 type ThreefishEngine struct {
-	BlockEngine
+	modes        *Modes
 	SharedSecret []byte
 	tweak        []byte
 	keySize      int
 }
 
-func NewThreefishEngine(sharedSecret []byte, size int) (*ThreefishEngine, error) {
+func NewThreefishEngine(sharedSecret []byte, size int, mode string) (*ThreefishEngine, error) {
+	if engines.ModeList[mode] == "aead" {
+		return nil, errors.New("threefish cipher does not support aead modes (BlockSize > 16)")
+	}
+
 	allowedKeySizes := []int{256, 512, 1024}
 	if size == 0 {
 		size = 256
 	}
 
-	found := false
-	for _, s := range allowedKeySizes {
-		if size == s {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		logger := configs.InitLogger("threefish")
-		logger.Error("Invalid key size for Threefish", "size", size)
-		return nil, errors.New("invalid key size")
-	}
-
 	engine := ThreefishEngine{}
-	engine.BlockEngine = *NewBlockEngine("threefish")
-	engine.keySize = size
+	var err error
 
 	// Expand key if size > 256 bits
 	if size > 256 {
@@ -56,15 +45,34 @@ func NewThreefishEngine(sharedSecret []byte, size int) (*ThreefishEngine, error)
 	} else {
 		engine.SharedSecret = sharedSecret
 	}
+	engine.modes, err = NewModes("threefish", mode, size, allowedKeySizes, engine.SharedSecret,
+		engine.NewCipher, engine.BlockSize)
+	if err != nil {
+		return nil, err
+	}
+	engine.keySize = size
+
 	return &engine, nil
 }
 
 func (e *ThreefishEngine) GetName() string {
-	return e.BlockEngine.Name
+	return e.modes.Name
 }
 
 func (e *ThreefishEngine) GetType() string {
-	return e.BlockEngine.Type
+	return e.modes.Type
+}
+func (e *ThreefishEngine) BlockSize() int {
+	blockSize := 0
+	switch e.keySize {
+	case 256:
+		blockSize = 32
+	case 512:
+		blockSize = 64
+	case 1024:
+		blockSize = 128
+	}
+	return blockSize
 }
 
 func (e *ThreefishEngine) NewCipher() (cipher.Block, error) {
@@ -80,10 +88,9 @@ func (e *ThreefishEngine) NewCipher() (cipher.Block, error) {
 }
 
 func (e *ThreefishEngine) Encrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Encrypt", "datalen", len(data))
 	e.tweak = make([]byte, tweakSize)
 	rand.Read(e.tweak)
-	chiperData, err := e.BlockEngine.BlockEncrypt(e.NewCipher, data)
+	chiperData, err := e.modes.Encrypt(data)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +99,7 @@ func (e *ThreefishEngine) Encrypt(data []byte) ([]byte, error) {
 }
 
 func (e *ThreefishEngine) Decrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Decrypt", "datalen", len(data))
 	e.tweak = data[:tweakSize]
 	data = data[tweakSize:]
-	return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
+	return e.modes.Decrypt(data)
 }
