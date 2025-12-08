@@ -10,6 +10,7 @@ require (
 	github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb
 	github.com/ebfe/estream v0.0.0-20150613152650-6f7a4538d35a
 	github.com/google/uuid v1.6.0
+	github.com/pedroalbanese/gogost v0.0.0-20250117160715-44a1f1ec2524
 	github.com/pion/dtls/v3 v3.0.7
 	github.com/quic-go/quic-go v0.56.0
 	github.com/rmuch/gost v0.0.0-20220527191022-9035252d8496

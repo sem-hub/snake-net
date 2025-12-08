@@ -18,7 +18,7 @@ func NewCamelliaEngine(sharedSecret []byte, size int, mode string) (*CamelliaEng
 		size = 256
 	}
 	var err error
-	engine.modes, err = NewModes("camellia", mode, size, allowedKeySizes, sharedSecret,
+	engine.modes, err = NewModes("camel", mode, size, allowedKeySizes, sharedSecret,
 		engine.NewCipher, engine.BlockSize)
 	if err != nil {
 		return nil, err

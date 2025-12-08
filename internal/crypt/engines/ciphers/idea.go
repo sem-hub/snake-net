@@ -3,6 +3,7 @@ package ciphers
 import (
 	"crypto/cipher"
 	"errors"
+
 	"github.com/dgryski/go-idea"
 
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
@@ -15,7 +16,7 @@ type IdeaEngine struct {
 
 // Only 128 bits key size
 func NewIdeaEngine(sharedSecret []byte, mode string) (*IdeaEngine, error) {
-	if engines.ModeList[mode] == "aead" {
+	if engines.ModeList[mode] == "aead" && mode != "mgm" {
 		return nil, errors.New("idea cipher does not support aead modes (BlockSize < 16)")
 	}
 	engine := IdeaEngine{}

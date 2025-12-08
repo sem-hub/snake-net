@@ -4,6 +4,7 @@ import (
 	"crypto/cipher"
 	"errors"
 
+	"github.com/pedroalbanese/gogost/mgm"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
@@ -119,6 +120,9 @@ func (e *Modes) NewAEAD() (cipher.AEAD, error) {
 	}
 	if e.Mode == "eax" {
 		return eax.NewEAX(block)
+	}
+	if e.Mode == "mgm" {
+		return mgm.NewMGM(block, e.BlockSize())
 	}
 	return nil, errors.New("unsupported mode")
 }
