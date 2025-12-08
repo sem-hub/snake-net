@@ -66,6 +66,9 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 			mode = parts[1]
 		}
 	}
+	if mode == "" {
+		mode = "cbc"
+	}
 	s.logger.Info("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
 	var err error = nil
 	switch cipher {
@@ -79,20 +82,20 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		s.logger.Info("Using Idea block cipher")
 		s.Engine, err = block.NewIdeaEngine(s.sharedSecret)
 	case "twofish":
-		s.logger.Info("Using Twofish block cipher")
-		s.Engine, err = block.NewTwofishEngine(s.sharedSecret, size)
+		s.logger.Info("Using Twofish " + mode + " cipher")
+		s.Engine, err = ciphers.NewTwofishEngine(s.sharedSecret, size, mode)
 	case "threefish":
 		s.logger.Info("Using Threefish block cipher")
 		s.Engine, err = block.NewThreefishEngine(s.sharedSecret, size)
 	case "rc6":
-		s.logger.Info("Using RC6 block cipher")
-		s.Engine, err = block.NewRc6Engine(s.sharedSecret, size)
+		s.logger.Info("Using RC6 " + mode + " cipher")
+		s.Engine, err = ciphers.NewRc6Engine(s.sharedSecret, size, mode)
 	case "serpent":
-		s.logger.Info("Using Serpent block cipher")
-		s.Engine, err = block.NewSerpentEngine(s.sharedSecret, size)
+		s.logger.Info("Using Serpent " + mode + " cipher")
+		s.Engine, err = ciphers.NewSerpentEngine(s.sharedSecret, size, mode)
 	case "camellia":
-		s.logger.Info("Using Camellia block cipher")
-		s.Engine, err = block.NewCamelliaEngine(s.sharedSecret, size)
+		s.logger.Info("Using Camellia " + mode + " cipher")
+		s.Engine, err = ciphers.NewCamelliaEngine(s.sharedSecret, size, mode)
 	case "gost":
 		s.logger.Info("Using GOST block cipher")
 		s.Engine, err = block.NewGostEngine(s.sharedSecret)
