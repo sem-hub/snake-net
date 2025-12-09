@@ -4,9 +4,9 @@ import (
 	"crypto/cipher"
 	"errors"
 
-	"github.com/ProtonMail/go-crypto/eax"
 	"github.com/ProtonMail/go-crypto/ocb"
 	"github.com/pedroalbanese/gogost/mgm"
+	"github.com/sem-hub/eax-mode/eax"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
@@ -119,6 +119,10 @@ func (e *Modes) NewAEAD() (cipher.AEAD, error) {
 		return ocb.NewOCB(block)
 	}
 	if e.Mode == "eax" {
+		if block.BlockSize() < 16 {
+			defaultNonceSize := 16
+			return eax.NewEAXWithNonceAndTagSize(block, defaultNonceSize, block.BlockSize())
+		}
 		return eax.NewEAX(block)
 	}
 	if e.Mode == "mgm" {

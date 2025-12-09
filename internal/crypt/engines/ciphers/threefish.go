@@ -22,7 +22,8 @@ type ThreefishEngine struct {
 }
 
 func NewThreefishEngine(sharedSecret []byte, size int, mode string) (*ThreefishEngine, error) {
-	if engines.ModeList[mode] == "aead" {
+	// Only EAX mode is supported for Threefish AEAD because of big block size
+	if engines.ModeList[mode] == "aead" && mode != "eax" {
 		return nil, errors.New("threefish cipher does not support aead modes (BlockSize > 16)")
 	}
 
