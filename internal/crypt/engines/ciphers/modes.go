@@ -4,14 +4,14 @@ import (
 	"crypto/cipher"
 	"errors"
 
+	"github.com/ProtonMail/go-crypto/eax"
+	"github.com/ProtonMail/go-crypto/ocb"
 	"github.com/pedroalbanese/gogost/mgm"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/stream"
-	"github.com/starainrt/go-crypto/ocb"
 	ccm "gitlab.com/go-extension/aes-ccm"
-	"go.gnd.pw/crypto/eax"
 )
 
 type Modes struct {
