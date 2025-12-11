@@ -10,13 +10,14 @@ require (
 	github.com/aead/serpent v0.0.0-20160714141033-fba169763ea6
 	github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb
 	github.com/ebfe/estream v0.0.0-20150613152650-6f7a4538d35a
+	github.com/ericlagergren/lwcrypto v0.0.0-20220507050349-7b11afcfc217
 	github.com/google/uuid v1.6.0
 	github.com/pedroalbanese/gogost v0.0.0-20250117160715-44a1f1ec2524
 	github.com/pion/dtls/v3 v3.0.7
 	github.com/quic-go/quic-go v0.56.0
 	github.com/rmuch/gost v0.0.0-20220527191022-9035252d8496
 	github.com/schultz-is/go-threefish v1.0.2
-	github.com/sem-hub/eax-mode v0.0.0-20251209171226-1b1fe9020c0d
+	github.com/sem-hub/eax-mode v0.0.0-20251211001343-03d13a41fd58
 	github.com/vishvananda/netlink v1.3.1
 	github.com/yi-jiayu/PRESENT.go v0.0.0-20180830042344-3a4450fb5c26
 	gitlab.com/go-extension/aes-ccm v0.0.0-20230221065045-e58665ef23c7
@@ -25,6 +26,7 @@ require (
 )
 
 require (
+	github.com/ericlagergren/subtle v0.0.0-20220507045147-890d697da010 // indirect
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect

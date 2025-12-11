@@ -8,7 +8,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
 
-// GOST28147-89 block cipher engine
+// GOST28147-89 block cipher engine. ParamZ aka Magma.
 type GostEngine struct {
 	modes *Modes
 }

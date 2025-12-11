@@ -26,6 +26,7 @@ var EngineList = []string{
 	// AEAD
 	"chacha20poly1305",
 	"xsalsa20poly1305",
+	"grain",
 }
 
 var ModeList = map[string]string{

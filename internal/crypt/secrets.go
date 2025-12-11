@@ -113,6 +113,9 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	case "xsalsa20poly1305":
 		s.logger.Info("Using XSalsa20-Poly1305 AEAD cipher")
 		s.Engine, err = aead.NewXsalsa20Poly1305Engine(s.sharedSecret)
+	case "grain":
+		s.logger.Info("Using Grain AEAD cipher")
+		s.Engine, err = aead.NewGrainEngine(s.sharedSecret)
 	default:
 		s.logger.Info("Unknown cipher")
 		return nil, errors.New("unknown cipher: " + engine)
