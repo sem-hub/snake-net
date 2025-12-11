@@ -48,16 +48,6 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	sum256 := sha256.Sum256([]byte(secret))
 	copy(s.sharedSecret, sum256[:])
 
-	// Generate temporary session keys
-	sessionPublicKey, sessionPrivateKey, err :=
-		ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
-	if err != nil {
-		s.logger.Error("Failed to generate session keys", "error", err)
-		return nil, err
-	}
-	s.SignatureEngine.SetPublicKey(sessionPublicKey)
-	s.SignatureEngine.SetPrivateKey(sessionPrivateKey)
-
 	size := 0
 	cipher := engine
 	mode := ""
@@ -75,12 +65,11 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 			mode = parts[1]
 		}
 	}
-	// Default mode
 	if mode == "" {
 		mode = "cbc"
 	}
-	// Default size is zero, engine will decide
 	s.logger.Info("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
+	var err error = nil
 	switch cipher {
 	case "aes":
 		s.logger.Info("Using AES " + mode + " cipher")
@@ -153,6 +142,14 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		s.logger.Error("Unknown signature engine: " + engine)
 		return nil, errors.New("unknown signature engine: " + signEngine)
 	}
+	sessionPublicKey, sessionPrivateKey, err := ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
+	if err != nil {
+		s.logger.Error("Failed to generate session keys", "error", err)
+		return nil, err
+	}
+	s.SignatureEngine.SetPublicKey(sessionPublicKey)
+	s.SignatureEngine.SetPrivateKey(sessionPrivateKey)
+
 	return &s, nil
 }
 
