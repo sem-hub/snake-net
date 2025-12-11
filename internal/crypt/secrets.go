@@ -107,6 +107,9 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	case "rabbit":
 		s.logger.Info("Using Rabbit stream cipher")
 		s.Engine, err = stream.NewRabbitEngine(s.sharedSecret)
+	case "hc":
+		s.logger.Info("Using HC-256 stream cipher")
+		s.Engine, err = stream.NewHc256Engine(s.sharedSecret)
 	case "chacha20poly1305":
 		s.logger.Info("Using ChaCha20-Poly1305 AEAD cipher")
 		s.Engine, err = aead.NewChacha20Poly1305Engine(s.sharedSecret)

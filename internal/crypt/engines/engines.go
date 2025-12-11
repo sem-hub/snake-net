@@ -23,6 +23,7 @@ var EngineList = []string{
 	"salsa20",
 	"chacha20",
 	"rabbit",
+	"hc",
 	// AEAD
 	"chacha20poly1305",
 	"xsalsa20poly1305",
