@@ -7,14 +7,13 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 )
 
-var EngineList = []string{
+var EnginesList = []string{
 	// Universal
 	"aes",
 	"serpent",
 	"camellia",
 	"twofish",
 	"rc6",
-	// Block
 	"present",
 	"idea",
 	"threefish",
@@ -30,7 +29,7 @@ var EngineList = []string{
 	"grain",
 }
 
-var ModeList = map[string]string{
+var ModesList = map[string]string{
 	"cbc": "block",
 	"ctr": "stream",
 	"cfb": "stream",
@@ -42,17 +41,16 @@ var ModeList = map[string]string{
 	"mgm": "aead",
 }
 
-type EngineData struct {
-	Name   string
-	Type   string
-	Logger *slog.Logger
-}
-
 type CryptoEngine interface {
 	Encrypt([]byte) ([]byte, error)
 	Decrypt([]byte) ([]byte, error)
 	GetName() string
 	GetType() string
+}
+type EngineData struct {
+	Name   string
+	Type   string
+	Logger *slog.Logger
 }
 
 func NewEngineData(Name, Type string) *EngineData {
@@ -64,10 +62,10 @@ func NewEngineData(Name, Type string) *EngineData {
 }
 
 func IsEngineSupported(engine string) bool {
-	return slices.Contains(EngineList, engine)
+	return slices.Contains(EnginesList, engine)
 }
 
 func IsModeSupported(mode string) bool {
-	_, exists := ModeList[mode]
+	_, exists := ModesList[mode]
 	return exists
 }

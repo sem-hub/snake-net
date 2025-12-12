@@ -1,7 +1,8 @@
 FLAGS=-ldflags "-s -w"
 build:
-	cd cmd && go build ${FLAGS} -o snake-net
+	cd cmd/snake-net && go build ${FLAGS} -o snake-net
+	cd cmd/benchmarks && go build ${FLAGS} -o benchmarks
 windows:
-	cd cmd && GOOS=windows GOARCH=amd64 go build ${FLAGS} -o snake-net.exe
+	cd cmd/snake-net && GOOS=windows GOARCH=amd64 go build ${FLAGS} -o snake-net.exe
 linux-arm64:
-	cd cmd && GOOS=linux GOARCH=arm64 go build ${FLAGS} -o snake-net
+	cd cmd/snake-net && GOOS=linux GOARCH=arm64 go build ${FLAGS} -o snake-net

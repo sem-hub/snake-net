@@ -19,10 +19,11 @@ type Modes struct {
 	block.BlockEngine
 	stream.StreamEngine
 	aead.AeadEngine
-	SharedSecret []byte
-	Mode         string
-	NewCipher    func() (cipher.Block, error)
-	BlockSize    func() int
+	SharedSecret    []byte
+	Mode            string
+	NewCipher       func() (cipher.Block, error)
+	BlockSize       func() int
+	allowedKeySizes []int
 }
 
 func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret []byte,
@@ -45,15 +46,16 @@ func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret [
 	}
 
 	engine := Modes{}
-	if engines.ModeList[mode] == "aead" {
+	engine.allowedKeySizes = allowedKeySizes
+	if engines.ModesList[mode] == "aead" {
 		engine.AeadEngine = *aead.NewAeadEngine(name + "-" + mode)
 		engine.EngineData = engine.AeadEngine.EngineData
 	}
-	if engines.ModeList[mode] == "block" {
+	if engines.ModesList[mode] == "block" {
 		engine.BlockEngine = *block.NewBlockEngine(name + "-" + mode)
 		engine.EngineData = engine.BlockEngine.EngineData
 	}
-	if engines.ModeList[mode] == "stream" {
+	if engines.ModesList[mode] == "stream" {
 		engine.StreamEngine = *stream.NewStreamEngine(name + "-" + mode)
 		engine.EngineData = engine.StreamEngine.EngineData
 	}
@@ -62,6 +64,10 @@ func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret [
 	engine.NewCipher = newCipherFunc
 	engine.BlockSize = blockSizeFunc
 	return &engine, nil
+}
+
+func (e *Modes) GetKeySizes() []int {
+	return e.allowedKeySizes
 }
 
 func (e *Modes) GetName() string {
@@ -133,13 +139,13 @@ func (e *Modes) NewAEAD() (cipher.AEAD, error) {
 
 func (e *Modes) Encrypt(data []byte) ([]byte, error) {
 	e.Logger.Debug("Encrypt", "datalen", len(data))
-	if engines.ModeList[e.Mode] == "block" {
+	if engines.ModesList[e.Mode] == "block" {
 		return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 	}
-	if engines.ModeList[e.Mode] == "aead" {
+	if engines.ModesList[e.Mode] == "aead" {
 		return e.AeadEngine.Seal(e.NewAEAD, data)
 	}
-	if engines.ModeList[e.Mode] == "stream" {
+	if engines.ModesList[e.Mode] == "stream" {
 		return e.StreamEngine.StreamEncrypt(e.BlockSize(), e.NewEncryptStream, data)
 	}
 	return nil, errors.New("unsupported mode")
@@ -147,13 +153,13 @@ func (e *Modes) Encrypt(data []byte) ([]byte, error) {
 
 func (e *Modes) Decrypt(data []byte) ([]byte, error) {
 	e.Logger.Debug("Decrypt", "datalen", len(data))
-	if engines.ModeList[e.Mode] == "block" {
+	if engines.ModesList[e.Mode] == "block" {
 		return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 	}
-	if engines.ModeList[e.Mode] == "aead" {
+	if engines.ModesList[e.Mode] == "aead" {
 		return e.AeadEngine.Open(e.NewAEAD, data)
 	}
-	if engines.ModeList[e.Mode] == "stream" {
+	if engines.ModesList[e.Mode] == "stream" {
 		return e.StreamEngine.StreamDecrypt(e.BlockSize(), e.NewDecryptStream, data)
 	}
 	return nil, errors.New("unsupported mode")

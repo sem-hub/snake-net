@@ -74,83 +74,25 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	}
 	s.logger.Info("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
 	var err error = nil
-	switch cipher {
-	case "aes":
-		s.logger.Info("Using AES " + mode + " cipher")
-		s.Engine, err = ciphers.NewAesEngine(s.sharedSecret, size, mode)
-	case "present":
-		s.logger.Info("Using Present " + mode + " cipher")
-		s.Engine, err = ciphers.NewPresentEngine(s.sharedSecret, size, mode)
-	case "idea":
-		s.logger.Info("Using Idea " + mode + " cipher")
-		s.Engine, err = ciphers.NewIdeaEngine(s.sharedSecret, mode)
-	case "twofish":
-		s.logger.Info("Using Twofish " + mode + " cipher")
-		s.Engine, err = ciphers.NewTwofishEngine(s.sharedSecret, size, mode)
-	case "threefish":
-		s.logger.Info("Using Threefish " + mode + " cipher")
-		s.Engine, err = ciphers.NewThreefishEngine(s.sharedSecret, size, mode)
-	case "rc6":
-		s.logger.Info("Using RC6 " + mode + " cipher")
-		s.Engine, err = ciphers.NewRc6Engine(s.sharedSecret, size, mode)
-	case "serpent":
-		s.logger.Info("Using Serpent " + mode + " cipher")
-		s.Engine, err = ciphers.NewSerpentEngine(s.sharedSecret, size, mode)
-	case "camellia":
-		s.logger.Info("Using Camellia " + mode + " cipher")
-		s.Engine, err = ciphers.NewCamelliaEngine(s.sharedSecret, size, mode)
-	case "gost":
-		s.logger.Info("Using GOST " + mode + " cipher")
-		s.Engine, err = ciphers.NewGostEngine(s.sharedSecret, mode)
-	case "salsa20":
-		s.logger.Info("Using Salsa20 stream cipher")
-		s.Engine, err = stream.NewSalsa20Engine(s.sharedSecret)
-	case "chacha20":
-		s.logger.Info("Using ChaCha20 stream cipher")
-		s.Engine, err = stream.NewChacha20Engine(s.sharedSecret)
-	case "rabbit":
-		s.logger.Info("Using Rabbit stream cipher")
-		s.Engine, err = stream.NewRabbitEngine(s.sharedSecret)
-	case "hc":
-		s.logger.Info("Using HC-256 stream cipher")
-		s.Engine, err = stream.NewHc256Engine(s.sharedSecret)
-	case "chacha20poly1305":
-		s.logger.Info("Using ChaCha20-Poly1305 AEAD cipher")
-		s.Engine, err = aead.NewChacha20Poly1305Engine(s.sharedSecret)
-	case "xsalsa20poly1305":
-		s.logger.Info("Using XSalsa20-Poly1305 AEAD cipher")
-		s.Engine, err = aead.NewXsalsa20Poly1305Engine(s.sharedSecret)
-	case "grain":
-		s.logger.Info("Using Grain AEAD cipher")
-		s.Engine, err = aead.NewGrainEngine(s.sharedSecret)
-	default:
-		s.logger.Info("Unknown cipher")
-		return nil, errors.New("unknown cipher: " + engine)
-	}
+	s.Engine, err = CreateEngine(cipher, mode, size, s.sharedSecret)
 	if err != nil {
 		s.logger.Error("Failed to create crypto engine", "error", err)
 		return nil, err
 	}
+	s.logger.Info("Using " + cipher + " " + mode + " cipher")
 
 	if s.Engine.GetType() == "aead" {
 		s.logger.Info("AEAD cipher selected, signature engine will not be used")
 		return &s, nil
 	}
 
-	switch signEngine {
-	case "ed25519":
-		s.logger.Info("Using Ed25519 signature engine")
-		s.SignatureEngine = signature.NewSignatureEd25519(s.sharedSecret)
-	case "hmac-sha256":
-		s.logger.Info("Using HMAC-SHA256 signature engine")
-		s.SignatureEngine = signature.NewSignatureHMACSHA256(s.sharedSecret)
-	case "hmac-blake2b":
-		s.logger.Info("Using HMAC-Blake2b signature engine")
-		s.SignatureEngine = signature.NewSignatureHMACBlake(s.sharedSecret)
-	default:
-		s.logger.Error("Unknown signature engine: " + engine)
-		return nil, errors.New("unknown signature engine: " + signEngine)
+	s.SignatureEngine, err = CreateSignatureEngine(signEngine, s.sharedSecret)
+	if err != nil {
+		s.logger.Error("Failed to create signature engine", "error", err)
+		return nil, err
 	}
+	s.logger.Info("Using " + signEngine + " signature engine")
+
 	sessionPublicKey, sessionPrivateKey, err := ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
 	if err != nil {
 		s.logger.Error("Failed to generate session keys", "error", err)
@@ -249,4 +191,61 @@ func (s *Secrets) SignAndEncrypt(msg []byte, flags Cmd) ([]byte, error) {
 	}
 	s.logger.Debug("client Write SignAndEncrypt done", "len", len(buf))
 	return buf, nil
+}
+
+func CreateEngine(engineName, mode string, keySize int, sharedSecret []byte) (engines.CryptoEngine, error) {
+	var engine engines.CryptoEngine
+	var err error
+	switch engineName {
+	case "aes":
+		engine, err = ciphers.NewAesEngine(sharedSecret, keySize, mode)
+	case "present":
+		engine, err = ciphers.NewPresentEngine(sharedSecret, keySize, mode)
+	case "idea":
+		engine, err = ciphers.NewIdeaEngine(sharedSecret, mode)
+	case "twofish":
+		engine, err = ciphers.NewTwofishEngine(sharedSecret, keySize, mode)
+	case "threefish":
+		engine, err = ciphers.NewThreefishEngine(sharedSecret, keySize, mode)
+	case "rc6":
+		engine, err = ciphers.NewRc6Engine(sharedSecret, keySize, mode)
+	case "serpent":
+		engine, err = ciphers.NewSerpentEngine(sharedSecret, keySize, mode)
+	case "camellia":
+		engine, err = ciphers.NewCamelliaEngine(sharedSecret, keySize, mode)
+	case "gost":
+		engine, err = ciphers.NewGostEngine(sharedSecret, mode)
+	case "salsa20":
+		engine, err = stream.NewSalsa20Engine(sharedSecret)
+	case "chacha20":
+		engine, err = stream.NewChacha20Engine(sharedSecret)
+	case "rabbit":
+		engine, err = stream.NewRabbitEngine(sharedSecret)
+	case "hc":
+		engine, err = stream.NewHc256Engine(sharedSecret)
+	case "chacha20poly1305":
+		engine, err = aead.NewChacha20Poly1305Engine(sharedSecret)
+	case "xsalsa20poly1305":
+		engine, err = aead.NewXsalsa20Poly1305Engine(sharedSecret)
+	case "grain":
+		engine, err = aead.NewGrainEngine(sharedSecret)
+	default:
+		return nil, errors.New("unknown cipher: " + engineName)
+	}
+	return engine, err
+}
+
+func CreateSignatureEngine(signEngine string, sharedSecret []byte) (signature.SignatureInterface, error) {
+	var s signature.SignatureInterface
+	switch signEngine {
+	case "ed25519":
+		s = signature.NewSignatureEd25519(sharedSecret)
+	case "hmac-sha256":
+		s = signature.NewSignatureHMACSHA256(sharedSecret)
+	case "hmac-blake2b":
+		s = signature.NewSignatureHMACBlake(sharedSecret)
+	default:
+		return nil, errors.New("unknown signature engine: " + signEngine)
+	}
+	return s, nil
 }
