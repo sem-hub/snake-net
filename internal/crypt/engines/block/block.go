@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"errors"
 
+	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
 
@@ -16,6 +17,7 @@ type BlockEngine struct {
 func NewBlockEngine(name string) *BlockEngine {
 	engine := BlockEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "block")
+	engine.Logger = configs.InitLogger("crypto_block")
 
 	return &engine
 }

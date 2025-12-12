@@ -32,11 +32,9 @@ func (e *GrainEngine) NewAEAD() (cipher.AEAD, error) {
 }
 
 func (e *GrainEngine) Encrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Seal", "datalen", len(data))
 	return e.AeadEngine.Seal(e.NewAEAD, data)
 }
 
 func (e *GrainEngine) Decrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Open", "datalen", len(data))
 	return e.AeadEngine.Open(e.NewAEAD, data)
 }

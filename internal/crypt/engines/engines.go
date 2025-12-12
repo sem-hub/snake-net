@@ -3,8 +3,6 @@ package engines
 import (
 	"log/slog"
 	"slices"
-
-	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 var EnginesList = []string{
@@ -55,9 +53,8 @@ type EngineData struct {
 
 func NewEngineData(Name, Type string) *EngineData {
 	return &EngineData{
-		Name:   Name,
-		Type:   Type,
-		Logger: configs.InitLogger(Type + "-" + Name),
+		Name: Name,
+		Type: Type,
 	}
 }
 

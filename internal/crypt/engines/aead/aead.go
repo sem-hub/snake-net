@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 
+	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
 
@@ -15,6 +16,7 @@ type AeadEngine struct {
 func NewAeadEngine(name string) *AeadEngine {
 	engine := AeadEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "aead")
+	engine.Logger = configs.InitLogger("crypto_aead")
 	return &engine
 }
 

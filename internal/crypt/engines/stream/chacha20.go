@@ -31,12 +31,10 @@ func (e *Chacha20Engine) NewCipher(nonce []byte) (cipher.Stream, error) {
 }
 
 func (e *Chacha20Engine) Encrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Encrypt", "datalen", len(data))
 	return e.StreamEngine.StreamEncrypt(chacha20.NonceSize, e.NewCipher, data)
 }
 
 func (e *Chacha20Engine) Decrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Decrypt", "datalen", len(data))
 	return e.StreamEngine.StreamDecrypt(chacha20.NonceSize, e.NewCipher, data)
 
 }

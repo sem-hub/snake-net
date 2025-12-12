@@ -3,10 +3,14 @@ package ciphers
 import (
 	"crypto/cipher"
 	"errors"
+	"log/slog"
+	"strconv"
+	"strings"
 
 	"github.com/ProtonMail/go-crypto/ocb"
 	"github.com/pedroalbanese/gogost/mgm"
 	"github.com/sem-hub/eax-mode/eax"
+	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
 	"github.com/sem-hub/snake-net/internal/crypt/engines/block"
@@ -24,6 +28,8 @@ type Modes struct {
 	NewCipher       func() (cipher.Block, error)
 	BlockSize       func() int
 	allowedKeySizes []int
+	keySize         int
+	logger          *slog.Logger
 }
 
 func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret []byte,
@@ -47,6 +53,8 @@ func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret [
 
 	engine := Modes{}
 	engine.allowedKeySizes = allowedKeySizes
+	engine.keySize = size
+	engine.logger = configs.InitLogger("crypto_modes")
 	if engines.ModesList[mode] == "aead" {
 		engine.AeadEngine = *aead.NewAeadEngine(name + "-" + mode)
 		engine.EngineData = engine.AeadEngine.EngineData
@@ -71,7 +79,10 @@ func (e *Modes) GetKeySizes() []int {
 }
 
 func (e *Modes) GetName() string {
-	return e.EngineData.Name
+	name := e.EngineData.Name
+	idx := strings.Index(name, "-")
+	name = name[:idx] + "-" + strconv.Itoa(e.keySize) + name[idx:]
+	return name
 }
 
 func (e *Modes) GetType() string {
@@ -138,7 +149,7 @@ func (e *Modes) NewAEAD() (cipher.AEAD, error) {
 }
 
 func (e *Modes) Encrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Encrypt", "datalen", len(data))
+	e.logger.Debug("Encrypt", "datalen", len(data))
 	if engines.ModesList[e.Mode] == "block" {
 		return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
 	}
@@ -152,7 +163,7 @@ func (e *Modes) Encrypt(data []byte) ([]byte, error) {
 }
 
 func (e *Modes) Decrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Decrypt", "datalen", len(data))
+	e.logger.Debug("Decrypt", "datalen", len(data))
 	if engines.ModesList[e.Mode] == "block" {
 		return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
 	}

@@ -34,11 +34,9 @@ func (e *RabbitEngine) NewStream(iv []byte) (cipher.Stream, error) {
 }
 
 func (e *RabbitEngine) Encrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Encrypt", "datalen", len(data))
 	return e.StreamEngine.StreamEncrypt(e.ivSize, e.NewStream, data)
 }
 
 func (e *RabbitEngine) Decrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Decrypt", "datalen", len(data))
 	return e.StreamEngine.StreamDecrypt(e.ivSize, e.NewStream, data)
 }

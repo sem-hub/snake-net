@@ -4,6 +4,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 
+	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
 
@@ -14,6 +15,7 @@ type StreamEngine struct {
 func NewStreamEngine(name string) *StreamEngine {
 	engine := StreamEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "stream")
+	engine.Logger = configs.InitLogger("crypto_stream")
 	return &engine
 }
 

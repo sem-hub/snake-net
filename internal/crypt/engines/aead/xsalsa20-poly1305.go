@@ -67,11 +67,9 @@ func (e *Xsalsa20Poly1305Engine) NewAEAD() (cipher.AEAD, error) {
 }
 
 func (e *Xsalsa20Poly1305Engine) Encrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Seal", "datalen", len(data))
 	return e.AeadEngine.Seal(e.NewAEAD, data)
 }
 
 func (e *Xsalsa20Poly1305Engine) Decrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Open", "datalen", len(data))
 	return e.AeadEngine.Open(e.NewAEAD, data)
 }
