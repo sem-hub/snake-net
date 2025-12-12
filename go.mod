@@ -20,7 +20,6 @@ require (
 	github.com/schultz-is/go-threefish v1.0.2
 	github.com/sem-hub/eax-mode v0.0.0-20251211001343-03d13a41fd58
 	github.com/vishvananda/netlink v1.3.1
-	github.com/yi-jiayu/PRESENT.go v0.0.0-20180830042344-3a4450fb5c26
 	gitlab.com/go-extension/aes-ccm v0.0.0-20230221065045-e58665ef23c7
 	golang.org/x/crypto v0.41.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb

@@ -199,8 +199,6 @@ func CreateEngine(engineName, mode string, keySize int, sharedSecret []byte) (en
 	switch engineName {
 	case "aes":
 		engine, err = ciphers.NewAesEngine(sharedSecret, keySize, mode)
-	case "present":
-		engine, err = ciphers.NewPresentEngine(sharedSecret, keySize, mode)
 	case "idea":
 		engine, err = ciphers.NewIdeaEngine(sharedSecret, mode)
 	case "twofish":

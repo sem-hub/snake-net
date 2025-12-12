@@ -12,7 +12,6 @@ var EnginesList = []string{
 	"camellia",
 	"twofish",
 	"rc6",
-	"present",
 	"idea",
 	"threefish",
 	"gost",
