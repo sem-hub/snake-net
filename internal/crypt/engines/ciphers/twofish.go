@@ -26,6 +26,10 @@ func NewTwofishEngine(sharedSecret []byte, size int, mode string) (*TwofishEngin
 	return &engine, nil
 }
 
+func (e *TwofishEngine) GetKeySizes() []int {
+	return e.modes.GetKeySizes()
+}
+
 func (e *TwofishEngine) GetName() string {
 	return e.modes.GetName()
 }

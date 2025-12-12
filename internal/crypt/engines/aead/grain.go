@@ -19,6 +19,10 @@ func NewGrainEngine(sharedSecret []byte) (*GrainEngine, error) {
 	return &engine, nil
 }
 
+func (e *GrainEngine) GetKeySizes() []int {
+	return []int{128}
+}
+
 func (e *GrainEngine) GetName() string {
 	return e.EngineData.Name
 }

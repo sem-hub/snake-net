@@ -44,6 +44,7 @@ type CryptoEngine interface {
 	Decrypt([]byte) ([]byte, error)
 	GetName() string
 	GetType() string
+	GetKeySizes() []int
 }
 type EngineData struct {
 	Name   string

@@ -26,6 +26,10 @@ func NewCamelliaEngine(sharedSecret []byte, size int, mode string) (*CamelliaEng
 	return &engine, nil
 }
 
+func (e *CamelliaEngine) GetKeySizes() []int {
+	return e.modes.GetKeySizes()
+}
+
 func (e *CamelliaEngine) GetName() string {
 	return e.modes.GetName()
 }

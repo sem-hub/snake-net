@@ -21,6 +21,10 @@ func NewRabbitEngine(sharedSecret []byte) (*RabbitEngine, error) {
 	return &engine, nil
 }
 
+func (e *RabbitEngine) GetKeySizes() []int {
+	return []int{128}
+}
+
 func (e *RabbitEngine) GetName() string {
 	return e.EngineData.Name
 }

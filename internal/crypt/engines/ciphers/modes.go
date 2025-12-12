@@ -28,7 +28,7 @@ type Modes struct {
 	NewCipher       func() (cipher.Block, error)
 	BlockSize       func() int
 	allowedKeySizes []int
-	keySize         int
+	KeySize         int
 	logger          *slog.Logger
 }
 
@@ -53,7 +53,7 @@ func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret [
 
 	engine := Modes{}
 	engine.allowedKeySizes = allowedKeySizes
-	engine.keySize = size
+	engine.KeySize = size
 	engine.logger = configs.InitLogger("crypto_modes")
 	if engines.ModesList[mode] == "aead" {
 		engine.AeadEngine = *aead.NewAeadEngine(name + "-" + mode)
@@ -81,7 +81,7 @@ func (e *Modes) GetKeySizes() []int {
 func (e *Modes) GetName() string {
 	name := e.EngineData.Name
 	idx := strings.Index(name, "-")
-	name = name[:idx] + "-" + strconv.Itoa(e.keySize) + name[idx:]
+	name = name[:idx] + "-" + strconv.Itoa(e.KeySize) + name[idx:]
 	return name
 }
 

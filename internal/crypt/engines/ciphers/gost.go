@@ -30,6 +30,10 @@ func NewGostEngine(sharedSecret []byte, mode string) (*GostEngine, error) {
 	return &engine, nil
 }
 
+func (e *GostEngine) GetKeySizes() []int {
+	return e.modes.GetKeySizes()
+}
+
 func (e *GostEngine) GetName() string {
 	return e.modes.GetName()
 }

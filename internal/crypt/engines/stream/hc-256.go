@@ -21,6 +21,10 @@ func NewHc256Engine(sharedSecret []byte) (*Hc256Engine, error) {
 	return &engine, nil
 }
 
+func (e *Hc256Engine) GetKeySizes() []int {
+	return []int{128}
+}
+
 func (e *Hc256Engine) GetName() string {
 	return e.EngineData.Name
 }

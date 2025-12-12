@@ -18,6 +18,10 @@ func NewChacha20Poly1305Engine(sharedSecret []byte) (*Chacha20Poly1305Engine, er
 	return &engine, nil
 }
 
+func (e *Chacha20Poly1305Engine) GetKeySizes() []int {
+	return []int{256}
+}
+
 func (e *Chacha20Poly1305Engine) GetName() string {
 	return e.EngineData.Name
 }

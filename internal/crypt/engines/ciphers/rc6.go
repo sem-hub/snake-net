@@ -25,6 +25,10 @@ func NewRc6Engine(sharedSecret []byte, size int, mode string) (*Rc6Engine, error
 	return &engine, nil
 }
 
+func (e *Rc6Engine) GetKeySizes() []int {
+	return e.modes.GetKeySizes()
+}
+
 func (e *Rc6Engine) GetName() string {
 	return e.modes.GetName()
 }

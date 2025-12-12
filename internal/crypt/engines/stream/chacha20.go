@@ -18,6 +18,10 @@ func NewChacha20Engine(sharedSecret []byte) (*Chacha20Engine, error) {
 	return &engine, nil
 }
 
+func (e *Chacha20Engine) GetKeySizes() []int {
+	return []int{256}
+}
+
 func (e *Chacha20Engine) GetName() string {
 	return e.EngineData.Name
 }

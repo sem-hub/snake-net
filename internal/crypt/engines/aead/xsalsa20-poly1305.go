@@ -54,6 +54,10 @@ func NewXsalsa20Poly1305Engine(sharedSecret []byte) (*Xsalsa20Poly1305Engine, er
 	return &engine, nil
 }
 
+func (e *Xsalsa20Poly1305Engine) GetKeySizes() []int {
+	return []int{256}
+}
+
 func (e *Xsalsa20Poly1305Engine) GetName() string {
 	return e.AeadEngine.Name
 }

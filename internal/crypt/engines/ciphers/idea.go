@@ -31,6 +31,10 @@ func NewIdeaEngine(sharedSecret []byte, mode string) (*IdeaEngine, error) {
 	return &engine, nil
 }
 
+func (e *IdeaEngine) GetKeySizes() []int {
+	return e.modes.GetKeySizes()
+}
+
 func (e *IdeaEngine) GetName() string {
 	return e.modes.GetName()
 }

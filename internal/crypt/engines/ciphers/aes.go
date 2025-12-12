@@ -25,6 +25,10 @@ func NewAesEngine(sharedSecret []byte, size int, mode string) (*AesEngine, error
 	return &engine, nil
 }
 
+func (e *AesEngine) GetKeySizes() []int {
+	return e.modes.GetKeySizes()
+}
+
 func (e *AesEngine) GetName() string {
 	return e.modes.GetName()
 }

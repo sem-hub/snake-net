@@ -18,7 +18,6 @@ type ThreefishEngine struct {
 	modes        *Modes
 	SharedSecret []byte
 	tweak        []byte
-	keySize      int
 }
 
 func NewThreefishEngine(sharedSecret []byte, size int, mode string) (*ThreefishEngine, error) {
@@ -51,21 +50,25 @@ func NewThreefishEngine(sharedSecret []byte, size int, mode string) (*ThreefishE
 	if err != nil {
 		return nil, err
 	}
-	engine.keySize = size
+	engine.modes.KeySize = size
 
 	return &engine, nil
 }
 
+func (e *ThreefishEngine) GetKeySizes() []int {
+	return e.modes.GetKeySizes()
+}
+
 func (e *ThreefishEngine) GetName() string {
-	return e.modes.Name
+	return e.modes.GetName()
 }
 
 func (e *ThreefishEngine) GetType() string {
-	return e.modes.Type
+	return e.modes.GetType()
 }
 func (e *ThreefishEngine) BlockSize() int {
 	blockSize := 0
-	switch e.keySize {
+	switch e.modes.KeySize {
 	case 256:
 		blockSize = 32
 	case 512:
@@ -77,7 +80,7 @@ func (e *ThreefishEngine) BlockSize() int {
 }
 
 func (e *ThreefishEngine) NewCipher() (cipher.Block, error) {
-	switch e.keySize {
+	switch e.modes.KeySize {
 	case 256:
 		return threefish.New256(e.SharedSecret, e.tweak)
 	case 512:

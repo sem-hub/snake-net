@@ -33,6 +33,10 @@ func NewPresentEngine(sharedSecret []byte, size int, mode string) (*PresentEngin
 	return &engine, nil
 }
 
+func (e *PresentEngine) GetKeySizes() []int {
+	return e.modes.GetKeySizes()
+}
+
 func (e *PresentEngine) GetName() string {
 	return e.modes.GetName()
 }

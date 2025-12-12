@@ -26,6 +26,10 @@ func NewSerpentEngine(sharedSecret []byte, size int, mode string) (*SerpentEngin
 	return &engine, nil
 }
 
+func (e *SerpentEngine) GetKeySizes() []int {
+	return e.modes.GetKeySizes()
+}
+
 func (e *SerpentEngine) GetName() string {
 	return e.modes.GetName()
 }

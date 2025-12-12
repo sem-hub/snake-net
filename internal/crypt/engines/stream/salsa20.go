@@ -18,6 +18,10 @@ func NewSalsa20Engine(sharedSecret []byte) (*Salsa20Engine, error) {
 	return &engine, nil
 }
 
+func (e *Salsa20Engine) GetKeySizes() []int {
+	return []int{256}
+}
+
 func (e *Salsa20Engine) GetName() string {
 	return e.EngineData.Name
 }
