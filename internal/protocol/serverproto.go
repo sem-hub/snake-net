@@ -130,17 +130,6 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 		clientIPs = DynamicClientIPs(cfg.TunAddrs)
 	}
 
-	engineName := cfg.Engine
-	signatureName := cfg.SignEngine
-	if len(str) > i {
-		// last two are engine and signature
-		engineName = str[i]
-		if len(str) > i+1 {
-			signatureName = str[i+1]
-		}
-		logger.Info("Client requested engines", "engine", engineName, "signature", signatureName)
-	}
-
 	logger.Info("IdentifyClient OK", "addr", c.GetClientAddr().String())
 	msg := []byte("Welcome")
 	for _, cidr := range cfg.TunAddrs {
@@ -153,10 +142,27 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 		prefLen, _ := cidr.Network.Mask.Size()
 		msg = append(msg, []byte(cidr.IP.Unmap().String()+"/"+strconv.Itoa(prefLen))...)
 	}
-	msg = append(msg, ' ')
-	msg = append(msg, []byte(engineName)...)
-	msg = append(msg, ' ')
-	msg = append(msg, []byte(signatureName)...)
+
+	// If transport is encrypted, don't neet to negotiate engines
+	engineName := ""
+	signatureName := ""
+	if c.GetSecrets().Engine != nil {
+		engineName = cfg.Engine
+		signatureName = cfg.SignEngine
+		if len(str) > i {
+			// last two are engine and signature
+			engineName = str[i]
+			if len(str) > i+1 {
+				signatureName = str[i+1]
+			}
+			logger.Info("Client requested engines", "engine", engineName, "signature", signatureName)
+		}
+
+		msg = append(msg, ' ')
+		msg = append(msg, []byte(engineName)...)
+		msg = append(msg, ' ')
+		msg = append(msg, []byte(signatureName)...)
+	}
 	logger.Debug("Welcome message", "msg", msg)
 	if err := c.Write(&msg, WithPadding); err != nil {
 		logger.Error("Failed to write Welcome message", "error", err)
@@ -180,8 +186,14 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	cfg := configs.GetConfig()
 
 	c := clients.NewClient(addr, t)
-	// Bootstrap engine and signature
-	s, err := crypt.NewSecrets("aes-cbc", cfg.Secret, "ed25519")
+	defaultEngine := ""
+	defaultSignature := ""
+	if !t.IsEncrypted() {
+		defaultEngine = "aes-cbc"
+		defaultSignature = "ed25519"
+	}
+	// Bootstrap secrets
+	s, err := crypt.NewSecrets(defaultEngine, cfg.Secret, defaultSignature)
 	if err != nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}
@@ -205,7 +217,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	cfg.Engine = engineName
 	cfg.SignEngine = signatureName
 	// Recreate secrets with new cipher if needed
-	if s.Engine.GetName() != engineName {
+	if s.Engine != nil && s.Engine.GetName() != engineName {
 		sNew, err := crypt.NewSecrets(engineName, cfg.Secret, signatureName)
 		if err != nil {
 			logger.Error("Failed to create secrets engine", "err", err)

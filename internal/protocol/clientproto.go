@@ -113,8 +113,14 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t)
-	// Bootstrap engine and signature
-	s, err := crypt.NewSecrets("aes-cbc", cfg.Secret, "ed25519")
+	defaultEngine := ""
+	defaultSignature := ""
+	if !t.IsEncrypted() {
+		defaultEngine = "aes-cbc"
+		defaultSignature = "ed25519"
+	}
+	// Bootstrap secrets
+	s, err := crypt.NewSecrets(defaultEngine, cfg.Secret, defaultSignature)
 	if err != nil {
 		log.Fatal("Failed to create secrets engine: unknown engine")
 	}
@@ -136,7 +142,7 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 	cfg.Engine = chipherName
 	cfg.SignEngine = signatureName
 	// Recreate secrets with new cipher if needed
-	if s.Engine.GetName() != chipherName {
+	if s.Engine != nil && s.Engine.GetName() != chipherName {
 		sNew, err := crypt.NewSecrets(chipherName, cfg.Secret, signatureName)
 		if err != nil {
 			logger.Error("Failed to create secrets engine", "err", err)

@@ -29,7 +29,11 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 		n = len(*msg)
 		c.logger.Debug("client Write data", "len", n, "address", c.address.String())
 
-		if HEADER+n+c.secrets.SignatureEngine.SignLen() > BUFSIZE {
+		addLen := 0
+		if c.secrets.SignatureEngine != nil && (cmd&NoSignature) == 0 {
+			addLen = c.secrets.SignatureEngine.SignLen()
+		}
+		if HEADER+n+addLen > BUFSIZE {
 			return errors.New("invalid message size")
 		}
 	}
@@ -48,10 +52,12 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	buf := make([]byte, HEADER)
 
 	var err error
-	msgBuf, err = c.secrets.SignAndEncrypt(msgBuf, cmd)
-	if err != nil {
-		c.logger.Error("client Write SignAndEncrypt error", "error", err, "address", c.address, "seq", c.seqOut.Load())
-		return err
+	if c.secrets.Engine != nil || (cmd&NoEncryption) == 0 {
+		msgBuf, err = c.secrets.SignAndEncrypt(msgBuf, cmd)
+		if err != nil {
+			c.logger.Error("client Write SignAndEncrypt error", "error", err, "address", c.address, "seq", c.seqOut.Load())
+			return err
+		}
 	}
 	buf = append(buf, msgBuf...)
 

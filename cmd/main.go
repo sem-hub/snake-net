@@ -304,6 +304,10 @@ func main() {
 		log.Fatalf("Unknown Protocol: %s", cfg.Main.Protocol)
 	}
 
+	if cfg.Main.Mode == "server" && !t.IsEncrypted() && (cfg.Crypt.Engine == "") {
+		log.Fatal("Transport is not encrypted and no cipher/signature engine is specified.")
+	}
+
 	// Setup signal handling
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

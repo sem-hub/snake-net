@@ -113,7 +113,11 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	}
 	c.logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 
-	if n <= 0 || HEADER+n > BUFSIZE {
+	addSize := 0
+	if c.secrets.SignatureEngine != nil && (flags&NoSignature) == 0 {
+		addSize = c.secrets.SignatureEngine.SignLen()
+	}
+	if n < addSize || HEADER+n > BUFSIZE {
 		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
@@ -197,10 +201,12 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// Finished working with buf, unlock
 	c.bufLock.Unlock()
 
-	msg, err = c.secrets.DecryptAndVerify(msg, n, flags)
-	if err != nil {
-		c.logger.Error("ReadBuf: DecryptAndVerify error", "address", c.address.String())
-		return nil, errors.New("decrypt&verify error")
+	if c.secrets.Engine != nil || (flags&NoEncryption) == 0 {
+		msg, err = c.secrets.DecryptAndVerify(msg, n, flags)
+		if err != nil {
+			c.logger.Error("ReadBuf: DecryptAndVerify error", "address", c.address.String())
+			return nil, errors.New("decrypt&verify error")
+		}
 	}
 
 	// Unpad if needed

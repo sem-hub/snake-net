@@ -65,8 +65,10 @@ func (c *Client) ECDH() error {
 	// Save the shared secret and session keys
 	c.logger.Debug("ECDH:", "shared secret", hex.EncodeToString(sharedSecret))
 	c.secrets.SetSharedSecret(sharedSecret)
-	c.secrets.SignatureEngine.SetSharedSecret(sharedSecret)
-	c.secrets.SignatureEngine.SetPublicKey(sessionPublicKey)
-	c.secrets.SignatureEngine.SetPrivateKey(sessionPrivateKey)
+	if c.secrets.SignatureEngine != nil {
+		c.secrets.SignatureEngine.SetSharedSecret(sharedSecret)
+		c.secrets.SignatureEngine.SetPublicKey(sessionPublicKey)
+		c.secrets.SignatureEngine.SetPrivateKey(sessionPrivateKey)
+	}
 	return nil
 }

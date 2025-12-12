@@ -48,6 +48,10 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	sum256 := sha256.Sum256([]byte(secret))
 	copy(s.sharedSecret, sum256[:])
 
+	// Don't need to setup crypto engine and signature
+	if engine == "" {
+		return &s, nil
+	}
 	size := 0
 	cipher := engine
 	mode := ""
@@ -126,6 +130,11 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	if err != nil {
 		s.logger.Error("Failed to create crypto engine", "error", err)
 		return nil, err
+	}
+
+	if s.Engine.GetType() == "aead" {
+		s.logger.Info("AEAD cipher selected, signature engine will not be used")
+		return &s, nil
 	}
 
 	switch signEngine {
