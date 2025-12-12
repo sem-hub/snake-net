@@ -27,7 +27,7 @@ func (e *Salsa20Engine) GetType() string {
 }
 
 func (e *Salsa20Engine) Encrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Encrypt", "datalen", len(data))
+	//e.Logger.Debug("Encrypt", "datalen", len(data))
 
 	nonce := make([]byte, 8)
 	rand.Read(nonce)
@@ -41,17 +41,17 @@ func (e *Salsa20Engine) Encrypt(data []byte) ([]byte, error) {
 	copy(secret[:], e.SharedSecret)
 	salsa20.XORKeyStream(bufOut[8:], data, nonce, &secret)
 
-	e.Logger.Debug("Encrypt", "encryptedlen", len(bufOut))
+	//e.Logger.Debug("Encrypt", "encryptedlen", len(bufOut))
 	return bufOut, nil
 }
 
 func (e *Salsa20Engine) Decrypt(data []byte) ([]byte, error) {
-	e.Logger.Debug("Decrypt", "datalen", len(data))
+	//e.Logger.Debug("Decrypt", "datalen", len(data))
 
 	nonce := data[:8]
 	data = data[8:]
 
-	e.Logger.Debug("Decrypt", "decryptedlen", len(data))
+	//e.Logger.Debug("Decrypt", "decryptedlen", len(data))
 	bufOut := make([]byte, len(data))
 	// secret must be array not slice
 	var secret [32]byte
