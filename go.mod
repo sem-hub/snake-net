@@ -13,7 +13,6 @@ require (
 	github.com/ericlagergren/lwcrypto v0.0.0-20220507050349-7b11afcfc217
 	github.com/google/uuid v1.6.0
 	github.com/pedroalbanese/crypto v0.0.0-20230125215802-8b7e99ecbad3
-	github.com/pedroalbanese/gogost v0.0.0-20250117160715-44a1f1ec2524
 	github.com/pion/dtls/v3 v3.0.7
 	github.com/quic-go/quic-go v0.56.0
 	github.com/rmuch/gost v0.0.0-20220527191022-9035252d8496

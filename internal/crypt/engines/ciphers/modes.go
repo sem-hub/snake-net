@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/ProtonMail/go-crypto/ocb"
-	"github.com/pedroalbanese/gogost/mgm"
 	"github.com/sem-hub/eax-mode/eax"
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
@@ -141,9 +140,6 @@ func (e *Modes) NewAEAD() (cipher.AEAD, error) {
 			return eax.NewEAXWithNonceAndTagSize(block, defaultNonceSize, block.BlockSize())
 		}
 		return eax.NewEAX(block)
-	}
-	if e.Mode == "mgm" {
-		return mgm.NewMGM(block, e.BlockSize())
 	}
 	return nil, errors.New("unsupported mode")
 }

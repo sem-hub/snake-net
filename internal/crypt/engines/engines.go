@@ -35,7 +35,6 @@ var ModesList = map[string]string{
 	"ccm": "aead",
 	"ocb": "aead",
 	"eax": "aead",
-	"mgm": "aead",
 }
 
 type CryptoEngine interface {
