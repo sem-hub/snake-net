@@ -3,10 +3,19 @@ package main
 import (
 	"crypto/rand"
 	"fmt"
+	"image/color"
+	"os/exec"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/text"
+	"gonum.org/v1/plot/vg"
+	"gonum.org/v1/plot/vg/draw"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
@@ -17,6 +26,72 @@ func init() {
 }
 
 var password = []byte("32 bytes string for password 123")
+
+type commaTicks struct {
+	lines []string
+}
+
+func (c commaTicks) Ticks(min, max float64) []plot.Tick {
+	var ticks []plot.Tick
+	for v := min; v <= max; v++ {
+		label := c.lines[int(v)] + "  "
+		ticks = append(ticks, plot.Tick{Value: v, Label: label})
+	}
+	return ticks
+}
+
+func drawData(keys []string, medEncrypt map[string]time.Duration, medDecrypt map[string]time.Duration) {
+	p := plot.New()
+	p.Title.Text = "Chipher Benchmark"
+	p.Title.TextStyle.Font.Size = vg.Points(48)
+	p.X.Label.Text = "X"
+	p.X.Label.TextStyle.Font.Size = vg.Points(36)
+	p.X.Tick.Label.Rotation = 1.57
+	p.X.Tick.Label.Font.Size = vg.Points(12)
+	p.X.Tick.Label.YAlign = text.YCenter
+	p.X.Tick.Label.XAlign = text.XRight
+	p.X.Tick.Marker = commaTicks{lines: keys}
+	p.Y.Label.Text = "Y"
+	p.Y.Label.TextStyle.Font.Size = vg.Points(36)
+	p.Y.Tick.Label.Font.Size = vg.Points(24)
+
+	p.Add(plotter.NewGrid())
+	scatterData := make(plotter.XYs, len(keys))
+	scatterData1 := make(plotter.XYs, len(keys))
+
+	for i, name := range keys {
+		scatterData[i].X = float64(i)
+		scatterData[i].Y = float64(medEncrypt[name].Nanoseconds() / 1000) // microseconds
+		scatterData1[i].X = float64(i)
+		scatterData1[i].Y = float64(medDecrypt[name].Nanoseconds() / 1000) // microseconds
+	}
+	s, err := plotter.NewScatter(scatterData)
+	if err != nil {
+		panic(err)
+	}
+	s1, err := plotter.NewScatter(scatterData1)
+	if err != nil {
+		panic(err)
+	}
+	s.GlyphStyle.Color = color.RGBA{R: 255, G: 128, B: 128, A: 255}
+	s1.GlyphStyle.Color = color.RGBA{R: 128, G: 128, B: 255, A: 255}
+	s.GlyphStyle.Radius = vg.Points(6)
+	s1.GlyphStyle.Radius = vg.Points(6)
+	s.GlyphStyle.Shape = draw.CircleGlyph{}
+	s1.GlyphStyle.Shape = draw.CircleGlyph{}
+	p.Add(s, s1)
+	p.Legend.Add("Encrypt time", s)
+	p.Legend.Add("Decrypt time", s1)
+	p.Legend.TextStyle.Font.Size = vg.Points(24)
+	if err := p.Save(36*vg.Inch, 18*vg.Inch, "benchmark_encrypt.png"); err != nil {
+		panic(err)
+	}
+	cmd := exec.Command("xdg-open", "benchmark_encrypt.png")
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println("Error resizing image:", err)
+	}
+}
 
 func main() {
 	_ = configs.GetConfigFile()
@@ -62,70 +137,108 @@ func main() {
 		keys = append(keys, name)
 	}
 	// Start benchmarks
-	encryptTime := map[string][]time.Duration{}
-	decryptTime := map[string][]time.Duration{}
-	plaintext := make([]byte, 1420)
 	measurements := 1000
-	chipherText := make([][]byte, measurements)
+	maxEncrypt := map[string]time.Duration{}
+	maxDecrypt := map[string]time.Duration{}
+	minEncrypt := map[string]time.Duration{}
+	minDecrypt := map[string]time.Duration{}
+	medEncrypt := map[string]time.Duration{}
+	medDecrypt := map[string]time.Duration{}
+
 	for engine := range enginesMap {
 		fmt.Println("Benchmarking engine:", engine)
-		encryptTime[engine] = make([]time.Duration, measurements)
-		decryptTime[engine] = make([]time.Duration, measurements)
+		eTime := make([]time.Duration, measurements)
+		dTime := make([]time.Duration, measurements)
 		for i := range measurements {
-			rand.Read(plaintext)
-			chipherText[i] = make([]byte, len(plaintext))
-
-			start := time.Now()
-			var err error
-			chipherText[i], err = enginesMap[engine].Encrypt(plaintext)
-			elapsed := time.Since(start)
+			encTime, decTime, err := benchmark(enginesMap[engine], 1024)
 			if err != nil {
-				fmt.Println("Error encrypting with engine", engine, ":", err)
+				fmt.Println("Error benchmarking engine:", engine, ":", err)
 				continue
 			}
-			encryptTime[engine][i] = elapsed
+			eTime[i] = encTime
+			dTime[i] = decTime
 		}
-		for i := range measurements {
-			start := time.Now()
-			_, err := enginesMap[engine].Decrypt(chipherText[i])
-			elapsed := time.Since(start)
-			if err != nil {
-				fmt.Println("Error decrypting with engine", engine, ":", err)
-				continue
+		medEncrypt[engine] = Median(eTime)
+		medDecrypt[engine] = Median(dTime)
+		maxEncrypt[engine] = time.Duration(0)
+		maxDecrypt[engine] = time.Duration(0)
+		minEncrypt[engine] = eTime[0]
+		minDecrypt[engine] = dTime[0]
+		for i := 0; i < measurements; i++ {
+			if eTime[i] > maxEncrypt[engine] {
+				maxEncrypt[engine] = eTime[i]
 			}
-			decryptTime[engine][i] = elapsed
+			if minEncrypt[engine] > eTime[i] {
+				minEncrypt[engine] = eTime[i]
+			}
+			if minDecrypt[engine] > dTime[i] {
+				minDecrypt[engine] = dTime[i]
+			}
+			if dTime[i] > maxDecrypt[engine] {
+				maxDecrypt[engine] = dTime[i]
+			}
 		}
 	}
+
 	// Sort keys
-	sort.Strings(keys)
 	fmt.Println("Results:")
-	byEncrypt := map[string]time.Duration{}
-	byDecrypt := map[string]time.Duration{}
-	for _, name := range keys {
-		//fmt.Println("Engine:", name, "encrypt time:", encryptTime[name], "decrypt time:", decryptTime[name], "(mode):", enginesMap[name].GetType())
-
-		for _, t := range encryptTime[name] {
-			byEncrypt[name] += t
-		}
-		for _, t := range decryptTime[name] {
-			byDecrypt[name] += t
-		}
-		byEncrypt[name] /= time.Duration(measurements)
-		byDecrypt[name] /= time.Duration(measurements)
-	}
-	fmt.Println("Sorted by encrypt time:")
+	//fmt.Println("Sorted by encrypt time:")
 	sort.Slice(keys, func(i, j int) bool {
-		return byEncrypt[keys[i]] < byEncrypt[keys[j]]
+		return medEncrypt[keys[i]] < medEncrypt[keys[j]]
 	})
 	for _, name := range keys {
-		fmt.Println("Engine:", name, "encrypt time:", byEncrypt[name], "decrypt time:", byDecrypt[name], "(mode):", enginesMap[name].GetType())
+		fmt.Println("Engine:", name, "encrypt median time:", medEncrypt[name],
+			"min:", minEncrypt[name], "max:", maxEncrypt[name],
+			"decrypt median time:", medDecrypt[name], "min:", minDecrypt[name],
+			"max:", maxDecrypt[name])
 	}
 	fmt.Println("Sorted by decrypt time:")
 	sort.Slice(keys, func(i, j int) bool {
-		return byDecrypt[keys[i]] < byDecrypt[keys[j]]
+		return medDecrypt[keys[i]] < medDecrypt[keys[j]]
 	})
 	for _, name := range keys {
-		fmt.Println("Engine:", name, "encrypt time:", byEncrypt[name], "decrypt time:", byDecrypt[name], "(mode):", enginesMap[name].GetType())
+		fmt.Println("Engine:", name, "encrypt median time:", medEncrypt[name],
+			"min:", minEncrypt[name], "max:", maxEncrypt[name],
+			"decrypt median time:", medDecrypt[name], "min:", minDecrypt[name],
+			"max:", maxDecrypt[name])
 	}
+	drawData(keys, medEncrypt, medDecrypt)
+}
 
+func Median(durations []time.Duration) time.Duration {
+	n := len(durations)
+	sorted := make([]time.Duration, n)
+	copy(sorted, durations)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i] < sorted[j]
+	})
+	if n%2 == 0 {
+		return (sorted[n/2-1] + sorted[n/2]) / 2
+	}
+	return sorted[n/2]
+}
+
+func benchmark(engine engines.CryptoEngine, dataSize int) (time.Duration, time.Duration, error) {
+	data := make([]byte, dataSize)
+	rand.Read(data)
+
+	debug.SetGCPercent(-1)
+	startEnc := time.Now()
+	encData, err := engine.Encrypt(data)
+	if err != nil {
+		return 0, 0, err
+	}
+	elapsedEnc := time.Since(startEnc)
+	debug.SetGCPercent(100)
+
+	debug.SetGCPercent(-1)
+	startDec := time.Now()
+	_, err = engine.Decrypt(encData)
+	if err != nil {
+		return 0, 0, err
+	}
+	elapsedDec := time.Since(startDec)
+	debug.SetGCPercent(-1)
+
+	return elapsedEnc, elapsedDec, nil
 }
