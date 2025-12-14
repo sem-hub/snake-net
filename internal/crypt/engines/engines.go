@@ -29,8 +29,6 @@ var EnginesList = []string{
 var ModesList = map[string]string{
 	"cbc": "block",
 	"ctr": "stream",
-	"cfb": "stream",
-	"ofb": "stream",
 	"gcm": "aead",
 	"ccm": "aead",
 	"ocb": "aead",

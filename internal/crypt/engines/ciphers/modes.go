@@ -88,36 +88,16 @@ func (e *Modes) GetType() string {
 	return e.EngineData.Type
 }
 
-func (e *Modes) NewStream(block cipher.Block, iv []byte) (cipher.Stream, error) {
+func (e *Modes) NewStream(iv []byte) (cipher.Stream, error) {
+	block, err := e.NewCipher()
+	if err != nil {
+		return nil, err
+	}
+
 	if e.Mode == "ctr" {
 		return cipher.NewCTR(block, iv), nil
 	}
-	if e.Mode == "ofb" {
-		return cipher.NewOFB(block, iv), nil
-	}
 	return nil, errors.New("unsupported mode")
-}
-
-func (e *Modes) NewEncryptStream(iv []byte) (cipher.Stream, error) {
-	block, err := e.NewCipher()
-	if err != nil {
-		return nil, err
-	}
-	if e.Mode == "cfb" {
-		return cipher.NewCFBEncrypter(block, iv), nil
-	}
-	return e.NewStream(block, iv)
-}
-
-func (e *Modes) NewDecryptStream(iv []byte) (cipher.Stream, error) {
-	block, err := e.NewCipher()
-	if err != nil {
-		return nil, err
-	}
-	if e.Mode == "cfb" {
-		return cipher.NewCFBDecrypter(block, iv), nil
-	}
-	return e.NewStream(block, iv)
 }
 
 func (e *Modes) NewAEAD() (cipher.AEAD, error) {
@@ -153,7 +133,7 @@ func (e *Modes) Encrypt(data []byte) ([]byte, error) {
 		return e.AeadEngine.Seal(e.NewAEAD, data)
 	}
 	if engines.ModesList[e.Mode] == "stream" {
-		return e.StreamEngine.StreamEncrypt(e.BlockSize(), e.NewEncryptStream, data)
+		return e.StreamEngine.StreamEncrypt(e.BlockSize(), e.NewStream, data)
 	}
 	return nil, errors.New("unsupported mode")
 }
@@ -167,7 +147,7 @@ func (e *Modes) Decrypt(data []byte) ([]byte, error) {
 		return e.AeadEngine.Open(e.NewAEAD, data)
 	}
 	if engines.ModesList[e.Mode] == "stream" {
-		return e.StreamEngine.StreamDecrypt(e.BlockSize(), e.NewDecryptStream, data)
+		return e.StreamEngine.StreamDecrypt(e.BlockSize(), e.NewStream, data)
 	}
 	return nil, errors.New("unsupported mode")
 }
