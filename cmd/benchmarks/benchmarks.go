@@ -1,10 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"crypto/ed25519"
 	"crypto/rand"
+	"errors"
+	"flag"
 	"fmt"
 	"image/color"
 	"os/exec"
+	"runtime"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -20,9 +25,14 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
+	"github.com/sem-hub/snake-net/internal/crypt/signature"
 )
 
+var needDraw bool
+
 func init() {
+	flag.BoolVar(&needDraw, "draw", false, "Whether to draw the benchmark results.")
+
 }
 
 var password = []byte("32 bytes string for password 123")
@@ -94,6 +104,9 @@ func drawData(keys []string, medEncrypt map[string]time.Duration, medDecrypt map
 }
 
 func main() {
+	flag.Parse()
+
+	// Some initialization
 	_ = configs.GetConfigFile()
 	_ = configs.GetConfig()
 	enginesMap := map[string]engines.CryptoEngine{}
@@ -136,6 +149,7 @@ func main() {
 	for name := range enginesMap {
 		keys = append(keys, name)
 	}
+	sort.Strings(keys)
 	// Start benchmarks
 	measurements := 1000
 	maxEncrypt := map[string]time.Duration{}
@@ -145,12 +159,12 @@ func main() {
 	medEncrypt := map[string]time.Duration{}
 	medDecrypt := map[string]time.Duration{}
 
-	for engine := range enginesMap {
+	for _, engine := range keys {
 		fmt.Println("Benchmarking engine:", engine)
 		eTime := make([]time.Duration, measurements)
 		dTime := make([]time.Duration, measurements)
 		for i := range measurements {
-			encTime, decTime, err := benchmark(enginesMap[engine], 1024)
+			encTime, decTime, err := benchmark(enginesMap[engine], 1240)
 			if err != nil {
 				fmt.Println("Error benchmarking engine:", engine, ":", err)
 				continue
@@ -158,6 +172,8 @@ func main() {
 			eTime[i] = encTime
 			dTime[i] = decTime
 		}
+		runtime.GC()
+
 		medEncrypt[engine] = Median(eTime)
 		medDecrypt[engine] = Median(dTime)
 		maxEncrypt[engine] = time.Duration(0)
@@ -202,7 +218,64 @@ func main() {
 			"decrypt median time:", medDecrypt[name], "min:", minDecrypt[name],
 			"max:", maxDecrypt[name])
 	}
-	drawData(keys, medEncrypt, medDecrypt)
+
+	signatureEngines := make(map[string]signature.SignatureInterface)
+	for _, sigName := range signature.SignatureList {
+		var err error
+		signatureEngines[sigName], err = crypt.CreateSignatureEngine(sigName, password)
+		if err != nil {
+			fmt.Println("Error creating signature engine:", sigName, ":", err)
+			continue
+		}
+	}
+	signatureEngines["ed25519"] = signature.NewSignatureEd25519(password)
+	signatureEngines["hmac-sha256"] = signature.NewSignatureHMACSHA256(password)
+	signatureEngines["hmac-blake2b"] = signature.NewSignatureHMACBlake(password)
+
+	fmt.Println("Signature Benchmarking:")
+	for name, engine := range signatureEngines {
+		fmt.Println("Benchmarking signature engine:", name)
+		sTime := make([]time.Duration, measurements)
+		vTime := make([]time.Duration, measurements)
+		for i := range measurements {
+			signTime, verifyTime, err := benchmarkSignature(engine, 1240, password)
+			if err != nil {
+				fmt.Println("Error benchmarking signature engine:", name, ":", err)
+				continue
+			}
+			sTime[i] = signTime
+			vTime[i] = verifyTime
+		}
+		runtime.GC()
+
+		medSign := Median(sTime)
+		medVerify := Median(vTime)
+		maxSign := time.Duration(0)
+		minSign := sTime[0]
+		maxVerify := time.Duration(0)
+		minVerify := vTime[0]
+		for i := 0; i < measurements; i++ {
+			if sTime[i] > maxSign {
+				maxSign = sTime[i]
+			}
+			if minSign > sTime[i] {
+				minSign = sTime[i]
+			}
+			if vTime[i] > maxVerify {
+				maxVerify = vTime[i]
+			}
+			if minVerify > vTime[i] {
+				minVerify = vTime[i]
+			}
+		}
+		fmt.Println("Signature Engine:", name, "sign median time:", medSign,
+			"min:", minSign, "max:", maxSign)
+		fmt.Println("Signature Engine:", name, "verify median time:", medVerify,
+			"min:", minVerify, "max:", maxVerify)
+	}
+	if needDraw {
+		drawData(keys, medEncrypt, medDecrypt)
+	}
 }
 
 func Median(durations []time.Duration) time.Duration {
@@ -241,4 +314,33 @@ func benchmark(engine engines.CryptoEngine, dataSize int) (time.Duration, time.D
 	debug.SetGCPercent(-1)
 
 	return elapsedEnc, elapsedDec, nil
+}
+
+func benchmarkSignature(engine signature.SignatureInterface, dataSize int, password []byte) (time.Duration, time.Duration, error) {
+	sessionPublicKey, sessionPrivateKey, err := ed25519.GenerateKey(bytes.NewReader(password))
+	if err != nil {
+		return 0, 0, errors.New("failed to generate session keys: " + err.Error())
+	}
+	engine.SetPublicKey(sessionPublicKey)
+	engine.SetPrivateKey(sessionPrivateKey)
+	data := make([]byte, dataSize)
+	rand.Read(data)
+
+	debug.SetGCPercent(-1)
+	startEnc := time.Now()
+	sign := engine.Sign(data)
+	elapsedEnc := time.Since(startEnc)
+	debug.SetGCPercent(100)
+
+	debug.SetGCPercent(-1)
+	startDec := time.Now()
+
+	if !engine.Verify(data, sign) {
+		return 0, 0, errors.New("signature verification failed")
+	}
+	elapsedDec := time.Since(startDec)
+	debug.SetGCPercent(-1)
+
+	return elapsedEnc, elapsedDec, nil
+
 }
