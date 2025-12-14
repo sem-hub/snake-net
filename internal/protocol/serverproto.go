@@ -53,8 +53,7 @@ func DynamicClientIPs(tunAddrs []utils.Cidr) []utils.Cidr {
 		for ip := utils.NextIP(cidr.IP.AsSlice()); ipNet.Contains(ip); ip = utils.NextIP(ip) {
 			// Check already connected client's IP
 			ipAddr, _ := netip.AddrFromSlice(ip)
-			addrPort := utils.MakeAddrPort(ipAddr.Unmap(), 0)
-			if clients.FindClient(addrPort) == nil {
+			if clients.FindClientTunAddr(ipAddr.Unmap()) == nil {
 				clientIPs = append(clientIPs, utils.Cidr{IP: ipAddr.Unmap(), Network: cidr.Network})
 				logger.Debug("DynamicClientIPs: assigned IP to client", "ip", ip.String())
 				break
@@ -213,9 +212,6 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	logger.Info("Identification passed", "clientTunIPs", clientTunIPs)
 	logger.Info("Client accepted connection", "cipher", engineName, "signature", signatureName)
 
-	cfg.TunAddrs = clientTunIPs
-	cfg.Engine = engineName
-	cfg.SignEngine = signatureName
 	// Recreate secrets with new cipher if needed
 	if s.Engine != nil && s.Engine.GetName() != engineName {
 		sNew, err := crypt.NewSecrets(engineName, cfg.Secret, signatureName)

@@ -178,6 +178,15 @@ func FindClient(address netip.AddrPort) *Client {
 	return nil
 }
 
+func FindClientTunAddr(addr netip.Addr) *Client {
+	tunAddrsLock.RLock()
+	defer tunAddrsLock.RUnlock()
+	if c, ok := tunAddrs[addr]; ok {
+		return c
+	}
+	return nil
+}
+
 func (c *Client) GetClientState() State {
 	return c.state
 }
