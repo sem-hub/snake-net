@@ -54,14 +54,14 @@ func drawData(keys []string, medEncrypt map[string]time.Duration, medDecrypt map
 	p := plot.New()
 	p.Title.Text = "Chipher Benchmark"
 	p.Title.TextStyle.Font.Size = vg.Points(48)
-	p.X.Label.Text = "X"
+	p.X.Label.Text = "Cipher Engines"
 	p.X.Label.TextStyle.Font.Size = vg.Points(36)
 	p.X.Tick.Label.Rotation = 1.57
 	p.X.Tick.Label.Font.Size = vg.Points(12)
 	p.X.Tick.Label.YAlign = text.YCenter
 	p.X.Tick.Label.XAlign = text.XRight
 	p.X.Tick.Marker = commaTicks{lines: keys}
-	p.Y.Label.Text = "Y"
+	p.Y.Label.Text = "Time (microseconds)"
 	p.Y.Label.TextStyle.Font.Size = vg.Points(36)
 	p.Y.Tick.Label.Font.Size = vg.Points(24)
 
@@ -111,22 +111,18 @@ func main() {
 	_ = configs.GetConfig()
 	enginesMap := map[string]engines.CryptoEngine{}
 	for _, engineName := range engines.EnginesList {
-		//fmt.Println("Benchmarking engine:", engineName)
 		size := 256
 		engine, err := crypt.CreateEngine(engineName, "cbc", size, password)
 		if err != nil {
 			size = 128
 			engine, err = crypt.CreateEngine(engineName, "cbc", size, password)
 			if err != nil {
-				//fmt.Println("Error creating engine:", err)
 				continue
 			}
 		}
 
 		enginesMap[strings.ToLower(engine.GetName())] = engine
 
-		//fmt.Println("engine:", engine.GetName(), "of type:", engine.GetType(), "allowed sizes:", engine.GetKeySizes())
-		//fmt.Println("engine:", engine.GetName())
 		if engine.GetType() == "block" {
 			for mode := range engines.ModesList {
 				for _, size = range engine.GetKeySizes() {
@@ -139,7 +135,6 @@ func main() {
 						} else {
 							enginesMap[strings.ToLower(engine1.GetName())] = engine1
 						}
-						//fmt.Println("engine:", engine1.GetName())
 					}
 				}
 			}
@@ -198,7 +193,7 @@ func main() {
 
 	// Sort keys
 	fmt.Println("Results:")
-	//fmt.Println("Sorted by encrypt time:")
+	fmt.Println("Sorted by encrypt time:")
 	sort.Slice(keys, func(i, j int) bool {
 		return medEncrypt[keys[i]] < medEncrypt[keys[j]]
 	})
