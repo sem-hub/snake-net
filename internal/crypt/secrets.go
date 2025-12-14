@@ -227,6 +227,8 @@ func CreateEngine(engineName, mode string, keySize int, sharedSecret []byte) (en
 		engine, err = aead.NewXsalsa20Poly1305Engine(sharedSecret)
 	case "grain":
 		engine, err = aead.NewGrainEngine(sharedSecret)
+	case "aegis":
+		engine, err = aead.NewAegisEngine(sharedSecret)
 	default:
 		return nil, errors.New("unknown cipher: " + engineName)
 	}

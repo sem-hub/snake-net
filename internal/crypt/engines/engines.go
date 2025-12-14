@@ -24,6 +24,7 @@ var EnginesList = []string{
 	"chacha20poly1305",
 	"xsalsa20poly1305",
 	"grain",
+	"aegis",
 }
 
 var ModesList = map[string]string{

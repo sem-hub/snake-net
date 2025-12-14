@@ -31,6 +31,8 @@ github.com/aead/camellia v0.0.0-20160715082721-02c306d3605b h1:klndGldEV84e3Zu3K
 github.com/aead/camellia v0.0.0-20160715082721-02c306d3605b/go.mod h1:3i8LghYjD71h3pav8nBvYRnFnuPAikYQsd4JYXLIYYk=
 github.com/aead/serpent v0.0.0-20160714141033-fba169763ea6 h1:5L8Mj9Co9sJVgW3TpYk2gxGJnDjsYuboNTcRmbtGKGs=
 github.com/aead/serpent v0.0.0-20160714141033-fba169763ea6/go.mod h1:3HgLJ9d18kXMLQlJvIY3+FszZYMxCz8WfE2MQ7hDY0w=
+github.com/aegis-aead/go-libaegis v0.2.13 h1:os9y/lomBPOu6z+n3C/OhVyTX0ZOK0mG3MqFpk7A0x8=
+github.com/aegis-aead/go-libaegis v0.2.13/go.mod h1:WKSG0pcdvpDrwDPBl9NdAIxHxpZOCqlKWH7EOnPLKHc=
 github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5/go.mod h1:SkGFH1ia65gfNATL8TAiHDNxPzPdmEL5uirI2Uyuz6c=
 github.com/ajstarks/deck v0.0.0-20200831202436-30c9fc6549a9/go.mod h1:JynElWSGnm/4RlzPXRlREEwqTHAN3T56Bv2ITsFT3gY=
 github.com/ajstarks/deck/generate v0.0.0-20210309230005-c3f852c02e19/go.mod h1:T13YZdzov6OU0A1+RfKZiZN9ca6VeKdBdyDV+BY97Tk=
