@@ -6,15 +6,11 @@ import (
 )
 
 var EnginesList = []string{
-	// Universal
+	// Universal (block)
 	"aes",
 	"speck",
-	"serpent",
-	"camellia",
 	"rc6",
-	"idea",
 	"threefish",
-	"gost",
 	// Stream
 	"salsa20",
 	"chacha20",

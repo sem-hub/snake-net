@@ -6,18 +6,14 @@ require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/CampNowhere/golang-rc6 v0.0.0-20230626132049-3a4643c6ae7f
 	github.com/ProtonMail/go-crypto v1.3.0
-	github.com/aead/camellia v0.0.0-20160715082721-02c306d3605b
-	github.com/aead/serpent v0.0.0-20160714141033-fba169763ea6
 	github.com/aegis-aead/go-libaegis v0.2.13
 	github.com/deatil/go-cryptobin v1.1.1013
-	github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb
 	github.com/ebfe/estream v0.0.0-20150613152650-6f7a4538d35a
 	github.com/ericlagergren/lwcrypto v0.0.0-20220507050349-7b11afcfc217
 	github.com/google/uuid v1.6.0
 	github.com/pedroalbanese/crypto v0.0.0-20230125215802-8b7e99ecbad3
 	github.com/pion/dtls/v3 v3.0.7
 	github.com/quic-go/quic-go v0.56.0
-	github.com/rmuch/gost v0.0.0-20220527191022-9035252d8496
 	github.com/schultz-is/go-threefish v1.0.2
 	github.com/sem-hub/eax-mode v0.0.0-20251211001343-03d13a41fd58
 	github.com/vishvananda/netlink v1.3.1

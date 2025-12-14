@@ -201,18 +201,10 @@ func CreateEngine(engineName, mode string, keySize int, sharedSecret []byte) (en
 		engine, err = ciphers.NewAesEngine(sharedSecret, keySize, mode)
 	case "speck":
 		engine, err = ciphers.NewSpeckEngine(sharedSecret, keySize, mode)
-	case "idea":
-		engine, err = ciphers.NewIdeaEngine(sharedSecret, mode)
 	case "threefish":
 		engine, err = ciphers.NewThreefishEngine(sharedSecret, keySize, mode)
 	case "rc6":
 		engine, err = ciphers.NewRc6Engine(sharedSecret, keySize, mode)
-	case "serpent":
-		engine, err = ciphers.NewSerpentEngine(sharedSecret, keySize, mode)
-	case "camellia":
-		engine, err = ciphers.NewCamelliaEngine(sharedSecret, keySize, mode)
-	case "gost":
-		engine, err = ciphers.NewGostEngine(sharedSecret, mode)
 	case "salsa20":
 		engine, err = stream.NewSalsa20Engine(sharedSecret)
 	case "chacha20":
