@@ -72,6 +72,8 @@ github.com/creack/pty v1.1.7/go.mod h1:lj5s0c3V2DBrqTV7llrYr5NG6My20zk30Fl46Y7Do
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/deatil/go-cryptobin v1.1.1013 h1:SF4uNijMfuW42Ir8q1YusgSONGbEqlCeXbSbBUkUImE=
+github.com/deatil/go-cryptobin v1.1.1013/go.mod h1:x+/+SzyfbxliY2y0Fwe+OoLU0DEt9kWs6OMiwghcfJ0=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZmtrrCbhqsmaPHjLKYnJCaQ=
 github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb h1:zXpN5126w/mhECTkqazBkrOJIMatbPP71aSIDR5UuW4=
 github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb/go.mod h1:F7WkpqJj9t98ePxB/WJGQTIDeOVPuSJ3qdn6JUjg170=

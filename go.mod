@@ -8,6 +8,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/aead/camellia v0.0.0-20160715082721-02c306d3605b
 	github.com/aead/serpent v0.0.0-20160714141033-fba169763ea6
+	github.com/deatil/go-cryptobin v1.1.1013
 	github.com/dgryski/go-idea v0.0.0-20170306091226-d2fb45a411fb
 	github.com/ebfe/estream v0.0.0-20150613152650-6f7a4538d35a
 	github.com/ericlagergren/lwcrypto v0.0.0-20220507050349-7b11afcfc217

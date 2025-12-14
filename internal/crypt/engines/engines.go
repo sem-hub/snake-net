@@ -8,9 +8,9 @@ import (
 var EnginesList = []string{
 	// Universal
 	"aes",
+	"speck",
 	"serpent",
 	"camellia",
-	"twofish",
 	"rc6",
 	"idea",
 	"threefish",

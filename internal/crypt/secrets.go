@@ -199,10 +199,10 @@ func CreateEngine(engineName, mode string, keySize int, sharedSecret []byte) (en
 	switch engineName {
 	case "aes":
 		engine, err = ciphers.NewAesEngine(sharedSecret, keySize, mode)
+	case "speck":
+		engine, err = ciphers.NewSpeckEngine(sharedSecret, keySize, mode)
 	case "idea":
 		engine, err = ciphers.NewIdeaEngine(sharedSecret, mode)
-	case "twofish":
-		engine, err = ciphers.NewTwofishEngine(sharedSecret, keySize, mode)
 	case "threefish":
 		engine, err = ciphers.NewThreefishEngine(sharedSecret, keySize, mode)
 	case "rc6":
