@@ -28,7 +28,6 @@ func (e *AeadEngine) Seal(NewAEAD func() (cipher.AEAD, error), data []byte) ([]b
 	}
 	nonce := make([]byte, aead.NonceSize())
 	rand.Read(nonce)
-	nonce[0] &= 0x7F // ensure nonce is non-negative. It's a workaround for gogost MGM implementation.
 	bufOut := aead.Seal(nil, nonce, data, nil)
 
 	e.Logger.Debug("Encrypt AEAD", "encryptedlen", len(bufOut), "noncelen", len(nonce))
