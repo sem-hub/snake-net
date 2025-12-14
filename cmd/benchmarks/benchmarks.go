@@ -71,9 +71,9 @@ func drawData(keys []string, medEncrypt map[string]time.Duration, medDecrypt map
 
 	for i, name := range keys {
 		scatterData[i].X = float64(i)
-		scatterData[i].Y = float64(medEncrypt[name].Nanoseconds() / 1000) // microseconds
+		scatterData[i].Y = float64(medEncrypt[name].Nanoseconds()) / 1000.0
 		scatterData1[i].X = float64(i)
-		scatterData1[i].Y = float64(medDecrypt[name].Nanoseconds() / 1000) // microseconds
+		scatterData1[i].Y = float64(medDecrypt[name].Nanoseconds()) / 1000.0
 	}
 	s, err := plotter.NewScatter(scatterData)
 	if err != nil {
