@@ -56,7 +56,6 @@ func Route(sourceClient netip.AddrPort, data []byte) bool {
 		sendDataToClient(cl.address, data)
 	} else {
 		for _, cidr := range configs.GetConfig().TunAddrs {
-			logger.Debug("Route: checking cidr", "cidr", cidr.String())
 			if cidr.IP == address {
 				// It's packet for us. Send it into tun
 				logger.Debug("Route: packet for us. Write into TUN", "address", address)
