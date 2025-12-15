@@ -33,11 +33,12 @@ Features:
       * Aegis (очень быстрый)
       * Grain
     * Cipher modes (makes block cipher in stream or AEAD):
-      * CBC
-      * GCM
-      * CCM
-      * OCB
-      * EAX
+      * CBC (block)
+      * CTR (stream)
+      * GCM (AEAD)
+      * CCM (AEAD)
+      * OCB (AEAD)
+      * EAX (AEAD)
  * AEAD ciphers don't need a packet verification, but block and stream do.
     * Supported signature algorythms:
       * ED25519 asymetric keys algorythm
