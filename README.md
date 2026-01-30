@@ -5,9 +5,9 @@ This is my project to improve skills in networking, tunneling, cryptography, etc
 
 Features:
  * Both TOML config and command line seting up. (Command line overrides config).
- * Separate logging for every module [in progress]
+ * Separate logging for every module
  * TUN interface
- * Own packet format (with very little overhead)
+ * Own packet format (with very little overhead: only 9 bytes header)
  * Random padding for fixed-size packets
  * Transport agnostic. Supports:
    * TCP

@@ -10,7 +10,10 @@ import (
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
-// We send encrypted header (HEADER bytes) + encrypted data + signature of the encrypted data (not header here)
+// We send encrypted header (HEADER bytes) + encrypted data + signature of the encrypted data (sign only data, not header)
+// If transport is encrypted, we skip header encryption and do not sign (transport cares for all)
+// If encryption is AEAD, we do not need to sign (integrity is provided by AEAD)
+// cmd contains flags for encryption/signing and commands
 func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	c.orderSendLock.Lock()
 	defer c.orderSendLock.Unlock()

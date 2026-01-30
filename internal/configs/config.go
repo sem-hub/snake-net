@@ -7,6 +7,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/utils"
 )
 
+// ConfigFile represents the structure of the configuration file
 type ConfigFile struct {
 	Main  Main  `toml:"main"`
 	Tls   Tls   `toml:"tls"`
@@ -57,6 +58,7 @@ type Log struct {
 	Transport string `toml:"transport"`
 }
 
+// RuntimeConfig holds the runtime configuration after parsing the config file, applying defaults, and command-line overrides
 type RuntimeConfig struct {
 	Mode       string
 	Debug      bool

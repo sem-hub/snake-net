@@ -43,7 +43,7 @@ type Client struct {
 	bufSignal      *sync.Cond
 	bufSize        int
 	bufOffset      int
-	seqIn          uint32 // always read/write under bugLock
+	seqIn          uint32 // always read/write under bufLock
 	seqOut         *atomic.Uint32
 	oooPackets     int
 	ooopTimer      *time.Timer

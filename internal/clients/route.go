@@ -38,6 +38,10 @@ func sendDataToClient(addr netip.AddrPort, data []byte) {
 	}
 }
 
+// It calls from two places:
+// 1. From TUN read loop - when we read data from TUN, we need to route it to the correct client (sourceClient is empty)
+// 2. From network read loop - when we read data from network, we need to route it to the correct client (server mode)
+// Returns true if the data was routed to a specific client, false if it should be written to TUN
 func Route(sourceClient netip.AddrPort, data []byte) bool {
 	logger := configs.InitLogger("route")
 

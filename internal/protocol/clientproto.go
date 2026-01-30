@@ -19,13 +19,10 @@ import (
 	"github.com/sem-hub/snake-net/internal/utils"
 )
 
-/*
-Client sends string: "Hello <client-id> <tun-addr1> <tun-addr2>"
-
-	If everything is OK server responds with: "Welcome <server-ip1> <server-ip2> [<client-ip1> <client-ip2>] <cipher-name> [<signature-name>]"
-	Otherwise server responds with error message.
-	If client wants to get IP addresses from server it does not add TUN addresses to the message.
-*/
+// Client sends string: "Hello <client-id> <tun-addr1> <tun-addr2>"
+// If everything is OK server responds with: "Welcome <server-ip1> <server-ip2> [<client-ip1> <client-ip2>] <cipher-name> [<signature-name>]"
+// Otherwise server responds with error message.
+// If client wants to get IP addresses from server it does not add TUN addresses to the message.
 func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, string, error) {
 	cfg := configs.GetConfig()
 	serverIPs := make([]utils.Cidr, 0)

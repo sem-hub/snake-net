@@ -38,6 +38,8 @@ func (c *Client) getHeaderInfo(buf []byte) (int, uint32, Cmd, error) {
 	return n, seq, flags, nil
 }
 
+// ReadLoop reads data from network into client's buffer
+// Send signal to bufSignal when data is available
 func (c *Client) TransportReadLoop(address netip.AddrPort) {
 	c.logger.Debug("ReadLoop", "address", address)
 	// read data from network into c.buf
@@ -81,6 +83,7 @@ func (c *Client) TransportReadLoop(address netip.AddrPort) {
 	}()
 }
 
+// ReadBuf reads one full message from client's buffer
 // reqSize - minimal size to read (usually HEADER size)
 func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	c.logger.Debug("client ReadBuf", "address", c.address.String(), "bufSize", c.bufSize, "bufOffset", c.bufOffset,

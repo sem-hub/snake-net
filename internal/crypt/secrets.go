@@ -112,8 +112,7 @@ func (s *Secrets) GetSharedSecret() []byte {
 	return s.sharedSecret
 }
 
-// We just make zero IV and don't keep it.
-// So len(data) == len(bufOut)
+// We just make zero IV and don't keep it. So len(data) == len(bufOut) (constant size and symmetric operation)
 func (s *Secrets) EncryptDecryptNoIV(data []byte) ([]byte, error) {
 	s.logger.Debug("EncryptNoIV", "datalen", len(data))
 
