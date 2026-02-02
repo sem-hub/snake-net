@@ -39,6 +39,8 @@ func getLenvelByModule(module string) slog.Level {
 		return getLevelByString(configFile.Log.Crypt)
 	case "transport":
 		return getLevelByString(configFile.Log.Transport)
+	case "socks5":
+		return getLevelByString(configFile.Log.Socks5)
 	default:
 		// XXX log.Debug here
 		if configFile.Main.Debug {

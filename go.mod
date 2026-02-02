@@ -16,6 +16,7 @@ require (
 	github.com/quic-go/quic-go v0.56.0
 	github.com/schultz-is/go-threefish v1.0.2
 	github.com/sem-hub/eax-mode v0.0.0-20251211001343-03d13a41fd58
+	github.com/things-go/go-socks5 v0.1.0
 	github.com/vishvananda/netlink v1.3.1
 	gitlab.com/go-extension/aes-ccm v0.0.0-20230221065045-e58665ef23c7
 	golang.org/x/crypto v0.41.0

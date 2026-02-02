@@ -44,6 +44,7 @@ var (
 	cert       string
 	key        string
 	signEngine string
+	socks5Port int
 )
 
 var flagAlias = map[string]string{
@@ -59,6 +60,7 @@ var flagAlias = map[string]string{
 	"remote": "r",
 	"local":  "l",
 	"cipher": "e",
+	"socks5": "x",
 }
 
 // cidrs type for flag parsing
@@ -94,6 +96,7 @@ func init() {
 	flag.StringVar(&cert, "cert", "", "Path to TLS/DTLS certificate file (overrides config file).")
 	flag.StringVar(&key, "key", "", "Path to TLS/DTLS key file (overrides config file).")
 	flag.StringVar(&signEngine, "sign", "", "Signature engine to use (overrides config file).")
+	flag.IntVar(&socks5Port, "socks5", 0, "Enable SOCKS5 proxy on specified port.")
 
 	// Setup flag aliases
 	for from, to := range flagAlias {
@@ -134,6 +137,7 @@ func main() {
 			cfg.Log.Protocol = "Debug"
 			cfg.Log.Route = "Debug"
 			cfg.Log.Transport = "Debug"
+			cfg.Log.Socks5 = "Debug"
 		}
 		if clientId != "" {
 			cfg.Main.ClientId = clientId
@@ -177,6 +181,12 @@ func main() {
 		if key != "" {
 			cfg.Tls.KeyFile = key
 		}
+		if socks5Port != 0 {
+			// XXX AUTH
+			cfg.Socks5 = &configs.Socks5{
+				Port: socks5Port,
+			}
+		}
 		if cfg.Main.Mode == "server" {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.LocalAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.LocalPort))
@@ -196,6 +206,7 @@ func main() {
 			cfg.Log.Protocol = "Debug"
 			cfg.Log.Route = "Debug"
 			cfg.Log.Transport = "Debug"
+			cfg.Log.Socks5 = "Debug"
 		} else {
 			cfg.Log.Main = "Info"
 			cfg.Log.Clients = "Info"
@@ -205,6 +216,7 @@ func main() {
 			cfg.Log.Protocol = "Info"
 			cfg.Log.Route = "Info"
 			cfg.Log.Transport = "Info"
+			cfg.Log.Socks5 = "Info"
 		}
 		if mode != "server" && mode != "client" {
 			log.Fatal("Invalid mode. Use 'client' or 'server'.")

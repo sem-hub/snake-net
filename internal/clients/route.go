@@ -9,6 +9,26 @@ import (
 	. "github.com/sem-hub/snake-net/internal/interfaces"
 )
 
+/*
+func getDstIP(packet []byte) (netip.Addr, bool) {
+    pkt := gopacket.NewPacket(packet, layers.LayerTypeIPv4, gopacket.Default)
+
+    if ipv4Layer := pkt.Layer(layers.LayerTypeIPv4); ipv4Layer != nil {
+        ipv4, _ := ipv4Layer.(*layers.IPv4)
+        addr, ok := netip.AddrFromSlice(ipv4.DstIP)
+        return addr, ok
+    }
+
+    if ipv6Layer := pkt.Layer(layers.LayerTypeIPv6); ipv6Layer != nil {
+        ipv6, _ := ipv6Layer.(*layers.IPv6)
+        addr, ok := netip.AddrFromSlice(ipv6.DstIP)
+        return addr, ok
+    }
+
+    return netip.Addr{}, false
+}
+*/
+
 func getDstIP(packet []byte) (netip.Addr, bool) {
 	if len(packet) < 1 {
 		return netip.Addr{}, false

@@ -9,11 +9,12 @@ import (
 
 // ConfigFile represents the structure of the configuration file
 type ConfigFile struct {
-	Main  Main  `toml:"main"`
-	Tls   Tls   `toml:"tls"`
-	Tun   Tun   `toml:"tun"`
-	Log   Log   `toml:"log"`
-	Crypt Crypt `toml:"crypt"`
+	Main   *Main   `toml:"main"`
+	Tls    *Tls    `toml:"tls"`
+	Tun    *Tun    `toml:"tun"`
+	Socks5 *Socks5 `toml:"socks5"`
+	Log    *Log    `toml:"log"`
+	Crypt  *Crypt  `toml:"crypt"`
 }
 
 type Main struct {
@@ -47,6 +48,12 @@ type Tun struct {
 	TunAddrStr []string `toml:"tun_addr"`
 }
 
+type Socks5 struct {
+	Port     int    `toml:"port"`
+	Username string `toml:"username"`
+	Password string `toml:"password"`
+}
+
 type Log struct {
 	Main      string `toml:"main"`
 	Protocol  string `toml:"protocol"`
@@ -56,29 +63,34 @@ type Log struct {
 	Tun       string `toml:"tun"`
 	Route     string `toml:"route"`
 	Transport string `toml:"transport"`
+	Socks5    string `toml:"socks5"`
 }
 
 // RuntimeConfig holds the runtime configuration after parsing the config file, applying defaults, and command-line overrides
 type RuntimeConfig struct {
-	Mode       string
-	Debug      bool
-	Protocol   string
-	RemoteAddr string
-	RemotePort uint16
-	LocalAddr  string
-	LocalPort  uint16
-	TunAddrs   []utils.Cidr
-	TunMTU     int
-	TunName    string
-	ClientId   string
-	Secret     string
-	CertFile   string
-	KeyFile    string
-	CAFile     string
-	Engine     string
-	Attempts   int
-	RetryDelay int
-	SignEngine string
+	Mode           string
+	Debug          bool
+	Protocol       string
+	RemoteAddr     string
+	RemotePort     uint16
+	LocalAddr      string
+	LocalPort      uint16
+	TunAddrs       []utils.Cidr
+	TunMTU         int
+	TunName        string
+	ClientId       string
+	Secret         string
+	CertFile       string
+	KeyFile        string
+	CAFile         string
+	Engine         string
+	Attempts       int
+	RetryDelay     int
+	SignEngine     string
+	Socks5Enabled  bool
+	Socks5Port     uint16
+	Socks5Username string
+	Socks5Password string
 }
 
 var (
@@ -96,25 +108,35 @@ func GetConfigFile() *ConfigFile {
 func GetConfig() *RuntimeConfig {
 	if config == nil {
 		config = &RuntimeConfig{
-			Mode:       configFile.Main.Mode,
-			Debug:      configFile.Main.Debug,
-			Protocol:   configFile.Main.Protocol,
-			RemoteAddr: configFile.Main.RemoteAddr,
-			RemotePort: configFile.Main.RemotePort,
-			LocalAddr:  configFile.Main.LocalAddr,
-			LocalPort:  configFile.Main.LocalPort,
-			TunAddrs:   []utils.Cidr{},
-			TunMTU:     configFile.Tun.MTU,
-			TunName:    configFile.Tun.Name,
-			ClientId:   configFile.Main.ClientId,
-			Secret:     configFile.Main.Secret,
-			CertFile:   configFile.Tls.CertFile,
-			KeyFile:    configFile.Tls.KeyFile,
-			CAFile:     configFile.Tls.CAFile,
-			Engine:     configFile.Crypt.Engine,
-			Attempts:   configFile.Main.Attempts,
-			RetryDelay: configFile.Main.RetryDelay,
-			SignEngine: configFile.Crypt.SignEngine,
+			Mode:           configFile.Main.Mode,
+			Debug:          configFile.Main.Debug,
+			Protocol:       configFile.Main.Protocol,
+			RemoteAddr:     configFile.Main.RemoteAddr,
+			RemotePort:     configFile.Main.RemotePort,
+			LocalAddr:      configFile.Main.LocalAddr,
+			LocalPort:      configFile.Main.LocalPort,
+			TunAddrs:       []utils.Cidr{},
+			TunMTU:         configFile.Tun.MTU,
+			TunName:        configFile.Tun.Name,
+			ClientId:       configFile.Main.ClientId,
+			Secret:         configFile.Main.Secret,
+			Engine:         configFile.Crypt.Engine,
+			Attempts:       configFile.Main.Attempts,
+			RetryDelay:     configFile.Main.RetryDelay,
+			SignEngine:     configFile.Crypt.SignEngine,
+			Socks5Enabled:  configFile.Socks5 != nil,
+			Socks5Username: "",
+			Socks5Password: "",
+		}
+		if configFile.Tls != nil {
+			config.CertFile = configFile.Tls.CertFile
+			config.KeyFile = configFile.Tls.KeyFile
+			config.CAFile = configFile.Tls.CAFile
+		}
+		if configFile.Socks5 != nil {
+			config.Socks5Port = uint16(configFile.Socks5.Port)
+			config.Socks5Username = configFile.Socks5.Username
+			config.Socks5Password = configFile.Socks5.Password
 		}
 		if len(configFile.Tun.TunAddrStr) > 0 {
 			for _, addr := range configFile.Tun.TunAddrStr {
@@ -129,7 +151,7 @@ func GetConfig() *RuntimeConfig {
 		}
 		// Defaults for server. Client may leave them empty to get from server.
 		if config.Engine == "" && config.Mode == "server" {
-			config.Engine = "aes-cbc"
+			config.Engine = "aes-gcm"
 		}
 		if config.SignEngine == "" && config.Mode == "server" {
 			config.SignEngine = "ed25519"

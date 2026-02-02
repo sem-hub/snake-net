@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net"
@@ -105,7 +106,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 	return serverIPs, clientIPs, chipherName, signatureName, nil
 }
 
-func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
+func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPort) error {
 	cfg := configs.GetConfig()
 
 	// Well, really it's server but we call it client here
@@ -174,6 +175,10 @@ func ProcessServer(t transport.Transport, addr netip.AddrPort) error {
 		return errors.New("Error creating tun interface: " + err.Error())
 	}
 	clients.SetTunInterface(tunIf)
+
+	if cfg.Socks5Enabled {
+		network.RunSOCKS5(ctx, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
+	}
 
 	c.SetClientState(clients.Ready)
 

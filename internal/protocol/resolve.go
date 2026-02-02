@@ -85,6 +85,10 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		clients.SetTunInterface(tunIf)
 
 		logger.Info("Start server", "addr", cfg.LocalAddr, "port", cfg.LocalPort)
+
+		if cfg.Socks5Enabled {
+			network.RunSOCKS5(ctx, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
+		}
 		<-ctx.Done()
 	} else {
 		attempts := 0
@@ -132,7 +136,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 			// Run client in a goroutine so we can listen for context cancellation
 			v := make(chan bool)
 			go func() {
-				err := ProcessServer(t, rAddrPort)
+				err := ProcessServer(ctx, t, rAddrPort)
 				if err != nil {
 					logger.Error("ProcessServer error", "error", err)
 					v <- false

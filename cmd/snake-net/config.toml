@@ -18,6 +18,9 @@ key_file = ""
 tun_addr = ["10.0.0.10/24","fd11::10/64"]
 mtu = 1420
 name = "snake"
+[socks5]
+username = ""
+password = ""
 [log]
 main = "Error"
 protocol = "Debug"
@@ -27,3 +30,4 @@ crypt = "Info"
 clients = "Info"
 tun = "info"
 transport = "info"
+socks5 = "info"
