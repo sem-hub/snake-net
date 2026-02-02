@@ -177,7 +177,9 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 	clients.SetTunInterface(tunIf)
 
 	if cfg.Socks5Enabled {
-		network.RunSOCKS5(ctx, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
+		go func() {
+			network.RunSOCKS5(ctx, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
+		}()
 	}
 
 	c.SetClientState(clients.Ready)

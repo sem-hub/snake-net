@@ -87,7 +87,9 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		logger.Info("Start server", "addr", cfg.LocalAddr, "port", cfg.LocalPort)
 
 		if cfg.Socks5Enabled {
-			network.RunSOCKS5(ctx, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
+			go func() {
+				network.RunSOCKS5(ctx, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
+			}()
 		}
 		<-ctx.Done()
 	} else {
