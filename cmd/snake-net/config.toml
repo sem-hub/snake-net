@@ -19,6 +19,8 @@ tun_addr = ["10.0.0.10/24","fd11::10/64"]
 mtu = 1420
 name = "snake"
 [socks5]
+enabled = false
+port = 1080
 username = ""
 password = ""
 [log]

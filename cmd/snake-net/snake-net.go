@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/signature"
 	"github.com/sem-hub/snake-net/internal/network"
 	"github.com/sem-hub/snake-net/internal/network/transport"
@@ -45,6 +46,8 @@ var (
 	key        string
 	signEngine string
 	socks5Port int
+	socks5User string
+	socks5Pass string
 )
 
 var flagAlias = map[string]string{
@@ -80,9 +83,8 @@ func (i *cidrs) Set(value string) error {
 }
 
 func init() {
-	cfg = configs.GetConfigFile()
 	flag.StringVar(&configFile, "config", "", "Path to config file.")
-	flag.StringVar(&mode, "mode", "client", "Mode: client or server.")
+	flag.StringVar(&mode, "mode", "", "Mode: client or server.")
 	flag.StringVar(&name, "name", "", "Name of tun interface.")
 	flag.StringVar(&secret, "secret", "", "Secret key.")
 	flag.StringVar(&clientId, "id", "", "Client ID.")
@@ -97,6 +99,8 @@ func init() {
 	flag.StringVar(&key, "key", "", "Path to TLS/DTLS key file (overrides config file).")
 	flag.StringVar(&signEngine, "sign", "", "Signature engine to use (overrides config file).")
 	flag.IntVar(&socks5Port, "socks5", 0, "Enable SOCKS5 proxy on specified port.")
+	flag.StringVar(&socks5User, "socks5user", "", "SOCKS5 proxy username.")
+	flag.StringVar(&socks5Pass, "socks5pass", "", "SOCKS5 proxy password.")
 
 	// Setup flag aliases
 	for from, to := range flagAlias {
@@ -112,6 +116,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Special case: UUID generation mode
 	if flag.Arg(0) == "uuid" {
 		uuid := uuid.New()
 		fmt.Println(uuid.String())
@@ -119,74 +124,45 @@ func main() {
 	}
 
 	// ================== Configuration parsing ==================
+	// We have a three-step configuration parsing:
+	// 1. Set defaults
+	// 2. Load config file if specified
+	// 3. Override config file settings with command line switches
 	var addr string
+	cfg = configs.GetConfigFile()
+	// Apply defaults
+	cfg.Main.Mode = "client"
+	cfg.Main.Protocol = "tcp"
+	cfg.Main.Debug = false
+	cfg.Main.RetryDelay = 5
+	cfg.Main.Attempts = 0
+
+	// Client may have empty engine and sign engine to get from server
+	cfg.Crypt.Engine = ""
+	cfg.Crypt.SignEngine = ""
+
+	cfg.Tun.MTU = network.DefaultMTU
+	cfg.Tun.Name = "snake"
+
+	cfg.Socks5.Enabled = false
+	cfg.Socks5.Port = 1080
+
+	cfg.Log.Main = "Info"
+	cfg.Log.Clients = "Info"
+	cfg.Log.Network = "Info"
+	cfg.Log.Tun = "Info"
+	cfg.Log.Crypt = "Info"
+	cfg.Log.Protocol = "Info"
+	cfg.Log.Route = "Info"
+	cfg.Log.Transport = "Info"
+	cfg.Log.Socks5 = "Info"
+
 	if configFile != "" {
 		_, err := toml.DecodeFile(configFile, cfg)
 		if err != nil {
 			log.Fatal(err)
 		}
-		// We have both config and command line switch
-		// Command line has preference
-		if debug {
-			cfg.Main.Debug = true
-			cfg.Log.Main = "Debug"
-			cfg.Log.Clients = "Debug"
-			cfg.Log.Network = "Debug"
-			cfg.Log.Tun = "Debug"
-			cfg.Log.Crypt = "Debug"
-			cfg.Log.Protocol = "Debug"
-			cfg.Log.Route = "Debug"
-			cfg.Log.Transport = "Debug"
-			cfg.Log.Socks5 = "Debug"
-		}
-		if clientId != "" {
-			cfg.Main.ClientId = clientId
-		}
-		if secret != "" {
-			cfg.Main.Secret = secret
-		}
-		if remote != "" {
-			p := strings.Split(remote, ":")
-			if len(p) < 2 {
-				log.Fatal("Remote address must be in host:port format")
-			}
-			cfg.Main.RemoteAddr = p[0]
-			port, err := strconv.Atoi(p[1])
-			if err != nil {
-				log.Fatal("Remote address parse error", "error", err)
-			}
-			cfg.Main.RemotePort = uint16(port)
-		}
-		if local != "" {
-			p := strings.Split(local, ":")
-			if len(p) < 2 {
-				log.Fatal("Local address must be in host:port format")
-			}
-			cfg.Main.LocalAddr = p[0]
-			port, err := strconv.Atoi(p[1])
-			if err != nil {
-				log.Fatal("Local address parse error", "error", err)
-			}
-			cfg.Main.LocalPort = uint16(port)
-		}
-		if cipher != "" {
-			cfg.Crypt.Engine = cipher
-		}
-		if signEngine != "" {
-			cfg.Crypt.SignEngine = signEngine
-		}
-		if cert != "" {
-			cfg.Tls.CertFile = cert
-		}
-		if key != "" {
-			cfg.Tls.KeyFile = key
-		}
-		if socks5Port != 0 {
-			// XXX AUTH
-			cfg.Socks5 = &configs.Socks5{
-				Port: socks5Port,
-			}
-		}
+		// Convert to command line style address: URI. For later parsing.
 		if cfg.Main.Mode == "server" {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.LocalAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.LocalPort))
@@ -194,38 +170,101 @@ func main() {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.RemoteAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.RemotePort))
 		}
-		slog.Debug("", "addr", addr)
-	} else {
-		cfg.Main.Debug = debug
-		if debug {
-			cfg.Log.Main = "Debug"
-			cfg.Log.Clients = "Debug"
-			cfg.Log.Network = "Debug"
-			cfg.Log.Tun = "Debug"
-			cfg.Log.Crypt = "Debug"
-			cfg.Log.Protocol = "Debug"
-			cfg.Log.Route = "Debug"
-			cfg.Log.Transport = "Debug"
-			cfg.Log.Socks5 = "Debug"
-		} else {
-			cfg.Log.Main = "Info"
-			cfg.Log.Clients = "Info"
-			cfg.Log.Network = "Info"
-			cfg.Log.Tun = "Info"
-			cfg.Log.Crypt = "Info"
-			cfg.Log.Protocol = "Info"
-			cfg.Log.Route = "Info"
-			cfg.Log.Transport = "Info"
-			cfg.Log.Socks5 = "Info"
-		}
-		if mode != "server" && mode != "client" {
-			log.Fatal("Invalid mode. Use 'client' or 'server'.")
-		}
 
-		cfg.Main.Mode = mode
-		cfg.Main.Secret = secret
+	} else {
 		addr = strings.ToLower(flag.Arg(0))
 	}
+
+	// Override with command line switches and sanity checks
+	if mode != "" {
+		cfg.Main.Mode = mode
+	} else {
+		mode = cfg.Main.Mode
+	}
+	cfg.Main.Mode = strings.ToLower(cfg.Main.Mode)
+	if cfg.Main.Mode != "server" && cfg.Main.Mode != "client" {
+		log.Fatal("Invalid mode in config file. Use 'client' or 'server'.")
+	}
+
+	if cfg.Main.Mode == "server" {
+		if cfg.Tun == nil || len(cfg.Tun.TunAddrStr) == 0 && len(tunAddr) == 0 {
+			log.Fatal("At least one TUN address (CIDR) is mandatory for server")
+		}
+	}
+	if clientId != "" {
+		cfg.Main.ClientId = clientId
+	}
+	if secret != "" {
+		cfg.Main.Secret = secret
+	}
+	if remote != "" {
+		p := strings.Split(remote, ":")
+		if len(p) < 2 {
+			log.Fatal("Remote address must be in host:port format")
+		}
+		cfg.Main.RemoteAddr = p[0]
+		port, err := strconv.Atoi(p[1])
+		if err != nil {
+			log.Fatal("Remote address parse error", "error", err)
+		}
+		cfg.Main.RemotePort = uint16(port)
+	}
+	if local != "" {
+		p := strings.Split(local, ":")
+		if len(p) < 2 {
+			log.Fatal("Local address must be in host:port format")
+		}
+		cfg.Main.LocalAddr = p[0]
+		port, err := strconv.Atoi(p[1])
+		if err != nil {
+			log.Fatal("Local address parse error", "error", err)
+		}
+		cfg.Main.LocalPort = uint16(port)
+	}
+	if cipher != "" {
+		cfg.Crypt.Engine = cipher
+	}
+	if signEngine != "" {
+		cfg.Crypt.SignEngine = signEngine
+	}
+	// Defaults for server
+	if mode == "server" {
+		if cipher != "" && cfg.Crypt.Engine == "" {
+			cfg.Crypt.Engine = "aes-gcm"
+		}
+		if signEngine != "" && cfg.Crypt.SignEngine == "" {
+			cfg.Crypt.SignEngine = "ed25519"
+		}
+	}
+	if cert != "" {
+		cfg.Tls.CertFile = cert
+	}
+	if key != "" {
+		cfg.Tls.KeyFile = key
+	}
+	if socks5Port != 0 {
+		cfg.Socks5.Port = socks5Port
+		cfg.Socks5.Enabled = true
+	}
+	if socks5User != "" {
+		cfg.Socks5.Username = socks5User
+	}
+	if socks5Pass != "" {
+		cfg.Socks5.Password = socks5Pass
+	}
+	if mtu != 0 {
+		cfg.Tun.MTU = mtu
+	} else {
+		cfg.Tun.MTU = network.DefaultMTU
+	}
+	if name != "" {
+		cfg.Tun.Name = name
+	}
+	if tunAddr != nil {
+		cfg.Tun.TunAddrStr = tunAddr
+	}
+
+	slog.Debug("", "addr", addr)
 
 	logger := configs.InitLogger("main")
 
@@ -276,9 +315,19 @@ func main() {
 		cfg.Main.LocalAddr = "::"
 	}
 
-	/*if cfg.Crypt.Engine != "" && !engines.IsEngineSupported(cfg.Crypt.Engine) {
-		log.Fatal("Unsupported cryptographic engine: " + cfg.Crypt.Engine)
-	}*/
+	if cfg.Crypt.Engine != "" {
+		engineMode := strings.Split(cfg.Crypt.Engine, "-")
+		if len(engineMode) != 2 {
+			log.Fatal("Invalid cipher format. Use engine-mode format, e.g., aes-gcm")
+		}
+		if !engines.IsEngineSupported(engineMode[0]) {
+			log.Fatal("Unsupported cryptographic engine: " + engineMode[0])
+		}
+		if !engines.IsModeSupported(engineMode[1]) {
+			log.Fatal("Unsupported cryptographic mode: " + engineMode[1])
+		}
+
+	}
 
 	if cfg.Crypt.SignEngine != "" && !signature.IsEngineSupported(cfg.Crypt.SignEngine) {
 		log.Fatal("Unsupported signature engine: " + cfg.Crypt.SignEngine)

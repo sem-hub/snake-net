@@ -49,6 +49,7 @@ type Tun struct {
 }
 
 type Socks5 struct {
+	Enabled  bool   `toml:"enabled"`
 	Port     int    `toml:"port"`
 	Username string `toml:"username"`
 	Password string `toml:"password"`
@@ -101,6 +102,12 @@ var (
 func GetConfigFile() *ConfigFile {
 	if configFile == nil {
 		configFile = &ConfigFile{}
+		configFile.Main = &Main{}
+		configFile.Tun = &Tun{}
+		configFile.Log = &Log{}
+		configFile.Crypt = &Crypt{}
+		configFile.Tls = &Tls{}
+		configFile.Socks5 = &Socks5{}
 	}
 	return configFile
 }
@@ -124,19 +131,13 @@ func GetConfig() *RuntimeConfig {
 			Attempts:       configFile.Main.Attempts,
 			RetryDelay:     configFile.Main.RetryDelay,
 			SignEngine:     configFile.Crypt.SignEngine,
-			Socks5Enabled:  configFile.Socks5 != nil,
-			Socks5Username: "",
-			Socks5Password: "",
-		}
-		if configFile.Tls != nil {
-			config.CertFile = configFile.Tls.CertFile
-			config.KeyFile = configFile.Tls.KeyFile
-			config.CAFile = configFile.Tls.CAFile
-		}
-		if configFile.Socks5 != nil {
-			config.Socks5Port = uint16(configFile.Socks5.Port)
-			config.Socks5Username = configFile.Socks5.Username
-			config.Socks5Password = configFile.Socks5.Password
+			Socks5Enabled:  configFile.Socks5.Enabled,
+			Socks5Port:     uint16(configFile.Socks5.Port),
+			Socks5Username: configFile.Socks5.Username,
+			Socks5Password: configFile.Socks5.Password,
+			CertFile:       configFile.Tls.CertFile,
+			KeyFile:        configFile.Tls.KeyFile,
+			CAFile:         configFile.Tls.CAFile,
 		}
 		if len(configFile.Tun.TunAddrStr) > 0 {
 			for _, addr := range configFile.Tun.TunAddrStr {
@@ -148,13 +149,6 @@ func GetConfig() *RuntimeConfig {
 						Network: network,
 					})
 			}
-		}
-		// Defaults for server. Client may leave them empty to get from server.
-		if config.Engine == "" && config.Mode == "server" {
-			config.Engine = "aes-gcm"
-		}
-		if config.SignEngine == "" && config.Mode == "server" {
-			config.SignEngine = "ed25519"
 		}
 	}
 	return config

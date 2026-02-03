@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"fmt"
+	"net"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	socks5 "github.com/things-go/go-socks5"
@@ -39,14 +40,24 @@ func RunSOCKS5(ctx context.Context, port int, username, password string) {
 	addr := fmt.Sprintf(":%d", port)
 	logger.Info("SOCKS5 server started", "port", port)
 
-	// Start the server
+	// Create listener
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		logger.Error("Failed to create listener", "error", err)
+		return
+	}
+
+	// Start the server in goroutine
 	go func() {
-		if err := server.ListenAndServe("tcp", addr); err != nil {
-			logger.Error("Error starting SOCKS5 server", "error", err)
+		if err := server.Serve(listener); err != nil && err != net.ErrClosed {
+			logger.Error("Error running SOCKS5 server", "error", err)
 		}
 	}()
 
 	// Wait for context cancellation
 	<-ctx.Done()
 	logger.Info("Shutting down SOCKS5 server")
+
+	// Close listener to stop accepting connections
+	listener.Close()
 }
