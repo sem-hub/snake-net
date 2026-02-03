@@ -11,7 +11,7 @@ var EnginesList = []string{
 	"speck",
 	"rc6",
 	"threefish",
-	// Stream
+	// Stream only
 	"salsa20",
 	"chacha20",
 	"rabbit",
