@@ -47,3 +47,4 @@ Features:
  * For TLS protocols (TLS, DTLS and QUIC): dynamic certificate creating or load them from files
  * Dynamic address assigments (both IPv4&IPv6)
  * Works on Linux and Windows
+ * SOCKS5 server on remote node (don't use it on local node. It's useless)
