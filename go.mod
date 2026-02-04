@@ -10,6 +10,7 @@ require (
 	github.com/deatil/go-cryptobin v1.1.1013
 	github.com/ebfe/estream v0.0.0-20150613152650-6f7a4538d35a
 	github.com/ericlagergren/lwcrypto v0.0.0-20220507050349-7b11afcfc217
+	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
 	github.com/pedroalbanese/crypto v0.0.0-20230125215802-8b7e99ecbad3
 	github.com/pion/dtls/v3 v3.0.7
@@ -33,6 +34,8 @@ require (
 	github.com/campoy/embedmd v1.0.0 // indirect
 	github.com/ericlagergren/subtle v0.0.0-20220507045147-890d697da010 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

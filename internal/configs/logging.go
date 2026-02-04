@@ -1,10 +1,85 @@
 package configs
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"log"
 	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/fatih/color"
 )
+
+type ColorHandlerOptions struct {
+	slog.HandlerOptions
+	Module string
+}
+
+type ColorHandler struct {
+	slog.Handler
+	logOutput *log.Logger
+	module    string
+}
+
+func NewColorHandler(out io.Writer, opts ColorHandlerOptions) *ColorHandler {
+	h := &ColorHandler{
+		Handler:   slog.NewTextHandler(out, &opts.HandlerOptions),
+		logOutput: log.New(out, "", 0),
+	}
+	h.module = opts.Module
+
+	return h
+}
+
+func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
+	level := r.Level.String() + ":"
+
+	switch r.Level {
+	case slog.LevelDebug:
+		level = color.MagentaString(level)
+	case slog.LevelInfo:
+		level = color.BlueString(level)
+	case slog.LevelWarn:
+		level = color.YellowString(level)
+	case slog.LevelError:
+		level = color.RedString(level)
+	}
+
+	fields := make(map[string]interface{}, r.NumAttrs())
+	r.Attrs(func(a slog.Attr) bool {
+		fields[a.Key] = a.Value.Any()
+
+		return true
+	})
+
+	b := ""
+	for k, v := range fields {
+		b += fmt.Sprintf("%s=%v ", k, v)
+	}
+
+	timeStr := r.Time.Format("[15:05:05.000]")
+	msg := color.CyanString(r.Message)
+
+	h.logOutput.Println(timeStr, color.YellowString(h.module), level, msg, color.WhiteString(string(b)))
+
+	return nil
+}
+
+func (h *ColorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &ColorHandler{
+		Handler:   h.Handler.WithAttrs(attrs),
+		logOutput: h.logOutput,
+	}
+}
+
+func (h *ColorHandler) WithGroup(name string) slog.Handler {
+	return &ColorHandler{
+		Handler:   h.Handler.WithGroup(name),
+		logOutput: h.logOutput,
+	}
+}
 
 func getLevelByString(levelStr string) slog.Level {
 	switch strings.ToLower(levelStr) {
@@ -51,23 +126,18 @@ func getLenvelByModule(module string) slog.Level {
 	}
 }
 
-func adjustAttrs(groups []string, a slog.Attr) slog.Attr {
-	if a.Key == slog.TimeKey && len(groups) == 0 {
-		a.Value = slog.StringValue(a.Value.Time().Format("15:04:05.000"))
-	}
-	return a
-}
-
 func InitLogger(module string) *slog.Logger {
 	level := getLenvelByModule(module)
 	logger := slog.New(
-		slog.NewTextHandler(
+		NewColorHandler(
 			os.Stderr,
-			&slog.HandlerOptions{
-				ReplaceAttr: adjustAttrs,
-				Level:       level,
+			ColorHandlerOptions{
+				HandlerOptions: slog.HandlerOptions{
+					Level: level,
+				},
+				Module: module,
 			},
 		),
-	).With("module", module)
+	)
 	return logger
 }
