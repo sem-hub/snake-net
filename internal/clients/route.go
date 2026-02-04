@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"log/slog"
 	"net/netip"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -8,6 +9,8 @@ import (
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
 )
+
+var logger *slog.Logger = nil
 
 /*
 func getDstIP(packet []byte) (netip.Addr, bool) {
@@ -63,7 +66,9 @@ func sendDataToClient(addr netip.AddrPort, data []byte) {
 // 2. From network read loop - when we read data from network, we need to route it to the correct client (server mode)
 // Returns true if the data was routed to a specific client, false if it should be written to TUN
 func Route(sourceClient netip.AddrPort, data []byte) bool {
-	logger := configs.InitLogger("route")
+	if logger == nil {
+		logger = configs.InitLogger("route")
+	}
 
 	address, ok := getDstIP(data)
 	if !ok {
