@@ -2,7 +2,6 @@ package signature
 
 import (
 	"crypto/ed25519"
-	"log/slog"
 	"slices"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -29,7 +28,7 @@ type SignatureInterface interface {
 type Signature struct {
 	SignatureInterface
 	name              string
-	Logger            *slog.Logger
+	Logger            *configs.ColorLogger
 	sessionPrivateKey ed25519.PrivateKey
 	sessionPublicKey  ed25519.PublicKey
 	sharedSecret      []byte
@@ -41,7 +40,7 @@ func NewSignature(secret []byte, name string) *Signature {
 		name:         name,
 	}
 
-	sig.Logger = configs.InitLogger("signature-" + sig.name)
+	sig.Logger = configs.InitLogger("crypto")
 	return sig
 }
 

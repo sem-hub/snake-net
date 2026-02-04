@@ -3,7 +3,6 @@ package network
 import (
 	"errors"
 	"log"
-	"log/slog"
 	"net/netip"
 	"runtime"
 
@@ -23,14 +22,16 @@ type TunInterface struct {
 	name      string
 	cidrs     []utils.Cidr
 	mtu       int
-	logger    *slog.Logger
 	readBuffs [][]byte
 }
 
-var tunIf *TunInterface
+var tunIf *TunInterface = nil
+var logger *configs.ColorLogger = nil
 
 func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, error) {
-	logger := configs.InitLogger("tun")
+	if logger == nil {
+		logger = configs.InitLogger("tun")
+	}
 
 	if mtu == 0 {
 		mtu = DefaultMTU
@@ -41,7 +42,6 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 		name:      name,
 		cidrs:     make([]utils.Cidr, 0),
 		mtu:       mtu,
-		logger:    logger,
 		readBuffs: make([][]byte, 0),
 	}
 
@@ -50,12 +50,12 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 
 	iface.tunDev, err = tun.CreateTUN(name, mtu)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal("Create TUN device", "error", err)
 	}
 
 	iface.name, err = iface.tunDev.Name()
 	if err != nil {
-		log.Fatal("Get tun name")
+		logger.Fatal("Get tun name", "error", err)
 	}
 	logger.Info("Interface", "name", iface.name)
 	if err := iface.setUpInterface(); err != nil {
@@ -76,10 +76,10 @@ func ProcessTun() {
 	for {
 		buf, err := tunIf.ReadTun()
 		if err != nil {
-			tunIf.logger.Error("ReadTun", "error", err)
+			logger.Error("ReadTun", "error", err)
 			break
 		}
-		tunIf.logger.Debug("TUN: Read from tun", "len", len(buf))
+		logger.Debug("TUN: Read from tun", "len", len(buf))
 		// send to all clients except the sender
 		clients.Route(netip.AddrPort{}, buf)
 	}
@@ -89,7 +89,7 @@ func (tunIf *TunInterface) ReadTun() ([]byte, error) {
 	if len(tunIf.readBuffs) > 0 {
 		buf := tunIf.readBuffs[0]
 		tunIf.readBuffs = tunIf.readBuffs[1:]
-		tunIf.logger.Debug("TUN: Read from tun (from buffer)", "len", len(buf))
+		logger.Debug("TUN: Read from tun (from buffer)", "len", len(buf))
 		return buf, nil
 	}
 
@@ -109,17 +109,17 @@ func (tunIf *TunInterface) ReadTun() ([]byte, error) {
 		return nil, err
 	}
 	if count != 1 {
-		tunIf.logger.Debug("TUN: Read multiple buffers", "count", count)
+		logger.Debug("TUN: Read multiple buffers", "count", count)
 		tunIf.readBuffs = append(tunIf.readBuffs, bufs[1:count]...)
 	}
 	buf := bufs[0][:sizes[0]]
-	tunIf.logger.Debug("TUN: Read from tun", "count", count, "sizes", sizes[0])
+	logger.Debug("TUN: Read from tun", "count", count, "sizes", sizes[0])
 	return buf, nil
 }
 
 func (tunIf *TunInterface) WriteTun(buf []byte) error {
 	if tunIf == nil {
-		slog.Debug("WriteTun: did not initialized yet")
+		log.Println("WriteTun: did not initialized yet")
 		return errors.New("did not initialized")
 	}
 	bufs := make([][]byte, 1)
@@ -129,7 +129,7 @@ func (tunIf *TunInterface) WriteTun(buf []byte) error {
 	}
 	bufs[0] = make([]byte, len(buf)+offset)
 	copy(bufs[0][offset:], buf)
-	tunIf.logger.Debug("TUN: Write into tun", "len", len(buf))
+	logger.Debug("TUN: Write into tun", "len", len(buf))
 	if _, err := tunIf.tunDev.Write(bufs, offset); err != nil {
 		return err
 	}
@@ -137,12 +137,12 @@ func (tunIf *TunInterface) WriteTun(buf []byte) error {
 }
 
 func (tunIf *TunInterface) Close() {
-	tunIf.logger.Info("TUN Interface Close")
+	logger.Info("TUN Interface Close")
 	// Try to close underlying tun device to unblock Read
 	if tunIf.tunDev != nil {
 		err := tunIf.tunDev.Close()
 		if err != nil {
-			tunIf.logger.Error("Close tun device", "error", err)
+			logger.Error("Close tun device", "error", err)
 		}
 	}
 }

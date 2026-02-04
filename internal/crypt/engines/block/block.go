@@ -17,7 +17,7 @@ type BlockEngine struct {
 func NewBlockEngine(name string) *BlockEngine {
 	engine := BlockEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "block")
-	engine.Logger = configs.InitLogger("crypto_block")
+	engine.Logger = configs.InitLogger("crypt")
 
 	return &engine
 }

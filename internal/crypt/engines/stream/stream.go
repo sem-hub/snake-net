@@ -15,7 +15,7 @@ type StreamEngine struct {
 func NewStreamEngine(name string) *StreamEngine {
 	engine := StreamEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "stream")
-	engine.Logger = configs.InitLogger("crypto_stream")
+	engine.Logger = configs.InitLogger("crypt")
 	return &engine
 }
 

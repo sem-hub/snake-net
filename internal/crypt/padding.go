@@ -12,7 +12,7 @@ func Pad(buf []byte) []byte {
 	if padLen < 2 {
 		padLen = 2
 	}
-	logger.Debug("Padding", "padLen", padLen)
+	logger.Trace("Padding", "padLen", padLen)
 	if buf == nil {
 		buf = make([]byte, 0)
 	}
@@ -25,7 +25,7 @@ func UnPad(buf []byte) ([]byte, error) {
 	logger.Debug("UnPadding", "bufLen", bufLen)
 	pad := buf[bufLen-1]
 	padLen := int(pad)
-	logger.Debug("UnPadding", "padLen", padLen)
+	logger.Trace("UnPadding", "padLen", padLen)
 	// Be sure we did not remove useful data
 	for _, v := range buf[bufLen-padLen : bufLen-1] {
 		if v != pad {

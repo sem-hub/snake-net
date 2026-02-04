@@ -16,7 +16,7 @@ type AeadEngine struct {
 func NewAeadEngine(name string) *AeadEngine {
 	engine := AeadEngine{}
 	engine.EngineData = *engines.NewEngineData(name, "aead")
-	engine.Logger = configs.InitLogger("crypto_aead")
+	engine.Logger = configs.InitLogger("crypt")
 	return &engine
 }
 

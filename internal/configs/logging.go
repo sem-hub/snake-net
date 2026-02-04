@@ -12,6 +12,15 @@ import (
 	"github.com/fatih/color"
 )
 
+const (
+	LevelTrace = slog.Level(-8)
+	LevelFatal = slog.Level(12)
+)
+
+type ColorLogger struct {
+	slog.Logger
+}
+
 type ColorHandlerOptions struct {
 	slog.HandlerOptions
 	Module string
@@ -31,6 +40,16 @@ func NewColorHandler(out io.Writer, opts ColorHandlerOptions) *ColorHandler {
 	h.module = opts.Module
 
 	return h
+}
+func (l *ColorLogger) Trace(msg string, args ...any) {
+	ctx := context.Background()
+	l.Log(ctx, LevelTrace, msg, args...)
+}
+
+func (l *ColorLogger) Fatal(msg string, args ...any) {
+	ctx := context.Background()
+	l.Log(ctx, LevelFatal, msg, args...)
+	os.Exit(1)
 }
 
 func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
@@ -83,6 +102,8 @@ func (h *ColorHandler) WithGroup(name string) slog.Handler {
 
 func getLevelByString(levelStr string) slog.Level {
 	switch strings.ToLower(levelStr) {
+	case "trace":
+		return LevelTrace
 	case "debug":
 		return slog.LevelDebug
 	case "info":
@@ -91,6 +112,8 @@ func getLevelByString(levelStr string) slog.Level {
 		return slog.LevelWarn
 	case "error":
 		return slog.LevelError
+	case "fatal":
+		return LevelFatal
 	default:
 		return slog.LevelError
 	}
@@ -126,7 +149,7 @@ func getLenvelByModule(module string) slog.Level {
 	}
 }
 
-func InitLogger(module string) *slog.Logger {
+func InitLogger(module string) *ColorLogger {
 	level := getLenvelByModule(module)
 	log.Println("Initializing logger for module", module, "with level", level.String())
 	logger := slog.New(
@@ -140,5 +163,5 @@ func InitLogger(module string) *slog.Logger {
 			},
 		),
 	)
-	return logger
+	return &ColorLogger{*logger}
 }

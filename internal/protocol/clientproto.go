@@ -3,7 +3,6 @@ package protocol
 import (
 	"context"
 	"errors"
-	"log"
 	"net"
 	"net/netip"
 	"strconv"
@@ -120,7 +119,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 	// Bootstrap secrets
 	s, err := crypt.NewSecrets(defaultEngine, cfg.Secret, defaultSignature)
 	if err != nil {
-		log.Fatal("Failed to create secrets engine: unknown engine")
+		logger.Fatal("Failed to create secrets engine: unknown engine")
 	}
 	c.AddSecretsToClient(s)
 

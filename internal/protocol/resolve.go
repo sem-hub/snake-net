@@ -2,11 +2,8 @@ package protocol
 
 import (
 	"context"
-	"log"
-	"log/slog"
 	"net"
 	"net/netip"
-	"os"
 	"strings"
 	"time"
 
@@ -16,7 +13,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
-var logger *slog.Logger
+var logger *configs.ColorLogger = nil
 var cfg *configs.RuntimeConfig = nil
 
 func ResolveAndProcess(ctx context.Context, t transport.Transport) {
@@ -31,13 +28,13 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		host = cfg.LocalAddr
 		port = int(cfg.LocalPort)
 		if port == 0 {
-			log.Fatal("Local Port is mandatory for server")
+			logger.Fatal("Local Port is mandatory for server")
 		}
 	} else {
 		host = cfg.RemoteAddr
 		port = int(cfg.RemotePort)
 		if host == "" || port == 0 {
-			log.Fatal("Remote Address and Port are mandatory for client")
+			logger.Fatal("Remote Address and Port are mandatory for client")
 		}
 	}
 
@@ -53,8 +50,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		var err error
 		ips, err = net.LookupIP(host)
 		if err != nil {
-			log.Fatalf("Error resolving host: %s", err)
-			os.Exit(1)
+			logger.Fatal("Error resolving host", "error", err)
 		}
 		logger.Info("Resolving", "host", host, "ips", ips)
 	} else {
@@ -80,7 +76,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 
 		tunIf, err := network.NewTUN(cfg.TunName, cfg.TunAddrs, cfg.TunMTU)
 		if err != nil {
-			log.Fatalf("Error creating tun interface: %s", err)
+			logger.Fatal("Error creating tun interface", "error", err)
 		}
 		clients.SetTunInterface(tunIf)
 

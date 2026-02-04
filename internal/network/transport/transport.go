@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"log/slog"
 	"net/netip"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -28,7 +27,7 @@ type Transport interface {
 }
 
 type TransportData struct {
-	logger *slog.Logger
+	logger *configs.ColorLogger
 }
 
 const NETBUFSIZE = 9000

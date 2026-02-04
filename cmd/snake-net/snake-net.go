@@ -4,8 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
-	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -157,10 +155,12 @@ func main() {
 	cfg.Log.Transport = "Info"
 	cfg.Log.Socks5 = "Info"
 
+	logger := configs.InitLogger("main")
+
 	if configFile != "" {
 		_, err := toml.DecodeFile(configFile, cfg)
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatal("Failed to decode config file", "error", err)
 		}
 		// Convert to command line style address: URI. For later parsing.
 		if cfg.Main.Mode == "server" {
@@ -196,12 +196,12 @@ func main() {
 
 	cfg.Main.Mode = strings.ToLower(cfg.Main.Mode)
 	if cfg.Main.Mode != "server" && cfg.Main.Mode != "client" {
-		log.Fatal("Invalid mode in config file. Use 'client' or 'server'.")
+		logger.Fatal("Invalid mode in config file. Use 'client' or 'server'.")
 	}
 
 	if cfg.Main.Mode == "server" {
 		if cfg.Tun == nil || len(cfg.Tun.TunAddrStr) == 0 && len(tunAddr) == 0 {
-			log.Fatal("At least one TUN address (CIDR) is mandatory for server")
+			logger.Fatal("At least one TUN address (CIDR) is mandatory for server")
 		}
 	}
 	if clientId != "" {
@@ -213,24 +213,24 @@ func main() {
 	if remote != "" {
 		p := strings.Split(remote, ":")
 		if len(p) < 2 {
-			log.Fatal("Remote address must be in host:port format")
+			logger.Fatal("Remote address must be in host:port format")
 		}
 		cfg.Main.RemoteAddr = p[0]
 		port, err := strconv.Atoi(p[1])
 		if err != nil {
-			log.Fatal("Remote address parse error", "error", err)
+			logger.Fatal("Remote address parse error", "error", err)
 		}
 		cfg.Main.RemotePort = uint16(port)
 	}
 	if local != "" {
 		p := strings.Split(local, ":")
 		if len(p) < 2 {
-			log.Fatal("Local address must be in host:port format")
+			logger.Fatal("Local address must be in host:port format")
 		}
 		cfg.Main.LocalAddr = p[0]
 		port, err := strconv.Atoi(p[1])
 		if err != nil {
-			log.Fatal("Local address parse error", "error", err)
+			logger.Fatal("Local address parse error", "error", err)
 		}
 		cfg.Main.LocalPort = uint16(port)
 	}
@@ -275,7 +275,7 @@ func main() {
 		cfg.Tun.TunAddrStr = tunAddr
 	}
 
-	slog.Debug("", "addr", addr)
+	logger.Debug("", "addr", addr)
 
 	proto_regex := `(tcp|udp)://`
 	ipv4_regex := `(?:[0-9]{1,3}[\.]){3}[0-9]{1,3}`
@@ -284,7 +284,7 @@ func main() {
 	port_regex := `[0-9]{1,5}`
 	re := regexp.MustCompile(proto_regex + `((?:` + ipv4_regex + `)|(?:` + ipv6_regex + `)|(?:` + fqdn_regex + `))*:(` + port_regex + `)`)
 	if !re.MatchString(addr) {
-		log.Fatalf("Invalid Address: %s. proto://host:port format expected.\nWhere protocols supported are: tcp, udp", addr)
+		logger.Fatal("Invalid Address: %s. proto://host:port format expected.\nWhere protocols supported are: tcp, udp", addr)
 	}
 
 	m := re.FindStringSubmatch(addr)
@@ -292,7 +292,7 @@ func main() {
 	host := m[2]
 	port, err := strconv.Atoi(m[3])
 	if err != nil {
-		log.Fatal("Wrong port number", "port", m[3])
+		logger.Fatal("Wrong port number", "port", m[3])
 	}
 
 	// Override config protocol if command line switch is used
@@ -304,7 +304,7 @@ func main() {
 		for _, cidrStr := range cfg.Tun.TunAddrStr {
 			_, _, err := net.ParseCIDR(cidrStr)
 			if err != nil {
-				log.Fatal("Parse error", "CIDR", cidrStr)
+				logger.Fatal("Parse error", "CIDR", cidrStr)
 			}
 			tunAddr = append(tunAddr, cidrStr)
 		}
@@ -327,26 +327,25 @@ func main() {
 	if cfg.Crypt.Engine != "" {
 		engineMode := strings.Split(cfg.Crypt.Engine, "-")
 		if len(engineMode) != 2 {
-			log.Fatal("Invalid cipher format. Use engine-mode format, e.g., aes-gcm")
+			logger.Fatal("Invalid cipher format. Use engine-mode format, e.g., aes-gcm")
 		}
 		if !engines.IsEngineSupported(engineMode[0]) {
-			log.Fatal("Unsupported cryptographic engine: " + engineMode[0])
+			logger.Fatal("Unsupported cryptographic engine: " + engineMode[0])
 		}
 		if !engines.IsModeSupported(engineMode[1]) {
-			log.Fatal("Unsupported cryptographic mode: " + engineMode[1])
+			logger.Fatal("Unsupported cryptographic mode: " + engineMode[1])
 		}
 
 	}
 
 	if cfg.Crypt.SignEngine != "" && !signature.IsEngineSupported(cfg.Crypt.SignEngine) {
-		log.Fatal("Unsupported signature engine: " + cfg.Crypt.SignEngine)
+		logger.Fatal("Unsupported signature engine: " + cfg.Crypt.SignEngine)
 	}
 
 	if len(tunAddr) == 0 && cfg.Main.Mode == "server" {
-		log.Fatal("At least one TUN address (CIDR) is mandatory for server")
+		logger.Fatal("At least one TUN address (CIDR) is mandatory for server")
 	}
 
-	logger := configs.InitLogger("main")
 	if cfg.Main.ClientId == "" && cfg.Main.Mode == "client" {
 		uuid := uuid.New()
 		cfg.Main.ClientId = uuid.String()
@@ -372,11 +371,11 @@ func main() {
 		logger.Info("Using QUIC Transport.")
 		t = transport.NewQuicTransport()
 	default:
-		log.Fatalf("Unknown Protocol: %s", cfg.Main.Protocol)
+		logger.Fatal("Unknown Protocol: %s", cfg.Main.Protocol)
 	}
 
 	if cfg.Main.Mode == "server" && !t.IsEncrypted() && (cfg.Crypt.Engine == "") {
-		log.Fatal("Transport is not encrypted and no cipher/signature engine is specified.")
+		logger.Fatal("Transport is not encrypted and no cipher/signature engine is specified.")
 	}
 
 	// Setup signal handling

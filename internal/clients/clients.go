@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"log/slog"
 	"net/netip"
 	"sync"
 	"sync/atomic"
@@ -32,7 +31,7 @@ const (
 )
 
 type Client struct {
-	logger         *slog.Logger
+	logger         *configs.ColorLogger
 	address        netip.AddrPort
 	tunAddrs       []utils.Cidr
 	t              transport.Transport

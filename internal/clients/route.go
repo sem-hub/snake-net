@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"log/slog"
 	"net/netip"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -10,7 +9,7 @@ import (
 	. "github.com/sem-hub/snake-net/internal/interfaces"
 )
 
-var logger *slog.Logger = nil
+var logger *configs.ColorLogger = nil
 
 /*
 func getDstIP(packet []byte) (netip.Addr, bool) {

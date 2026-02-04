@@ -3,7 +3,6 @@ package ciphers
 import (
 	"crypto/cipher"
 	"errors"
-	"log/slog"
 	"strconv"
 	"strings"
 
@@ -28,7 +27,7 @@ type Modes struct {
 	BlockSize       func() int
 	allowedKeySizes []int
 	KeySize         int
-	logger          *slog.Logger
+	logger          *configs.ColorLogger
 }
 
 func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret []byte,
@@ -53,7 +52,7 @@ func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret [
 	engine := Modes{}
 	engine.allowedKeySizes = allowedKeySizes
 	engine.KeySize = size
-	engine.logger = configs.InitLogger("crypto_modes")
+	engine.logger = configs.InitLogger("crypto")
 	if engines.ModesList[mode] == "aead" {
 		engine.AeadEngine = *aead.NewAeadEngine(name + "-" + mode)
 		engine.EngineData = engine.AeadEngine.EngineData

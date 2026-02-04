@@ -29,7 +29,7 @@ func (c *Client) ECDH() error {
 		return errors.New("marshaling ecdh public key: " + err.Error())
 	}
 
-	c.logger.Debug("ECDH: Write public key", "len", len(buf), "buf", hex.EncodeToString(buf))
+	c.logger.Trace("ECDH: Write public key", "len", len(buf), "buf", hex.EncodeToString(buf))
 	err = c.Write(&buf, NoEncryption)
 	if err != nil {
 		return err
@@ -40,7 +40,7 @@ func (c *Client) ECDH() error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debug("ECDH: Read public key", "len", len(buf), "buf", hex.EncodeToString(buf))
+	c.logger.Trace("ECDH: Read public key", "len", len(buf), "buf", hex.EncodeToString(buf))
 
 	publicKey, err := x509.ParsePKIXPublicKey(buf)
 	if err != nil {
@@ -63,7 +63,7 @@ func (c *Client) ECDH() error {
 		return err
 	}
 	// Save the shared secret and session keys
-	c.logger.Debug("ECDH:", "shared secret", hex.EncodeToString(sharedSecret))
+	c.logger.Trace("ECDH:", "shared secret", hex.EncodeToString(sharedSecret))
 	c.secrets.SetSharedSecret(sharedSecret)
 	if c.secrets.SignatureEngine != nil {
 		c.secrets.SignatureEngine.SetSharedSecret(sharedSecret)
