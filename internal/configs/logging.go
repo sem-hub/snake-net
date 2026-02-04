@@ -56,6 +56,8 @@ func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
 	level := r.Level.String() + ":"
 
 	switch r.Level {
+	case LevelTrace:
+		level = color.GreenString("TRACE:")
 	case slog.LevelDebug:
 		level = color.MagentaString(level)
 	case slog.LevelInfo:
@@ -64,6 +66,8 @@ func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
 		level = color.YellowString(level)
 	case slog.LevelError:
 		level = color.RedString(level)
+	case LevelFatal:
+		level = color.RedString("FATAL:")
 	}
 
 	fields := make(map[string]interface{}, r.NumAttrs())
