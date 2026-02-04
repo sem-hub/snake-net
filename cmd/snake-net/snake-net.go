@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/signature"
 	"github.com/sem-hub/snake-net/internal/network"
@@ -370,6 +371,10 @@ func main() {
 	case "quic":
 		logger.Info("Using QUIC Transport.")
 		t = transport.NewQuicTransport()
+	case "kcp":
+		logger.Info("Using KCP Transport.")
+		t = transport.NewKcpTransport([]byte(crypt.FIRSTSECRET))
+
 	default:
 		logger.Fatal("Unknown Protocol: %s", cfg.Main.Protocol)
 	}
