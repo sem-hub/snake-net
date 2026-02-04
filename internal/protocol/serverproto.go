@@ -162,7 +162,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 		msg = append(msg, ' ')
 		msg = append(msg, []byte(signatureName)...)
 	}
-	logger.Debug("Welcome message", "msg", msg)
+	logger.Debug("Welcome message", "msg", string(msg))
 	if err := c.Write(&msg, WithPadding); err != nil {
 		logger.Error("Failed to write Welcome message", "error", err)
 		return nil, "", "", err

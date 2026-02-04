@@ -72,14 +72,14 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	if mode == "" {
 		mode = "cbc"
 	}
-	s.logger.Info("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
+	s.logger.Debug("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
 	var err error = nil
 	s.Engine, err = CreateEngine(cipher, mode, size, s.sharedSecret)
 	if err != nil {
 		s.logger.Error("Failed to create crypto engine", "error", err)
 		return nil, err
 	}
-	s.logger.Info("Using " + cipher + " " + mode + " cipher")
+	s.logger.Info("Using", "cipher", cipher+"-"+mode)
 
 	if s.Engine.GetType() == "aead" {
 		s.logger.Info("AEAD cipher selected, signature engine will not be used")
