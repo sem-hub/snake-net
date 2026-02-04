@@ -128,6 +128,7 @@ func getLenvelByModule(module string) slog.Level {
 
 func InitLogger(module string) *slog.Logger {
 	level := getLenvelByModule(module)
+	log.Println("Initializing logger for module", module, "with level", level.String())
 	logger := slog.New(
 		NewColorHandler(
 			os.Stderr,
