@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 
@@ -49,7 +50,7 @@ func RunSOCKS5(ctx context.Context, port int, username, password string) {
 
 	// Start the server in goroutine
 	go func() {
-		if err := server.Serve(listener); err != nil && err != net.ErrClosed {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, net.ErrClosed) {
 			logger.Error("Error running SOCKS5 server", "error", err)
 		}
 	}()
