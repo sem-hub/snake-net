@@ -181,6 +181,19 @@ func main() {
 	} else {
 		mode = cfg.Main.Mode
 	}
+
+	if debug {
+		cfg.Log.Main = "Debug"
+		cfg.Log.Clients = "Debug"
+		cfg.Log.Network = "Debug"
+		cfg.Log.Tun = "Debug"
+		cfg.Log.Crypt = "Debug"
+		cfg.Log.Protocol = "Debug"
+		cfg.Log.Route = "Debug"
+		cfg.Log.Transport = "Debug"
+		cfg.Log.Socks5 = "Debug"
+	}
+
 	cfg.Main.Mode = strings.ToLower(cfg.Main.Mode)
 	if cfg.Main.Mode != "server" && cfg.Main.Mode != "client" {
 		log.Fatal("Invalid mode in config file. Use 'client' or 'server'.")
@@ -254,8 +267,6 @@ func main() {
 	}
 	if mtu != 0 {
 		cfg.Tun.MTU = mtu
-	} else {
-		cfg.Tun.MTU = network.DefaultMTU
 	}
 	if name != "" {
 		cfg.Tun.Name = name
@@ -265,8 +276,6 @@ func main() {
 	}
 
 	slog.Debug("", "addr", addr)
-
-	logger := configs.InitLogger("main")
 
 	proto_regex := `(tcp|udp)://`
 	ipv4_regex := `(?:[0-9]{1,3}[\.]){3}[0-9]{1,3}`
@@ -337,6 +346,7 @@ func main() {
 		log.Fatal("At least one TUN address (CIDR) is mandatory for server")
 	}
 
+	logger := configs.InitLogger("main")
 	if cfg.Main.ClientId == "" && cfg.Main.Mode == "client" {
 		uuid := uuid.New()
 		cfg.Main.ClientId = uuid.String()
