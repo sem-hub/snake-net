@@ -12,16 +12,16 @@ import (
 
 type KcpTransport struct {
 	TransportData
-	mainConn *mkcp.UDPSession
-	conn     map[netip.AddrPort]*mkcp.UDPSession
-	connLock *sync.RWMutex
-	key      []byte
+	listenConn *mkcp.Listener
+	conn       map[netip.AddrPort]*mkcp.UDPSession
+	connLock   *sync.RWMutex
+	key        []byte
 }
 
 func NewKcpTransport(key []byte) *KcpTransport {
 	return &KcpTransport{
 		TransportData: *NewTransport(),
-		mainConn:      nil,
+		listenConn:    nil,
 		conn:          make(map[netip.AddrPort]*mkcp.UDPSession),
 		connLock:      &sync.RWMutex{},
 		key:           key, // 32 bytes key for AES-256
@@ -54,7 +54,6 @@ func (kcp *KcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		if err != nil {
 			return errors.New("DialWithOptions() error: " + err.Error())
 		}
-		kcp.mainConn = conn
 		kcp.connLock.Lock()
 		kcp.conn[rAddrPort] = conn
 		kcp.connLock.Unlock()
@@ -67,14 +66,15 @@ func (kcp *KcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 func (kcp *KcpTransport) listen(addrPort string, callback func(Transport, netip.AddrPort)) error {
 	kcp.logger.Info("Listen for connection", "on", addrPort)
 	block, _ := mkcp.NewAESBlockCrypt(kcp.key)
-	listen, err := mkcp.ListenWithOptions(addrPort, block, 10, 3)
+	var err error
+	kcp.listenConn, err = mkcp.ListenWithOptions(addrPort, block, 10, 3)
 	if err != nil {
 		kcp.logger.Error("ListenWithOptions()", "err", err)
 		return err
 	}
 
 	for {
-		conn, err := listen.AcceptKCP()
+		conn, err := kcp.listenConn.AcceptKCP()
 		if err != nil {
 			kcp.logger.Error("Accept error:", "err", err)
 			return err
@@ -137,14 +137,15 @@ func (kcp *KcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 
 func (kcp *KcpTransport) CloseClient(addr netip.AddrPort) error {
 	kcp.logger.Debug("KCP CloseClient", "addr", addr.String())
+
 	kcp.connLock.RLock()
-	stream, ok := kcp.conn[addr]
+	conn, ok := kcp.conn[addr]
 	kcp.connLock.RUnlock()
 	if !ok {
 		return errors.New("No such client connection: " + addr.String())
 	}
 
-	err := stream.Close()
+	err := conn.Close()
 	if err != nil {
 		return err
 	}
@@ -156,6 +157,9 @@ func (kcp *KcpTransport) CloseClient(addr netip.AddrPort) error {
 
 func (kcp *KcpTransport) Close() error {
 	kcp.logger.Info("KCP Transport Close")
+	if kcp.listenConn != nil {
+		kcp.listenConn.Close()
+	}
 
 	return nil
 }

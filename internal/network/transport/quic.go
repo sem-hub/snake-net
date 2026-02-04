@@ -14,16 +14,16 @@ import (
 
 type QuicTransport struct {
 	TransportData
-	mainConn *mquic.Conn
-	conn     map[netip.AddrPort]*mquic.Conn
-	stream   map[netip.AddrPort]*mquic.Stream
-	connLock *sync.RWMutex
+	listenConn *mquic.Listener
+	conn       map[netip.AddrPort]*mquic.Conn
+	stream     map[netip.AddrPort]*mquic.Stream
+	connLock   *sync.RWMutex
 }
 
 func NewQuicTransport() *QuicTransport {
 	return &QuicTransport{
 		TransportData: *NewTransport(),
-		mainConn:      nil,
+		listenConn:    nil,
 		conn:          make(map[netip.AddrPort]*mquic.Conn),
 		stream:        make(map[netip.AddrPort]*mquic.Stream),
 		connLock:      &sync.RWMutex{},
@@ -69,7 +69,6 @@ func (quic *QuicTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 			quic.logger.Error("Dial error", "err", err)
 			return err
 		}
-		quic.mainConn = conn
 		quic.connLock.Lock()
 		quic.conn[rAddrPort] = conn
 		quic.stream[rAddrPort] = stream
@@ -82,14 +81,15 @@ func (quic *QuicTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 
 func (quic *QuicTransport) listen(addrPort string, cfg *tls.Config, callback func(Transport, netip.AddrPort)) error {
 	quic.logger.Info("Listen for connection", "on", addrPort)
-	listen, err := mquic.ListenAddr(addrPort, cfg, nil)
+	var err error
+	quic.listenConn, err = mquic.ListenAddr(addrPort, cfg, nil)
 	if err != nil {
 		quic.logger.Error("ListenAddr()", "err", err)
 		return err
 	}
 
 	for {
-		conn, err := listen.Accept(context.Background())
+		conn, err := quic.listenConn.Accept(context.Background())
 		if err != nil {
 			quic.logger.Error("Accept error:", "err", err)
 			return err
@@ -178,6 +178,9 @@ func (quic *QuicTransport) CloseClient(addr netip.AddrPort) error {
 
 func (quic *QuicTransport) Close() error {
 	quic.logger.Info("QUIC Transport Close")
+	if quic.listenConn != nil {
+		quic.listenConn.Close()
+	}
 
 	return nil
 }

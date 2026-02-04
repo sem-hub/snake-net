@@ -161,10 +161,10 @@ func RemoveClient(address netip.AddrPort) {
 		if configs.GetConfig().Mode != "server" && tunIf != nil {
 			tunIf.Close()
 		}
-		// Close transport
+		/* Close transport
 		if client != nil {
 			client.t.Close()
-		}
+		}*/
 	}
 }
 
