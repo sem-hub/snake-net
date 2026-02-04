@@ -10,10 +10,27 @@ import (
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
+func getCommandName(command Cmd) string {
+	switch command & CmdMask {
+	case Ping:
+		return "Ping"
+	case Pong:
+		return "Pong"
+	case ShutdownRequest:
+		return "ShutdownRequest"
+	case ShutdownNotify:
+		return "ShutdownNotify"
+	case AskForResend:
+		return "AskForResend"
+	default:
+		return "UnknownCommand(" + hex.EncodeToString([]byte{byte(command)}) + ")"
+	}
+}
+
 // Process special commands received from the client
 // Executed under bufLock. data excludes header: data + signature (if any)
 func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Message, error) {
-	c.logger.Debug("processCommand", "address", c.address.String(), "dataLen", len(data), "n", n)
+	c.logger.Debug("processCommand", "command", getCommandName(command), "address", c.address.String(), "dataLen", len(data), "n", n)
 	switch command & CmdMask {
 	case Ping:
 		c.removeThePacketFromBuffer(HEADER + n)
