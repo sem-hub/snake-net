@@ -23,7 +23,7 @@ func NewBlockEngine(name string) *BlockEngine {
 }
 
 func (e *BlockEngine) BlockEncrypt(NewCipher func() (cipher.Block, error), data []byte) ([]byte, error) {
-	e.Logger.Debug("BlockEncrypt", "datalen", len(data))
+	e.Logger.Trace("BlockEncrypt", "datalen", len(data))
 
 	block, err := NewCipher()
 	if err != nil {
@@ -42,12 +42,12 @@ func (e *BlockEngine) BlockEncrypt(NewCipher func() (cipher.Block, error), data 
 	copy(bufOut[:block.BlockSize()], iv)
 
 	blockCipher.CryptBlocks(bufOut[block.BlockSize():], padData)
-	e.Logger.Debug("BlockEncrypt", "encryptedlen", len(bufOut))
+	e.Logger.Trace("BlockEncrypt", "encryptedlen", len(bufOut))
 	return bufOut, nil
 }
 
 func (e *BlockEngine) BlockDecrypt(NewCipher func() (cipher.Block, error), data []byte) ([]byte, error) {
-	e.Logger.Debug("BlockDecrypt", "datalen", len(data))
+	e.Logger.Trace("BlockDecrypt", "datalen", len(data))
 
 	block, err := NewCipher()
 	if err != nil {
@@ -64,9 +64,9 @@ func (e *BlockEngine) BlockDecrypt(NewCipher func() (cipher.Block, error), data 
 
 	bufOut := make([]byte, len(data)-len(iv))
 
-	e.Logger.Debug("before BlockDecrypt", "buflen", len(bufOut))
+	e.Logger.Trace("before BlockDecrypt", "buflen", len(bufOut))
 	blockCipher.CryptBlocks(bufOut, data[block.BlockSize():])
-	e.Logger.Debug("BlockDecrypt", "decryptedlen", len(bufOut))
+	e.Logger.Trace("BlockDecrypt", "decryptedlen", len(bufOut))
 
 	// Unpad
 	padding := int(bufOut[len(bufOut)-1])

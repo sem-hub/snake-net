@@ -20,7 +20,7 @@ func NewStreamEngine(name string) *StreamEngine {
 }
 
 func (e *StreamEngine) StreamEncrypt(addBlockSize int, newStream func([]byte) (cipher.Stream, error), data []byte) ([]byte, error) {
-	e.Logger.Debug("Encrypt stream", "datalen", len(data))
+	e.Logger.Trace("Encrypt stream", "datalen", len(data))
 
 	iv := make([]byte, addBlockSize)
 	rand.Read(iv)
@@ -34,12 +34,12 @@ func (e *StreamEngine) StreamEncrypt(addBlockSize int, newStream func([]byte) (c
 	copy(bufOut[:addBlockSize], iv)
 
 	stream.XORKeyStream(bufOut[addBlockSize:], data)
-	e.Logger.Debug("Encrypt stream", "encryptedlen", len(bufOut))
+	e.Logger.Trace("Encrypt stream", "encryptedlen", len(bufOut))
 	return bufOut, nil
 }
 
 func (e *StreamEngine) StreamDecrypt(addBlockSize int, newStream func([]byte) (cipher.Stream, error), data []byte) ([]byte, error) {
-	e.Logger.Debug("Decrypt stream", "datalen", len(data))
+	e.Logger.Trace("Decrypt stream", "datalen", len(data))
 
 	iv := data[:addBlockSize]
 	stream, err := newStream(iv)
@@ -49,6 +49,6 @@ func (e *StreamEngine) StreamDecrypt(addBlockSize int, newStream func([]byte) (c
 	bufOut := make([]byte, len(data)-len(iv))
 
 	stream.XORKeyStream(bufOut, data[addBlockSize:])
-	e.Logger.Debug("Decrypt stream", "decryptedlen", len(bufOut))
+	e.Logger.Trace("Decrypt stream", "decryptedlen", len(bufOut))
 	return bufOut, nil
 }
