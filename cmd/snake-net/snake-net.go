@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"flag"
 	"fmt"
 	"net"
@@ -373,7 +374,12 @@ func main() {
 		t = transport.NewQuicTransport()
 	case "kcp":
 		logger.Info("Using KCP Transport.")
-		t = transport.NewKcpTransport([]byte(crypt.FIRSTSECRET))
+		key := []byte(crypt.FIRSTSECRET)
+		if cfg.Main.Secret != "" {
+			sum256 := sha256.Sum256([]byte(cfg.Main.Secret))
+			key = sum256[:]
+		}
+		t = transport.NewKcpTransport(key)
 
 	default:
 		logger.Fatal("Unknown Protocol: %s", cfg.Main.Protocol)
