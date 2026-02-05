@@ -23,6 +23,7 @@ type TunInterface struct {
 	cidrs     []utils.Cidr
 	mtu       int
 	readBuffs [][]byte
+	closed    bool
 }
 
 var tunIf *TunInterface = nil
@@ -43,6 +44,7 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 		cidrs:     make([]utils.Cidr, 0),
 		mtu:       mtu,
 		readBuffs: make([][]byte, 0),
+		closed:    false,
 	}
 
 	var err error
@@ -76,7 +78,9 @@ func ProcessTun() {
 	for {
 		buf, err := tunIf.ReadTun()
 		if err != nil {
-			logger.Error("ReadTun", "error", err)
+			if !tunIf.closed {
+				logger.Error("ReadTun", "error", err)
+			}
 			break
 		}
 		logger.Debug("TUN: Read from tun", "len", len(buf))
@@ -144,5 +148,6 @@ func (tunIf *TunInterface) Close() {
 		if err != nil {
 			logger.Error("Close tun device", "error", err)
 		}
+		tunIf.closed = true
 	}
 }
