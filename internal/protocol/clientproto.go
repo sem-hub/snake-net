@@ -97,9 +97,9 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 	} else {
 		return nil, nil, "", "", errors.New("Identification " + string(msg1))
 	}
-	buf := []byte{'O', 'K'}
-	if err := c.Write(&buf, WithPadding); err != nil {
-		logger.Error("Failed to write OK message", "error", err)
+
+	err = clients.SendOKMessage(c)
+	if err != nil {
 		return nil, nil, "", "", err
 	}
 	return serverIPs, clientIPs, chipherName, signatureName, nil
@@ -110,13 +110,14 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t)
+
+	// Bootstrap secrets. They must be the same with client and server.
 	defaultEngine := ""
 	defaultSignature := ""
 	if !t.IsEncrypted() {
 		defaultEngine = "aes-cbc"
 		defaultSignature = "ed25519"
 	}
-	// Bootstrap secrets
 	s, err := crypt.NewSecrets(defaultEngine, cfg.Secret, defaultSignature)
 	if err != nil {
 		logger.Fatal("Failed to create secrets engine: unknown engine")
@@ -152,17 +153,33 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 
 	c.SetClientState(clients.Authenticated)
 
-	if err := c.ECDH(); err != nil {
-		logger.Error("ECDH", "error", err)
-		clients.RemoveClient(addr)
-		return errors.New("ECDH failed: " + err.Error())
-	}
+	if t.IsEncrypted() {
+		logger.Debug("Comparing secrets with the server")
+		buf := s.GetSharedSecret()
+		if err := c.Write(&buf, WithPadding); err != nil {
+			logger.Error("Failed to write shared secret", "error", err)
+			clients.RemoveClient(addr)
+			return errors.New("Failed to write shared secret: " + err.Error())
+		}
+		// Wait for OK from server
+		err = clients.WaitForOKMessage(c)
+		if err != nil {
+			clients.RemoveClient(addr)
+			return err
+		}
+	} else {
+		logger.Debug("Performing ECDH key exchange with the server")
+		if err := c.ECDH(); err != nil {
+			logger.Error("ECDH", "error", err)
+			clients.RemoveClient(addr)
+			return errors.New("ECDH failed: " + err.Error())
+		}
 
-	buf := []byte{'O', 'K'}
-	if err := c.Write(&buf, WithPadding); err != nil {
-		logger.Error("Failed to write OK message", "error", err)
-		clients.RemoveClient(addr)
-		return errors.New("Failed to write OK message: " + err.Error())
+		err = clients.SendOKMessage(c)
+		if err != nil {
+			clients.RemoveClient(addr)
+			return err
+		}
 	}
 
 	// Set up TUN interface

@@ -212,6 +212,11 @@ func main() {
 	if secret != "" {
 		cfg.Main.Secret = secret
 	}
+	// Default secret if not set
+	if cfg.Main.Secret == "" {
+		cfg.Main.Secret = crypt.FIRSTSECRET
+	}
+
 	if remote != "" {
 		p := strings.Split(remote, ":")
 		if len(p) < 2 {
@@ -374,13 +379,9 @@ func main() {
 		t = transport.NewQuicTransport()
 	case "kcp":
 		logger.Info("Using KCP Transport.")
-		key := []byte(crypt.FIRSTSECRET)
-		if cfg.Main.Secret != "" {
-			sum256 := sha256.Sum256([]byte(cfg.Main.Secret))
-			key = sum256[:]
-		}
-		t = transport.NewKcpTransport(key)
-
+		sum256 := sha256.Sum256([]byte(cfg.Main.Secret))
+		kcpKey := sum256[:]
+		t = transport.NewKcpTransport(kcpKey)
 	default:
 		logger.Fatal("Unknown Protocol: %s", cfg.Main.Protocol)
 	}

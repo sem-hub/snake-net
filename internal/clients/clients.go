@@ -144,6 +144,7 @@ func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
 func RemoveClient(address netip.AddrPort) {
 	client := FindClient(address)
 	if client != nil {
+		client.logger.Info("RemoveClient", "address", address.String())
 		client.Close() // Close connection here
 		// Remvove all tun addresses
 		for _, cidr := range client.tunAddrs {

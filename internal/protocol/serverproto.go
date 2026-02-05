@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"bytes"
 	"errors"
 	"net"
 	"net/netip"
@@ -167,14 +168,11 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 		return nil, "", "", err
 	}
 
-	buf, err = c.ReadBuf(HEADER)
+	err = clients.WaitForOKMessage(c)
 	if err != nil {
 		return nil, "", "", err
 	}
 	logger.Debug("IdentifyClient", "Final string", string(buf))
-	if string(buf[:2]) != "OK" {
-		return nil, "", "", errors.New("Client error: " + string(buf))
-	}
 	logger.Debug("Final CIDR for client", "cidrs", clientIPs)
 	return clientIPs, engineName, signatureName, nil
 }
@@ -184,13 +182,14 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	cfg := configs.GetConfig()
 
 	c := clients.NewClient(addr, t)
+
+	// Bootstrap secrets
 	defaultEngine := ""
 	defaultSignature := ""
 	if !t.IsEncrypted() {
 		defaultEngine = "aes-cbc"
 		defaultSignature = "ed25519"
 	}
-	// Bootstrap secrets
 	s, err := crypt.NewSecrets(defaultEngine, cfg.Secret, defaultSignature)
 	if err != nil {
 		logger.Fatal("Failed to create secrets engine: unknown engine")
@@ -226,24 +225,46 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 
 	c.SetClientState(clients.Authenticated)
 
-	if err := c.ECDH(); err != nil {
-		logger.Error("ECDH", "error", err)
-		clients.RemoveClient(addr)
-		return
-	}
+	if t.IsEncrypted() {
+		logger.Debug("Comparing secrets with the client")
+		// Read secret from client
+		buf, err := c.ReadBuf(HEADER)
+		if err != nil {
+			logger.Error("Failed to read response message", "error", err)
+			clients.RemoveClient(addr)
+			return
+		}
 
-	// Wait for OK from client after ECDH
-	buf, err := c.ReadBuf(HEADER)
-	if err != nil {
-		logger.Error("Failed to read response message", "error", err)
-		clients.RemoveClient(addr)
-		return
-	}
+		if len(buf) != len(s.GetSharedSecret()) || !bytes.Equal(buf, s.GetSharedSecret()) {
+			logger.Error("Client sent invalid secret", "len", len(buf), "msg", string(buf))
+			err = clients.SendErrorMessage(c, []byte("Error: Invalid secret"))
+			if err != nil {
+				logger.Error("Failed to write Error message", "error", err)
+			}
+			clients.RemoveClient(addr)
+			return
+		} else {
+			logger.Trace("Client sent correct secret")
+			err = clients.SendOKMessage(c)
+			if err != nil {
+				clients.RemoveClient(addr)
+				return
+			}
+		}
+	} else {
+		logger.Debug("Performing ECDH key exchange with the client")
+		if err := c.ECDH(); err != nil {
+			logger.Error("ECDH", "error", err)
+			clients.RemoveClient(addr)
+			return
+		}
 
-	if len(buf) < 2 || string(buf[:2]) != "OK" {
-		logger.Error("Invalid server response", "len", len(buf), "msg", string(buf))
-		clients.RemoveClient(addr)
-		return
+		err = clients.WaitForOKMessage(c)
+		if err != nil {
+			logger.Error("Got not OK message", "error", err)
+			clients.RemoveClient(addr)
+			return
+		}
 	}
 
 	c.SetClientState(clients.Ready)
