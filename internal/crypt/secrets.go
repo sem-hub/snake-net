@@ -46,7 +46,23 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	sum256 := sha256.Sum256([]byte(secret))
 	copy(s.sharedSecret, sum256[:])
 
-	// Don't need to setup crypto engine and signature
+	var err error
+	s.SignatureEngine, err = CreateSignatureEngine(signEngine, s.sharedSecret)
+	if err != nil {
+		logger.Error("Failed to create signature engine", "error", err)
+		return nil, err
+	}
+	logger.Info("Using " + signEngine + " signature engine")
+
+	sessionPublicKey, sessionPrivateKey, err := ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
+	if err != nil {
+		logger.Error("Failed to generate session keys", "error", err)
+		return nil, err
+	}
+	s.SignatureEngine.SetPublicKey(sessionPublicKey)
+	s.SignatureEngine.SetPrivateKey(sessionPrivateKey)
+
+	// Don't need to setup crypto engine
 	if engine == "" {
 		return &s, nil
 	}
@@ -71,7 +87,6 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		mode = "cbc"
 	}
 	logger.Debug("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
-	var err error = nil
 	s.Engine, err = CreateEngine(cipher, mode, size, s.sharedSecret)
 	if err != nil {
 		logger.Error("Failed to create crypto engine", "error", err)
@@ -83,21 +98,6 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		logger.Info("AEAD cipher selected, signature engine will not be used")
 		return &s, nil
 	}
-
-	s.SignatureEngine, err = CreateSignatureEngine(signEngine, s.sharedSecret)
-	if err != nil {
-		logger.Error("Failed to create signature engine", "error", err)
-		return nil, err
-	}
-	logger.Info("Using " + signEngine + " signature engine")
-
-	sessionPublicKey, sessionPrivateKey, err := ed25519.GenerateKey(bytes.NewReader([]byte(s.sharedSecret)))
-	if err != nil {
-		logger.Error("Failed to generate session keys", "error", err)
-		return nil, err
-	}
-	s.SignatureEngine.SetPublicKey(sessionPublicKey)
-	s.SignatureEngine.SetPrivateKey(sessionPrivateKey)
 
 	return &s, nil
 }

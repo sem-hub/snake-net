@@ -113,14 +113,13 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 
 	// Bootstrap secrets. They must be the same with client and server.
 	defaultEngine := ""
-	defaultSignature := ""
+	defaultSignature := "ed25519"
 	if !t.IsEncrypted() {
 		defaultEngine = "aes-cbc"
-		defaultSignature = "ed25519"
 	}
 	s, err := crypt.NewSecrets(defaultEngine, cfg.Secret, defaultSignature)
 	if err != nil {
-		logger.Fatal("Failed to create secrets engine: unknown engine")
+		logger.Fatal("Failed to create secrets engine", "error", err)
 	}
 	c.AddSecretsToClient(s)
 
@@ -154,8 +153,9 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 	c.SetClientState(clients.Authenticated)
 
 	if t.IsEncrypted() {
+		// zero-knowledge proof of shared secret knowledge
 		logger.Debug("Comparing secrets with the server")
-		buf := s.GetSharedSecret()
+		buf := s.SignatureEngine.Sign(s.GetSharedSecret())
 		if err := c.Write(&buf, WithPadding); err != nil {
 			logger.Error("Failed to write shared secret", "error", err)
 			clients.RemoveClient(addr)
@@ -167,6 +167,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 			clients.RemoveClient(addr)
 			return err
 		}
+		logger.Debug("GOT OK from server, secrets match")
 	} else {
 		logger.Debug("Performing ECDH key exchange with the server")
 		if err := c.ECDH(); err != nil {

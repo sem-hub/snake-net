@@ -22,7 +22,7 @@ func Pad(buf []byte) []byte {
 
 func UnPad(buf []byte) ([]byte, error) {
 	bufLen := len(buf)
-	logger.Debug("UnPadding", "bufLen", bufLen)
+	logger.Trace("UnPadding", "bufLen", bufLen)
 	pad := buf[bufLen-1]
 	padLen := int(pad)
 	logger.Trace("UnPadding", "padLen", padLen)

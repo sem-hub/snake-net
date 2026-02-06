@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"bytes"
 	"errors"
 	"net"
 	"net/netip"
@@ -185,14 +184,13 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 
 	// Bootstrap secrets
 	defaultEngine := ""
-	defaultSignature := ""
+	defaultSignature := "ed25519"
 	if !t.IsEncrypted() {
 		defaultEngine = "aes-cbc"
-		defaultSignature = "ed25519"
 	}
 	s, err := crypt.NewSecrets(defaultEngine, cfg.Secret, defaultSignature)
 	if err != nil {
-		logger.Fatal("Failed to create secrets engine: unknown engine")
+		logger.Fatal("Failed to create secrets engine", "error", err)
 	}
 	c.AddSecretsToClient(s)
 	c.TransportReadLoop(addr)
@@ -226,6 +224,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	c.SetClientState(clients.Authenticated)
 
 	if t.IsEncrypted() {
+		// zero-knowledge proof of shared secret knowledge
 		logger.Debug("Comparing secrets with the client")
 		// Read secret from client
 		buf, err := c.ReadBuf(HEADER)
@@ -235,8 +234,8 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 			return
 		}
 
-		if len(buf) != len(s.GetSharedSecret()) || !bytes.Equal(buf, s.GetSharedSecret()) {
-			logger.Error("Client sent invalid secret", "len", len(buf), "msg", string(buf))
+		if !s.SignatureEngine.Verify(s.GetSharedSecret(), buf) {
+			logger.Error("Client sent invalid secret")
 			err = clients.SendErrorMessage(c, []byte("Error: Invalid secret"))
 			if err != nil {
 				logger.Error("Failed to write Error message", "error", err)
@@ -244,7 +243,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 			clients.RemoveClient(addr)
 			return
 		} else {
-			logger.Trace("Client sent correct secret")
+			logger.Debug("Client sent correct secret")
 			err = clients.SendOKMessage(c)
 			if err != nil {
 				clients.RemoveClient(addr)
