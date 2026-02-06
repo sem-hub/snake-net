@@ -11,6 +11,7 @@ var SignatureList = []string{
 	"hmac-sha256",
 	"hmac-blake2b",
 	"ed25519",
+	"poly1305",
 }
 
 type SignatureInterface interface {

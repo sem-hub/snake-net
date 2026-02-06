@@ -233,6 +233,8 @@ func CreateSignatureEngine(signEngine string, sharedSecret []byte) (signature.Si
 		s = signature.NewSignatureHMACSHA256(sharedSecret)
 	case "hmac-blake2b":
 		s = signature.NewSignatureHMACBlake(sharedSecret)
+	case "poly1305":
+		s = signature.NewSignaturePoly1305(sharedSecret)
 	default:
 		return nil, errors.New("unknown signature engine: " + signEngine)
 	}
