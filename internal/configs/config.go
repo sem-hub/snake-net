@@ -56,6 +56,8 @@ type Socks5 struct {
 }
 
 type Log struct {
+	File      string `toml:"file"`
+	NoColor   bool   `toml:"nocolor"`
 	Main      string `toml:"main"`
 	Protocol  string `toml:"protocol"`
 	Network   string `toml:"network"`

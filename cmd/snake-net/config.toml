@@ -1,11 +1,13 @@
 [main]
-mode = "client"
+mode = "client" # "server" or "client"
 secret = "not_simply_password"
-id = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
-protocol = "tcp"
-debug = false
+id = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" # for client mode
+protocol = "tcp"    # or "udp", "quic", "tls", "dtls", "kcp"
+debug = false       # fast switch to all log levels to debug
 remote_addr = "hostname.or.ip"
 remote_port = 12345
+#local_addr = "local.ip.address" # listen on the IP (for server mode)
+#local_port = 12345 # listen on the port (for server mode)
 attempts = 1                    # 0 means infinity
 retry_delay = 5
 [crypt]
@@ -24,6 +26,8 @@ port = 1080
 username = ""
 password = ""
 [log]
+file = ""      # log file path, empty means stdout
+nocolor = false  # disable color output on stdout
 main = "Error"
 protocol = "Debug"
 network = "Warnings"

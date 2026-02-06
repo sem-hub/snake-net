@@ -23,13 +23,15 @@ type ColorLogger struct {
 
 type ColorHandlerOptions struct {
 	slog.HandlerOptions
-	Module string
+	Module  string
+	NoColor bool
 }
 
 type ColorHandler struct {
 	slog.Handler
 	logOutput *log.Logger
 	module    string
+	noColor   bool
 }
 
 func NewColorHandler(out io.Writer, opts ColorHandlerOptions) *ColorHandler {
@@ -38,6 +40,7 @@ func NewColorHandler(out io.Writer, opts ColorHandlerOptions) *ColorHandler {
 		logOutput: log.New(out, "", 0),
 	}
 	h.module = opts.Module
+	h.noColor = opts.NoColor
 
 	return h
 }
@@ -55,19 +58,28 @@ func (l *ColorLogger) Fatal(msg string, args ...any) {
 func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
 	level := r.Level.String() + ":"
 
-	switch r.Level {
-	case LevelTrace:
-		level = color.GreenString("TRACE:")
-	case slog.LevelDebug:
-		level = color.MagentaString(level)
-	case slog.LevelInfo:
-		level = color.BlueString(level)
-	case slog.LevelWarn:
-		level = color.YellowString(level)
-	case slog.LevelError:
-		level = color.RedString(level)
-	case LevelFatal:
-		level = color.RedString("FATAL:")
+	if !h.noColor {
+		switch r.Level {
+		case LevelTrace:
+			level = color.GreenString("TRACE:")
+		case slog.LevelDebug:
+			level = color.MagentaString(level)
+		case slog.LevelInfo:
+			level = color.BlueString(level)
+		case slog.LevelWarn:
+			level = color.YellowString(level)
+		case slog.LevelError:
+			level = color.RedString(level)
+		case LevelFatal:
+			level = color.RedString("FATAL:")
+		}
+	} else {
+		switch r.Level {
+		case LevelTrace:
+			level = "TRACE:"
+		case LevelFatal:
+			level = "FATAL:"
+		}
 	}
 
 	fields := make(map[string]interface{}, r.NumAttrs())
@@ -83,9 +95,13 @@ func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 
 	timeStr := r.Time.Format("[15:05:05.000]")
-	msg := color.CyanString(r.Message)
-
-	h.logOutput.Println(timeStr, color.YellowString(h.module), level, msg, color.WhiteString(string(b)))
+	if h.noColor {
+		h.logOutput.Println(timeStr, level, h.module, r.Message, b)
+		return nil
+	} else {
+		msg := color.CyanString(r.Message)
+		h.logOutput.Println(timeStr, color.YellowString(h.module), level, msg, color.WhiteString(string(b)))
+	}
 
 	return nil
 }
@@ -156,14 +172,30 @@ func getLenvelByModule(module string) slog.Level {
 func InitLogger(module string) *ColorLogger {
 	level := getLenvelByModule(module)
 	log.Println("Initializing logger for module", module, "with level", level.String())
+	var out io.Writer
+	noColor := false
+	if configFile.Log.NoColor {
+		noColor = true
+	}
+	if configFile.Log.File != "" {
+		f, err := os.OpenFile(configFile.Log.File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatalf("Failed to open log file: %v", err)
+		}
+		out = f
+		noColor = true
+	} else {
+		out = os.Stderr
+	}
 	logger := slog.New(
 		NewColorHandler(
-			os.Stderr,
+			out,
 			ColorHandlerOptions{
 				HandlerOptions: slog.HandlerOptions{
 					Level: level,
 				},
-				Module: module,
+				Module:  module,
+				NoColor: noColor,
 			},
 		),
 	)

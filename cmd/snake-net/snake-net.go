@@ -185,6 +185,7 @@ func main() {
 	}
 
 	if debug {
+		cfg.Log.File = ""
 		cfg.Log.Main = "Debug"
 		cfg.Log.Clients = "Debug"
 		cfg.Log.Network = "Debug"
