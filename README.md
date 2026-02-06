@@ -15,6 +15,7 @@ Features:
    * TLS
    * DTLS
    * QUIC
+   * KCP
  * Encrypt and verify packets for TCP and UDP
    * Supported block, stram and AEAD ciphers:
      * Block ciphers (universal with modes):
@@ -44,6 +45,7 @@ Features:
       * ED25519 asymetric keys algorythm
       * HMAC-SHA256 - SHA256 based MAC
       * HMAC-Blake2b
+      * Poly1305
  * For TLS protocols (TLS, DTLS and QUIC): dynamic certificate creating or load them from files
  * Dynamic address assigments (both IPv4&IPv6)
  * Works on Linux and Windows
