@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -157,12 +158,10 @@ func main() {
 	cfg.Log.Transport = "Info"
 	cfg.Log.Socks5 = "Info"
 
-	logger := configs.InitLogger("main")
-
 	if configFile != "" {
 		_, err := toml.DecodeFile(configFile, cfg)
 		if err != nil {
-			logger.Fatal("Failed to decode config file", "error", err)
+			log.Fatalln("Failed to decode config file: ", err)
 		}
 		// Convert to command line style address: URI. For later parsing.
 		if cfg.Main.Mode == "server" {
@@ -196,6 +195,8 @@ func main() {
 		cfg.Log.Transport = "Debug"
 		cfg.Log.Socks5 = "Debug"
 	}
+
+	logger := configs.InitLogger("main")
 
 	cfg.Main.Mode = strings.ToLower(cfg.Main.Mode)
 	if cfg.Main.Mode != "server" && cfg.Main.Mode != "client" {

@@ -52,6 +52,10 @@ func (l *ColorLogger) Trace(msg string, args ...any) {
 func (l *ColorLogger) Fatal(msg string, args ...any) {
 	ctx := context.Background()
 	l.Log(ctx, LevelFatal, msg, args...)
+	// Duplicate the log message to stdout if writing to a file
+	if configFile.Log.File != "" {
+		fmt.Fprintln(os.Stdout, "FATAL:", msg, args)
+	}
 	os.Exit(1)
 }
 
@@ -171,7 +175,8 @@ func getLenvelByModule(module string) slog.Level {
 
 func InitLogger(module string) *ColorLogger {
 	level := getLenvelByModule(module)
-	log.Println("Initializing logger for module", module, "with level", level.String())
+	mainLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: getLenvelByModule("main")}))
+	mainLogger.Debug("Initializing logger for module", "module", module, "with level", level.String())
 	var out io.Writer
 	noColor := false
 	if configFile.Log.NoColor {
