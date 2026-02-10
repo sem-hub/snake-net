@@ -1,10 +1,19 @@
+//go:build salsa20
+
 package stream
 
 import (
 	"crypto/rand"
 
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"golang.org/x/crypto/salsa20"
 )
+
+func init() {
+	engines.RegisterEngine("salsa20", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewSalsa20Engine(sharedSecret)
+	})
+}
 
 type Salsa20Engine struct {
 	StreamEngine

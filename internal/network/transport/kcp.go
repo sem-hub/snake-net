@@ -1,3 +1,5 @@
+//go:build kcp
+
 package transport
 
 import (
@@ -16,6 +18,19 @@ type KcpTransport struct {
 	conn       map[netip.AddrPort]*mkcp.UDPSession
 	connLock   *sync.RWMutex
 	key        []byte
+}
+
+func init() {
+	RegisterTransport("kcp", func(args ...interface{}) (Transport, error) {
+		if len(args) < 1 {
+			return nil, errors.New("kcp transport requires key as first argument")
+		}
+		key, ok := args[0].([]byte)
+		if !ok {
+			return nil, errors.New("kcp transport key must be []byte")
+		}
+		return NewKcpTransport(key), nil
+	})
 }
 
 func NewKcpTransport(key []byte) *KcpTransport {

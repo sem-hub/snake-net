@@ -4,6 +4,12 @@ import (
 	"crypto/ed25519"
 )
 
+func init() {
+	RegisterSignatureEngine("ed25519", func(sharedSecret []byte) SignatureInterface {
+		return NewSignatureEd25519(sharedSecret)
+	})
+}
+
 type SignatureEd25519 struct {
 	Signature
 }

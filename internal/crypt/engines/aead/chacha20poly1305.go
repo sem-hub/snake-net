@@ -3,8 +3,15 @@ package aead
 import (
 	"crypto/cipher"
 
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"golang.org/x/crypto/chacha20poly1305"
 )
+
+func init() {
+	engines.RegisterEngine("chacha20poly1305", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewChacha20Poly1305Engine(sharedSecret)
+	})
+}
 
 type Chacha20Poly1305Engine struct {
 	AeadEngine

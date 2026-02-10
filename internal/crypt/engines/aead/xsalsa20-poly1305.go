@@ -1,11 +1,20 @@
+//go:build xsalsa20poly1305
+
 package aead
 
 import (
 	"crypto/cipher"
 	"errors"
 
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"golang.org/x/crypto/nacl/secretbox"
 )
+
+func init() {
+	engines.RegisterEngine("xsalsa20poly1305", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewXsalsa20Poly1305Engine(sharedSecret)
+	})
+}
 
 type Xsalsa20Poly1305Engine struct {
 	AeadEngine

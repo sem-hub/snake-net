@@ -2,7 +2,9 @@ package signature
 
 import (
 	"crypto/ed25519"
+	"errors"
 	"slices"
+	"sync"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
@@ -67,4 +69,52 @@ func (s *Signature) GetPublicKey() *ed25519.PublicKey {
 
 func IsEngineSupported(engine string) bool {
 	return slices.Contains(SignatureList, engine)
+}
+
+// Signature engine factory
+type SignatureConstructor func(sharedSecret []byte) SignatureInterface
+
+var (
+	signatureRegistry = make(map[string]SignatureConstructor)
+	signatureRegistryMutex sync.RWMutex
+)
+
+// RegisterSignatureEngine registers a signature engine constructor
+func RegisterSignatureEngine(name string, constructor SignatureConstructor) {
+	signatureRegistryMutex.Lock()
+	defer signatureRegistryMutex.Unlock()
+	signatureRegistry[name] = constructor
+}
+
+// NewSignatureEngineByName creates a new signature engine by name
+func NewSignatureEngineByName(name string, sharedSecret []byte) (SignatureInterface, error) {
+	signatureRegistryMutex.RLock()
+	constructor, exists := signatureRegistry[name]
+	signatureRegistryMutex.RUnlock()
+
+	if !exists {
+		return nil, errors.New("signature engine " + name + " is not available")
+	}
+
+	return constructor(sharedSecret), nil
+}
+
+// GetAvailableSignatureEngines returns all registered signature engines
+func GetAvailableSignatureEngines() []string {
+	signatureRegistryMutex.RLock()
+	defer signatureRegistryMutex.RUnlock()
+
+	names := make([]string, 0, len(signatureRegistry))
+	for name := range signatureRegistry {
+		names = append(names, name)
+	}
+	return names
+}
+
+// IsSignatureEngineAvailable checks if a signature engine is registered
+func IsSignatureEngineAvailable(name string) bool {
+	signatureRegistryMutex.RLock()
+	defer signatureRegistryMutex.RUnlock()
+	_, exists := signatureRegistry[name]
+	return exists
 }

@@ -1,3 +1,5 @@
+//go:build poly1305
+
 package signature
 
 import (
@@ -5,6 +7,12 @@ import (
 
 	"github.com/aead/poly1305"
 )
+
+func init() {
+	RegisterSignatureEngine("poly1305", func(sharedSecret []byte) SignatureInterface {
+		return NewSignaturePoly1305(sharedSecret)
+	})
+}
 
 type SignaturePoly1305 struct {
 	Signature

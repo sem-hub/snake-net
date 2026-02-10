@@ -1,10 +1,19 @@
+//go:build rabbit
+
 package stream
 
 import (
 	"crypto/cipher"
 
 	"github.com/ebfe/estream/rabbit"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
+
+func init() {
+	engines.RegisterEngine("rabbit", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewRabbitEngine(sharedSecret)
+	})
+}
 
 type RabbitEngine struct {
 	StreamEngine

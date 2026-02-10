@@ -1,10 +1,19 @@
+//go:build aegis
+
 package aead
 
 import (
 	"crypto/cipher"
 
 	"github.com/aegis-aead/go-libaegis/aegis128l"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
+
+func init() {
+	engines.RegisterEngine("aegis", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewAegisEngine(sharedSecret)
+	})
+}
 
 type AegisEngine struct {
 	AeadEngine

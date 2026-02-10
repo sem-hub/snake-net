@@ -3,7 +3,15 @@ package ciphers
 import (
 	"crypto/aes"
 	"crypto/cipher"
+
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
+
+func init() {
+	engines.RegisterEngine("aes", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewAesEngine(sharedSecret, keySize, mode)
+	})
+}
 
 type AesEngine struct {
 	modes *Modes

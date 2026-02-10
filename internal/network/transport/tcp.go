@@ -15,6 +15,12 @@ type TcpTransport struct {
 	connLock *sync.RWMutex
 }
 
+func init() {
+	RegisterTransport("tcp", func(args ...interface{}) (Transport, error) {
+		return NewTcpTransport(), nil
+	})
+}
+
 func NewTcpTransport() *TcpTransport {
 	return &TcpTransport{
 		TransportData: *NewTransport(),

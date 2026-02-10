@@ -1,10 +1,19 @@
+//go:build hc256
+
 package stream
 
 import (
 	"crypto/cipher"
 
 	"github.com/pedroalbanese/crypto/hc256"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
+
+func init() {
+	engines.RegisterEngine("hc", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewHc256Engine(sharedSecret)
+	})
+}
 
 type Hc256Engine struct {
 	StreamEngine

@@ -1,9 +1,19 @@
+//go:build rc6
+
 package ciphers
 
 import (
 	"crypto/cipher"
+
 	rc6 "github.com/CampNowhere/golang-rc6"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
+
+func init() {
+	engines.RegisterEngine("rc6", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewRc6Engine(sharedSecret, keySize, mode)
+	})
+}
 
 type Rc6Engine struct {
 	modes *Modes

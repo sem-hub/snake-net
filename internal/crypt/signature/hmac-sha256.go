@@ -1,9 +1,17 @@
+//go:build hmac_sha256
+
 package signature
 
 import (
 	"crypto/hmac"
 	"crypto/sha256"
 )
+
+func init() {
+	RegisterSignatureEngine("hmac-sha256", func(sharedSecret []byte) SignatureInterface {
+		return NewSignatureHMACSHA256(sharedSecret)
+	})
+}
 
 type SignatureHMACSHA256 struct {
 	Signature

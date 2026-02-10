@@ -1,3 +1,5 @@
+//go:build hmac_blake2b
+
 package signature
 
 import (
@@ -5,6 +7,12 @@ import (
 
 	"golang.org/x/crypto/blake2b"
 )
+
+func init() {
+	RegisterSignatureEngine("hmac-blake2b", func(sharedSecret []byte) SignatureInterface {
+		return NewSignatureHMACBlake(sharedSecret)
+	})
+}
 
 type SignatureHMACBlake struct {
 	Signature

@@ -1,3 +1,5 @@
+//go:build tls
+
 package transport
 
 import (
@@ -15,6 +17,12 @@ type TlsTransport struct {
 	mainConn *mtls.Conn
 	conn     map[netip.AddrPort]*mtls.Conn
 	connLock *sync.RWMutex
+}
+
+func init() {
+	RegisterTransport("tls", func(args ...interface{}) (Transport, error) {
+		return NewTlsTransport(), nil
+	})
 }
 
 func NewTlsTransport() *TlsTransport {

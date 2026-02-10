@@ -12,13 +12,15 @@ import (
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
-	"github.com/sem-hub/snake-net/internal/crypt/engines/aead"
-	"github.com/sem-hub/snake-net/internal/crypt/engines/ciphers"
-	"github.com/sem-hub/snake-net/internal/crypt/engines/stream"
 	"github.com/sem-hub/snake-net/internal/crypt/signature"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
+
+	// Import all engine implementations to register them
+	_ "github.com/sem-hub/snake-net/internal/crypt/engines/aead"
+	_ "github.com/sem-hub/snake-net/internal/crypt/engines/ciphers"
+	_ "github.com/sem-hub/snake-net/internal/crypt/engines/stream"
 )
 
 const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
@@ -191,52 +193,17 @@ func (s *Secrets) SignAndEncrypt(msg []byte, flags Cmd) ([]byte, error) {
 }
 
 func CreateEngine(engineName, mode string, keySize int, sharedSecret []byte) (engines.CryptoEngine, error) {
-	var engine engines.CryptoEngine
-	var err error
-	switch engineName {
-	case "aes":
-		engine, err = ciphers.NewAesEngine(sharedSecret, keySize, mode)
-	case "speck":
-		engine, err = ciphers.NewSpeckEngine(sharedSecret, keySize, mode)
-	case "threefish":
-		engine, err = ciphers.NewThreefishEngine(sharedSecret, keySize, mode)
-	case "rc6":
-		engine, err = ciphers.NewRc6Engine(sharedSecret, keySize, mode)
-	case "salsa20":
-		engine, err = stream.NewSalsa20Engine(sharedSecret)
-	case "chacha20":
-		engine, err = stream.NewChacha20Engine(sharedSecret)
-	case "rabbit":
-		engine, err = stream.NewRabbitEngine(sharedSecret)
-	case "hc":
-		engine, err = stream.NewHc256Engine(sharedSecret)
-	case "chacha20poly1305":
-		engine, err = aead.NewChacha20Poly1305Engine(sharedSecret)
-	case "xsalsa20poly1305":
-		engine, err = aead.NewXsalsa20Poly1305Engine(sharedSecret)
-	case "grain":
-		engine, err = aead.NewGrainEngine(sharedSecret)
-	case "aegis":
-		engine, err = aead.NewAegisEngine(sharedSecret)
-	default:
-		return nil, errors.New("unknown cipher: " + engineName)
+	if !engines.IsEngineAvailable(engineName) {
+		logger.Error("Engine not available", "engine", engineName, "available", engines.GetAvailableEngines())
+		return nil, errors.New("engine " + engineName + " is not available (may require build tag)")
 	}
-	return engine, err
+	return engines.NewEngineByName(engineName, sharedSecret, keySize, mode)
 }
 
 func CreateSignatureEngine(signEngine string, sharedSecret []byte) (signature.SignatureInterface, error) {
-	var s signature.SignatureInterface
-	switch signEngine {
-	case "ed25519":
-		s = signature.NewSignatureEd25519(sharedSecret)
-	case "hmac-sha256":
-		s = signature.NewSignatureHMACSHA256(sharedSecret)
-	case "hmac-blake2b":
-		s = signature.NewSignatureHMACBlake(sharedSecret)
-	case "poly1305":
-		s = signature.NewSignaturePoly1305(sharedSecret)
-	default:
-		return nil, errors.New("unknown signature engine: " + signEngine)
+	if !signature.IsSignatureEngineAvailable(signEngine) {
+		logger.Error("Signature engine not available", "engine", signEngine, "available", signature.GetAvailableSignatureEngines())
+		return nil, errors.New("signature engine " + signEngine + " is not available (may require build tag)")
 	}
-	return s, nil
+	return signature.NewSignatureEngineByName(signEngine, sharedSecret)
 }

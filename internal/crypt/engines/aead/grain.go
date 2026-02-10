@@ -1,10 +1,19 @@
+//go:build grain
+
 package aead
 
 import (
 	"crypto/cipher"
 
 	"github.com/ericlagergren/lwcrypto/grain"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
+
+func init() {
+	engines.RegisterEngine("grain", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewGrainEngine(sharedSecret)
+	})
+}
 
 type GrainEngine struct {
 	AeadEngine

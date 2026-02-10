@@ -17,6 +17,12 @@ type UdpTransport struct {
 	hasError         bool
 }
 
+func init() {
+	RegisterTransport("udp", func(args ...interface{}) (Transport, error) {
+		return NewUdpTransport(), nil
+	})
+}
+
 func NewUdpTransport() *UdpTransport {
 	udpTransport := UdpTransport{
 		TransportData:    *NewTransport(),

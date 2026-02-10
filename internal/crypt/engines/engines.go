@@ -1,7 +1,9 @@
 package engines
 
 import (
+	"errors"
 	"slices"
+	"sync"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
@@ -59,5 +61,53 @@ func IsEngineSupported(engine string) bool {
 
 func IsModeSupported(mode string) bool {
 	_, exists := ModesList[mode]
+	return exists
+}
+
+// Engine factory
+type EngineConstructor func(sharedSecret []byte, keySize int, mode string) (CryptoEngine, error)
+
+var (
+	engineRegistry = make(map[string]EngineConstructor)
+	engineRegistryMutex sync.RWMutex
+)
+
+// RegisterEngine registers an engine constructor under a given name
+func RegisterEngine(name string, constructor EngineConstructor) {
+	engineRegistryMutex.Lock()
+	defer engineRegistryMutex.Unlock()
+	engineRegistry[name] = constructor
+}
+
+// NewEngineByName creates a new engine instance by name
+func NewEngineByName(name string, sharedSecret []byte, keySize int, mode string) (CryptoEngine, error) {
+	engineRegistryMutex.RLock()
+	constructor, exists := engineRegistry[name]
+	engineRegistryMutex.RUnlock()
+
+	if !exists {
+		return nil, errors.New("engine " + name + " is not available")
+	}
+
+	return constructor(sharedSecret, keySize, mode)
+}
+
+// GetAvailableEngines returns a list of all registered engine names
+func GetAvailableEngines() []string {
+	engineRegistryMutex.RLock()
+	defer engineRegistryMutex.RUnlock()
+
+	names := make([]string, 0, len(engineRegistry))
+	for name := range engineRegistry {
+		names = append(names, name)
+	}
+	return names
+}
+
+// IsEngineAvailable checks if an engine is registered
+func IsEngineAvailable(name string) bool {
+	engineRegistryMutex.RLock()
+	defer engineRegistryMutex.RUnlock()
+	_, exists := engineRegistry[name]
 	return exists
 }

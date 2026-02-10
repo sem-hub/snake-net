@@ -1,10 +1,19 @@
+//go:build chacha20
+
 package stream
 
 import (
 	"crypto/cipher"
 
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"golang.org/x/crypto/chacha20"
 )
+
+func init() {
+	engines.RegisterEngine("chacha20", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewChacha20Engine(sharedSecret)
+	})
+}
 
 type Chacha20Engine struct {
 	StreamEngine

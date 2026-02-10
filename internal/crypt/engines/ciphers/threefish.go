@@ -1,3 +1,5 @@
+//go:build threefish
+
 package ciphers
 
 import (
@@ -8,9 +10,16 @@ import (
 	"io"
 
 	"github.com/schultz-is/go-threefish"
-	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"golang.org/x/crypto/hkdf"
+
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
+
+func init() {
+	engines.RegisterEngine("threefish", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewThreefishEngine(sharedSecret, keySize, mode)
+	})
+}
 
 const tweakSize = 16
 

@@ -1,10 +1,19 @@
+//go:build speck
+
 package ciphers
 
 import (
 	"crypto/cipher"
 
 	"github.com/deatil/go-cryptobin/cipher/speck"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
+
+func init() {
+	engines.RegisterEngine("speck", func(sharedSecret []byte, keySize int, mode string) (engines.CryptoEngine, error) {
+		return NewSpeckEngine(sharedSecret, keySize, mode)
+	})
+}
 
 type SpeckEngine struct {
 	modes *Modes

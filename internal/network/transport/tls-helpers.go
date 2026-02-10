@@ -1,3 +1,5 @@
+//go:build tls || dtls || quic
+
 package transport
 
 import (

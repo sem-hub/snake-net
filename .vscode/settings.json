@@ -1,0 +1,19 @@
+{
+  "go.lintTool": "golangci-lint",
+  "go.lintOnSave": "package",
+  "[go]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "gopls": {
+    "ui.semanticTokens": true,
+    "build.buildFlags": ["-tags=quic,tls,dtls,kcp,hmac_sha256,hmac_blake2b,poly1305,aegis,grain,xsalsa20poly1305,rc6,speck,threefish,chacha20,hc256,rabbit,salsa20"]
+ },
+  "go.buildTags": "with_lib",
+  "go.lintFlags": [
+    "--build-tags=with_lib"
+  ],
+  "go.diagnostic.vulncheck": "Imports"
+}

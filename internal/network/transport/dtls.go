@@ -1,3 +1,5 @@
+//go:build dtls
+
 package transport
 
 import (
@@ -19,6 +21,12 @@ type DtlsTransport struct {
 	mainConn *mdtls.Conn
 	conn     map[netip.AddrPort]*mdtls.Conn
 	connLock *sync.RWMutex
+}
+
+func init() {
+	RegisterTransport("dtls", func(args ...interface{}) (Transport, error) {
+		return NewDtlsTransport(), nil
+	})
 }
 
 func NewDtlsTransport() *DtlsTransport {

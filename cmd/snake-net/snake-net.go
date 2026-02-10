@@ -362,30 +362,27 @@ func main() {
 	}
 	// ================== Configuration parsed ==================
 
-	var t transport.Transport = nil
-	switch cfg.Main.Protocol {
-	case "udp":
-		logger.Info("Using UDP Transport.")
-		t = transport.NewUdpTransport()
-	case "tcp":
-		logger.Info("Using TCP Transport.")
-		t = transport.NewTcpTransport()
-	case "tls":
-		logger.Info("Using TLS Transport.")
-		t = transport.NewTlsTransport()
-	case "dtls":
-		logger.Info("Using DTLS Transport.")
-		t = transport.NewDtlsTransport()
-	case "quic":
-		logger.Info("Using QUIC Transport.")
-		t = transport.NewQuicTransport()
-	case "kcp":
-		logger.Info("Using KCP Transport.")
+	var t transport.Transport
+	// Check if transport is available
+	if !transport.IsTransportAvailable(cfg.Main.Protocol) {
+		logger.Fatal("Transport " + cfg.Main.Protocol + " is not available. Available transports: " +
+			strings.Join(transport.GetAvailableTransports(), ", "))
+	}
+
+	logger.Info("Using transport: " + strings.ToUpper(cfg.Main.Protocol))
+
+	// Create transport based on protocol
+	if cfg.Main.Protocol == "kcp" {
+		// KCP requires a key
 		sum256 := sha256.Sum256([]byte(cfg.Main.Secret))
 		kcpKey := sum256[:]
-		t = transport.NewKcpTransport(kcpKey)
-	default:
-		logger.Fatal("Unknown Protocol: %s", cfg.Main.Protocol)
+		t, err = transport.NewTransportByName(cfg.Main.Protocol, kcpKey)
+	} else {
+		t, err = transport.NewTransportByName(cfg.Main.Protocol)
+	}
+
+	if err != nil {
+		logger.Fatal("Failed to create transport: " + err.Error())
 	}
 
 	if cfg.Main.Mode == "server" && !t.IsEncrypted() && (cfg.Crypt.Engine == "") {

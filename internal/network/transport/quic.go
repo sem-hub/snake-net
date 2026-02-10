@@ -1,3 +1,5 @@
+//go:build quic
+
 package transport
 
 import (
@@ -18,6 +20,12 @@ type QuicTransport struct {
 	conn       map[netip.AddrPort]*mquic.Conn
 	stream     map[netip.AddrPort]*mquic.Stream
 	connLock   *sync.RWMutex
+}
+
+func init() {
+	RegisterTransport("quic", func(args ...interface{}) (Transport, error) {
+		return NewQuicTransport(), nil
+	})
 }
 
 func NewQuicTransport() *QuicTransport {
