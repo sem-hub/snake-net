@@ -79,7 +79,7 @@ func (udp *UdpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	return nil
 }
 
-func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) error {
+func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) {
 	for {
 		newConnection := false
 		buf := make([]byte, NETBUFSIZE)
@@ -118,7 +118,6 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) e
 		}
 	}
 	udp.logger.Debug("UDP runReadLoop returns")
-	return nil
 }
 
 func (udp *UdpTransport) Send(addrPort netip.AddrPort, msg *Message) error {

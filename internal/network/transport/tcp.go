@@ -47,7 +47,10 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	if mode == "server" {
 		// Do not block
 		go func() {
-			tcp.listen(lAddrPort.String(), callback)
+			err := tcp.listen(lAddrPort.String(), callback)
+			if err != nil {
+				tcp.logger.Error("TCP listen error", "error", err)
+			}
 		}()
 	} else {
 		family := "tcp"
@@ -95,8 +98,14 @@ func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.
 		}
 
 		tcpconn := conn.(*net.TCPConn)
-		tcpconn.SetNoDelay(true)
-		tcpconn.SetLinger(0)
+		err = tcpconn.SetNoDelay(true)
+		if err != nil {
+			tcp.logger.Error("SetNoDelay", "error", err)
+		}
+		err = tcpconn.SetLinger(0)
+		if err != nil {
+			tcp.logger.Error("SetLinger", "error", err)
+		}
 		addrPort := tcpconn.RemoteAddr().(*net.TCPAddr).AddrPort()
 		// unmap this AddrPort
 		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
