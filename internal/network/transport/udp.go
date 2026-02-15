@@ -52,28 +52,14 @@ func (udp *UdpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	callback func(Transport, netip.AddrPort)) error {
 
 	if mode == "server" {
-		udpLocal, err := net.ResolveUDPAddr("udp", lAddrPort.String())
-		if err != nil {
-			return err
-		}
 		udp.logger.Info("Listen for connection", "on", lAddrPort)
-		conn, err := net.ListenUDP("udp", udpLocal)
-		if err != nil {
-			return err
-		}
-		udp.mainConn = conn
-	} else {
-		_, err := net.ResolveUDPAddr("udp", lAddrPort.String())
-		if err != nil {
-			return err
-		}
-
-		conn, err := net.ListenPacket("udp", lAddrPort.String())
-		if err != nil {
-			return err
-		}
-		udp.mainConn = conn.(*net.UDPConn)
 	}
+	var err error
+	udp.mainConn, err = net.ListenUDP("udp", net.UDPAddrFromAddrPort(lAddrPort))
+	if err != nil {
+		return err
+	}
+
 	go udp.runReadLoop(callback)
 
 	return nil
@@ -144,11 +130,11 @@ func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) 
 		var ok bool
 		// If we don't have data in buffer for the client, wait for them
 		bufArray, ok = udp.packetBuf[addrPort]
-		// If transport-level error happened
+		// If transport-level error happened (closed connection mostly)
 		if udp.hasError {
 			break
 		}
-		// If we have buffered packets -> proceed
+		// If we have buffered packets -> proceed them, do not wait
 		if ok && len(bufArray) > 0 {
 			break
 		}
@@ -160,9 +146,10 @@ func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) 
 	}
 	// Refresh bufArray in case it changed
 	bufArray = udp.packetBuf[addrPort]
-	buf := bufArray[0]
+	buf := bufArray[0] // get first buffer
 	udp.logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addrPort.String())
 
+	// Move bufArray forward or delete if it is empty
 	if len(bufArray) > 1 {
 		udp.packetBuf[addrPort] = bufArray[1:]
 	} else {
