@@ -24,7 +24,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 		cmd |= NoSignature
 	}
 
-	var n int = 0
+	var n int
 	if msg == nil {
 		c.logger.Debug("client Write: no data. Send a command only", "address", c.address.String())
 		cmd |= WithPadding

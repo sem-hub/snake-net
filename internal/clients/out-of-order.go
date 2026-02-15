@@ -12,7 +12,11 @@ import (
 func (c *Client) reaskTimer() {
 	// We will reask the lost packet for 3 times and give up
 	if c.reaskedPackets < 3 {
-		c.AskForResend(c.seqIn)
+		err := c.AskForResend(c.seqIn)
+		if err != nil {
+			c.logger.Error("reaskTimer: Error when ask a packet for retransmittion", "error", err)
+		}
+
 		c.ooopTimer = time.AfterFunc(500*time.Millisecond, func() { c.reaskTimer() })
 	}
 }

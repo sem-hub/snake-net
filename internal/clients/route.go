@@ -135,7 +135,10 @@ func (c *Client) ProcessNetworkDataLoop(mode string) {
 				}
 				// write into local tun interface channel.
 				if tunIf != nil {
-					tunIf.WriteTun(buf)
+					err := tunIf.WriteTun(buf)
+					if err != nil {
+						c.logger.Error("NetLoop: Error writing to TUN", "error", err)
+					}
 				} else {
 					c.logger.Debug("NetLoop: ignore packet. Did not initialized yet")
 				}
