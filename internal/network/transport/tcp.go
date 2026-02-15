@@ -47,7 +47,7 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	if mode == "server" {
 		// Do not block
 		go func() {
-			err := tcp.listen(lAddrPort.String(), callback)
+			err := tcp.listen(lAddrPort, callback)
 			if err != nil {
 				tcp.logger.Error("TCP listen error", "error", err)
 			}
@@ -57,14 +57,8 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		if rAddrPort.Addr().Is6() {
 			family = "tcp6"
 		}
-		remoteAddr, err := net.ResolveTCPAddr(family, rAddrPort.String())
-		if err != nil {
-			return errors.New("ResolveTCPAddr remote address error: " + err.Error())
-		}
-		localAddr, err := net.ResolveTCPAddr(family, lAddrPort.String())
-		if err != nil {
-			return errors.New("ResolveTCPAddr local address error: " + err.Error())
-		}
+		remoteAddr := net.TCPAddrFromAddrPort(rAddrPort)
+		localAddr := net.TCPAddrFromAddrPort(lAddrPort)
 
 		conn, err := net.DialTCP(family, localAddr, remoteAddr)
 		if err != nil {
@@ -83,21 +77,20 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	return nil
 }
 
-func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.AddrPort)) error {
+func (tcp *TcpTransport) listen(addrPort netip.AddrPort, callback func(Transport, netip.AddrPort)) error {
 	tcp.logger.Info("Listen for connection", "on", addrPort)
-	listen, err := net.Listen("tcp", addrPort)
+	listen, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(addrPort))
 	if err != nil {
 		return err
 	}
 
 	for {
-		conn, err := listen.Accept()
+		tcpconn, err := listen.AcceptTCP()
 		if err != nil {
 			tcp.logger.Error("listen", "error", err)
 			break
 		}
 
-		tcpconn := conn.(*net.TCPConn)
 		err = tcpconn.SetNoDelay(true)
 		if err != nil {
 			tcp.logger.Error("SetNoDelay", "error", err)
@@ -118,7 +111,7 @@ func (tcp *TcpTransport) listen(addrPort string, callback func(Transport, netip.
 	}
 	err = listen.Close()
 	if err != nil {
-		tcp.logger.Error("listen Close", "error", err)
+		tcp.logger.Error("listen socket is closed", "error", err)
 	}
 	return nil
 }
