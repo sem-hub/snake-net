@@ -1,14 +1,16 @@
-FLAGS=-ldflags "-s -w"
+FLAGS=-ldflags="-s -w"
 BENCHMARKTAGS="-tags=hmac_sha256,hmac_blake2b,poly1305"
-ALLTAGS=-tags=$(shell grep -r '//go:build'|grep -v 'setup'|grep -v '|' |awk '{print $$2}'| tr '\n' ','|sed 's/.$$//')
+ALLTAGS:=-tags="$(shell grep -r '//go:build'|grep -v 'setup'|grep -v '|' |awk '{print $$2}'| tr '\n' ','|sed 's/.$$//')"
 
 ifeq (,$(MAKECMDGOALS))
 MAKECMDGOALS=build
 endif
-ifeq ($(filter %-compact,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+COMPACT_TARGETS=$(filter %-compact,$(MAKECMDGOALS))
+ifneq ($(COMPACT_TARGETS),)
 ALLTAGS=
-TARGET=$(MAKECMDGOALS:-compact=)
-$(MAKECMDGOALS): $(TARGET)
+TARGETS=$(foreach tg,$(COMPACT_TARGETS),$(subst -compact,,$(tg)))
+$(firstword $(MAKECMDGOALS)):
+	$(MAKE) ALLTAGS= $(TARGETS)
 endif
 
 build:
@@ -16,7 +18,7 @@ build:
 	cd cmd/benchmarks && go build ${FLAGS} ${BENCHMARKTAGS} -o benchmarks
 	@ls -la cmd/snake-net/snake-net
 windows:
-	cd cmd/snake-net && GOOS=windows GOARCH=amd64 go build ${FLAGS} ${ALLTAGS} -o snake-net.exe
+	cd cmd/snake-net && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build ${FLAGS} ${ALLTAGS} -o snake-net.exe
 	cd cmd/benchmarks && GOOS=windows GOARCH=amd64 go build ${FLAGS} ${BENCHMARKTAGS} -o benchmarks.exe
 linux-arm64:
 	cd cmd/snake-net && CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc GOOS=linux GOARCH=arm64 go build ${FLAGS} ${ALLTAGS} -o snake-net
