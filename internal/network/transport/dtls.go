@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -63,36 +62,25 @@ func (dtls *DtlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 		ExtendedMasterSecret: mdtls.RequireExtendedMasterSecret,
 	}
 
-	family := "udp"
-	if strings.Contains(rAddrPort.String(), "[") {
-		family = "udp6"
-	}
-
 	if mode == "server" {
 		// Do not block
 		go func() {
-			localAddr, err := net.ResolveUDPAddr(family, lAddrPort.String())
-			if err != nil {
-				dtls.logger.Error("ResolveUDPAddr local address error: " + err.Error())
-				return
-			}
-
-			dtls.listen(localAddr, dtlsConfig, callback)
+			dtls.listen(net.UDPAddrFromAddrPort(lAddrPort), dtlsConfig, callback)
 		}()
 	} else {
-		remoteAddr, err := net.ResolveUDPAddr(family, rAddrPort.String())
-		if err != nil {
-			return errors.New("ResolveUDPAddr remote address error: " + err.Error())
+		family := "udp"
+		if rAddrPort.Addr().Is6() {
+			family = "udp6"
 		}
 
 		// Connect to a DTLS server
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		dtlsConn, err := mdtls.Dial(family, remoteAddr, dtlsConfig)
+		dtlsConn, err := mdtls.Dial(family, net.UDPAddrFromAddrPort(rAddrPort), dtlsConfig)
 		if err != nil {
 			return errors.New("DTLS Dial error: " + err.Error())
 		}
-		if err := dtlsConn.HandshakeContext(ctx); err != nil {
+		if err = dtlsConn.HandshakeContext(ctx); err != nil {
 			return errors.New("DTLS Handshake error: " + err.Error())
 		}
 
@@ -104,7 +92,7 @@ func (dtls *DtlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 		dtls.connLock.Lock()
 		dtls.conn[addrPort] = dtlsConn
 		dtls.connLock.Unlock()
-		dtls.logger.Info("Connected to server", "rAddrPort", rAddrPort, "from", dtlsConn.LocalAddr().String())
+		dtls.logger.Info("Connected to", "server", rAddrPort, "from", dtlsConn.LocalAddr().String())
 	}
 
 	return nil

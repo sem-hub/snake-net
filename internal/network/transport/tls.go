@@ -65,11 +65,7 @@ func (tls *TlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		if strings.Contains(rAddrPort.String(), "[") {
 			family = "tcp6"
 		}
-		remoteAddr, err := net.ResolveTCPAddr(family, rAddrPort.String())
-		if err != nil {
-			return errors.New("ResolveTCPAddr error: " + err.Error())
-		}
-		conn, err := mtls.Dial(family, remoteAddr.String(), tlsCfg)
+		conn, err := mtls.Dial(family, rAddrPort.String(), tlsCfg)
 		if err != nil {
 			return errors.New("DialTLS error: " + err.Error())
 		}
