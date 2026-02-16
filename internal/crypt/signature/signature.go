@@ -26,6 +26,8 @@ type SignatureInterface interface {
 	SetPrivateKey(priv ed25519.PrivateKey)
 	GetPrivateKey() *ed25519.PrivateKey
 	GetPublicKey() *ed25519.PublicKey
+	Deactivate()
+	IsActive() bool
 }
 
 type Signature struct {
@@ -35,16 +37,26 @@ type Signature struct {
 	sessionPrivateKey ed25519.PrivateKey
 	sessionPublicKey  ed25519.PublicKey
 	sharedSecret      []byte
+	active            bool
 }
 
 func NewSignature(secret []byte, name string) *Signature {
 	sig := &Signature{
 		sharedSecret: secret,
 		name:         name,
+		active:       true,
 	}
 
 	sig.Logger = configs.InitLogger("crypto")
 	return sig
+}
+
+func (s *Signature) Deactivate() {
+	s.active = false
+}
+
+func (s *Signature) IsActive() bool {
+	return s.active
 }
 
 func (s *Signature) SetSharedSecret(secret []byte) {

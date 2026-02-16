@@ -6,6 +6,7 @@ import (
 	"errors"
 	"hash/crc32"
 	"net/netip"
+	"strconv"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
@@ -117,6 +118,9 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	c.logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 
 	addSize := uint16(0)
+	if !c.secrets.SignatureEngine.IsActive() {
+		header.Flags |= NoSignature
+	}
 	if c.secrets.SignatureEngine != nil && (header.Flags&NoSignature) == 0 {
 		addSize = c.secrets.SignatureEngine.SignLen()
 	}
@@ -126,7 +130,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		c.bufSize = lastSize
 
 		c.bufLock.Unlock()
-		return nil, errors.New("invalid message size")
+		return nil, errors.New("invalid message size. addsize: " + strconv.Itoa(int(addSize)))
 	}
 
 	c.logger.Debug("client ReadBuf size", "address", c.address.String(), "size", header.Size)
@@ -148,7 +152,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		c.removeThePacketFromBuffer(HEADER + int(header.Size))
 
 		c.bufLock.Unlock()
-		return nil, errors.New("invalid message size")
+		return nil, errors.New("invalid message size. header size: " + strconv.Itoa(int(header.Size)))
 	}
 	needResetOffset := false
 

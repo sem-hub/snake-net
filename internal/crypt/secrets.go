@@ -97,6 +97,7 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	logger.Info("Using", "cipher", cipher+"-"+mode)
 
 	if s.Engine.GetType() == "aead" {
+		s.SignatureEngine.Deactivate()
 		logger.Info("AEAD cipher selected, signature engine will not be used")
 		return &s, nil
 	}

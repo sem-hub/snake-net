@@ -26,6 +26,9 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 		cmd |= NoEncryption
 		cmd |= NoSignature
 	}
+	if !c.secrets.SignatureEngine.IsActive() {
+		cmd |= NoSignature
+	}
 
 	// It's possible we have msg == nil. It means we only want to send a command without data. Padding will be added to these packets.
 	n := 0
