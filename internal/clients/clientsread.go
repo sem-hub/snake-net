@@ -108,7 +108,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	if err != nil {
 		c.logger.Error("client ReadBuf: getHeaderInfo error", "address", c.address.String(), "error", err)
 		// Safe remove the packet from buffer when we don't believe to n
-		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
+		c.removeThePacketFromBuffer(c.bufSize - lastSize)
 		c.bufSize = lastSize
 
 		c.bufLock.Unlock()
@@ -122,7 +122,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	}
 	if header.Size < addSize || HEADER+int(header.Size) > BUFSIZE {
 		// Safe remove the packet from buffer when we don't believe to n
-		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
+		c.removeThePacketFromBuffer(c.bufSize - lastSize)
 		c.bufSize = lastSize
 
 		c.bufLock.Unlock()
