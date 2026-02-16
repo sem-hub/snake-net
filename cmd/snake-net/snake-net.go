@@ -251,10 +251,10 @@ func main() {
 	}
 	// Defaults for server
 	if mode == "server" {
-		if cipher != "" && cfg.Crypt.Engine == "" {
+		if cfg.Crypt.Engine == "" {
 			cfg.Crypt.Engine = "aes-gcm"
 		}
-		if signEngine != "" && cfg.Crypt.SignEngine == "" {
+		if cfg.Crypt.SignEngine == "" {
 			cfg.Crypt.SignEngine = "ed25519"
 		}
 	}
