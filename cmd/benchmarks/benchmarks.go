@@ -288,7 +288,7 @@ func Median(durations []time.Duration) time.Duration {
 
 func benchmark(engine engines.CryptoEngine, dataSize int) (time.Duration, time.Duration, error) {
 	data := make([]byte, dataSize)
-	rand.Read(data)
+	_, _ = rand.Read(data)
 
 	debug.SetGCPercent(-1)
 	startEnc := time.Now()
@@ -319,7 +319,7 @@ func benchmarkSignature(engine signature.SignatureInterface, dataSize int, passw
 	engine.SetPublicKey(sessionPublicKey)
 	engine.SetPrivateKey(sessionPrivateKey)
 	data := make([]byte, dataSize)
-	rand.Read(data)
+	_, _ = rand.Read(data)
 
 	debug.SetGCPercent(-1)
 	startEnc := time.Now()
