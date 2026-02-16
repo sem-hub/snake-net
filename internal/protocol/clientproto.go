@@ -194,7 +194,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 
 	if cfg.Socks5Enabled {
 		go func() {
-			network.RunSOCKS5(ctx, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
+			network.RunSOCKS5(ctx, cfg.TunAddrs, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
 		}()
 	}
 

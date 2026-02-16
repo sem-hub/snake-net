@@ -3,14 +3,14 @@ package network
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 
 	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/utils"
 	socks5 "github.com/things-go/go-socks5"
 )
 
-func RunSOCKS5(ctx context.Context, port int, username, password string) {
+func RunSOCKS5(ctx context.Context, cidrs []utils.Cidr, port int, username, password string) {
 	logger := configs.InitLogger("socks5")
 	requireAuth := username != ""
 
@@ -38,27 +38,42 @@ func RunSOCKS5(ctx context.Context, port int, username, password string) {
 		server = socks5.NewServer()
 	}
 
-	addr := fmt.Sprintf(":%d", port)
-	logger.Info("SOCKS5 server started", "port", port)
-
-	// Create listener
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		logger.Error("Failed to create listener", "error", err)
-		return
-	}
-
-	// Start the server in goroutine
-	go func() {
-		if err := server.Serve(listener); err != nil && !errors.Is(err, net.ErrClosed) {
-			logger.Error("Error running SOCKS5 server", "error", err)
+	listeners := make([]net.Listener, 0)
+	for _, cidr := range cidrs {
+		var addr *net.TCPAddr
+		family := "tcp4"
+		if cidr.IP.Is4() {
+			family = "tcp4"
+		} else {
+			family = "tcp6"
 		}
-	}()
+		addr = &net.TCPAddr{
+			IP:   cidr.IP.AsSlice(),
+			Port: port,
+		}
+		logger.Info("SOCKS5 server started", "address", addr.String())
 
+		// Create listener
+		listener, err := net.ListenTCP(family, addr)
+		if err != nil {
+			logger.Error("Failed to create listener", "error", err)
+			return
+		}
+
+		// Start the server in goroutine
+		go func() {
+			if err := server.Serve(listener); err != nil && !errors.Is(err, net.ErrClosed) {
+				logger.Error("Error running SOCKS5 server", "error", err)
+			}
+		}()
+		listeners = append(listeners, listener)
+	}
 	// Wait for context cancellation
 	<-ctx.Done()
 	logger.Info("Shutting down SOCKS5 server")
 
 	// Close listener to stop accepting connections
-	listener.Close()
+	for _, listener := range listeners {
+		listener.Close()
+	}
 }
