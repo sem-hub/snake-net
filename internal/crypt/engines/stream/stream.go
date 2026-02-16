@@ -23,7 +23,7 @@ func (e *StreamEngine) StreamEncrypt(addBlockSize int, newStream func([]byte) (c
 	e.Logger.Trace("Encrypt stream", "datalen", len(data))
 
 	iv := make([]byte, addBlockSize)
-	rand.Read(iv)
+	_, _ = rand.Read(iv)
 	stream, err := newStream(iv)
 	if err != nil {
 		return nil, err

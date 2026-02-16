@@ -27,7 +27,7 @@ func (e *AeadEngine) Seal(NewAEAD func() (cipher.AEAD, error), data []byte) ([]b
 		return nil, err
 	}
 	nonce := make([]byte, aead.NonceSize())
-	rand.Read(nonce)
+	_, _ = rand.Read(nonce)
 	bufOut := aead.Seal(nil, nonce, data, nil)
 
 	e.Logger.Trace("Encrypt AEAD", "encryptedlen", len(bufOut), "noncelen", len(nonce))

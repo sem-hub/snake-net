@@ -29,7 +29,7 @@ func (s *SignatureHMACBlake) GetName() string {
 	return s.name
 }
 
-func (s *SignatureHMACBlake) SignLen() int {
+func (s *SignatureHMACBlake) SignLen() uint16 {
 	return 64
 }
 

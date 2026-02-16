@@ -1,13 +1,15 @@
 package clients
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"time"
 
-	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
-	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
+	. "github.com/sem-hub/snake-net/internal/protocol/header"
 )
 
 func getCommandName(command Cmd) string {
@@ -29,12 +31,16 @@ func getCommandName(command Cmd) string {
 
 // Process special commands received from the client
 // Executed under bufLock. data excludes header: data + signature (if any)
-func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Message, error) {
+func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.Message, error) {
 	c.logger.Debug("processCommand", "command", getCommandName(command), "address", c.address.String(), "dataLen", len(data), "n", n)
+	// Remove the packet from buffer if it's not AskForResend. For AskForResend, we need it to get sequence number.
+	if command&CmdMask != AskForResend {
+		c.removeThePacketFromBuffer(HEADER + int(n))
+		c.bufLock.Unlock()
+
+	}
 	switch command & CmdMask {
 	case Ping:
-		c.removeThePacketFromBuffer(HEADER + n)
-		c.bufLock.Unlock()
 		c.logger.Debug("received ping command, sending pong", "address", c.address.String())
 
 		err := c.Write(nil, Pong|WithPadding)
@@ -44,16 +50,12 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 
 		return c.ReadBuf(HEADER)
 	case Pong:
-		c.removeThePacketFromBuffer(HEADER + n)
-		c.bufLock.Unlock()
 		c.logger.Debug("received pong command", "address", c.address.String())
 
 		c.pinger.StopPongTimeoutTimer()
 		// timer already reseted when data is received in ReadBuf()
 		return c.ReadBuf(HEADER)
 	case ShutdownRequest:
-		c.removeThePacketFromBuffer(HEADER + n)
-		c.bufLock.Unlock()
 		c.logger.Info("got shutdown request command, closing connection", "address", c.address.String())
 
 		_ = c.Write(nil, ShutdownNotify|WithPadding)
@@ -64,8 +66,6 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		return nil, errors.New("connection closed by server")
 
 	case ShutdownNotify:
-		c.removeThePacketFromBuffer(HEADER + n)
-		c.bufLock.Unlock()
 		c.logger.Info("client sent shutdown notify command, closing connection", "address", c.address.String())
 
 		c.SetClientState(NotFound)
@@ -83,17 +83,22 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 		}
 
 		// Find in sentBuffer and resend
-		askSeq := uint32(dataDecrypted[0])<<8 | uint32(dataDecrypted[1])
+		var askSeq uint16
+		err = binary.Read(bytes.NewReader(dataDecrypted), binary.BigEndian, &askSeq)
+		if err != nil {
+			c.logger.Error("process command AskForResend: binary.Read error", "address", c.address.String(), "error", err)
+			return nil, err
+		}
 		c.logger.Info("client asked to resend packet", "address", c.address.String(), "seq", askSeq)
 
 		dataSend, ok := c.sentBuffer.Find(func(index interface{}) bool {
 			buf := index.([]byte)
-			_, seqNum, _, err := c.getHeaderInfo(buf)
+			header, err := c.getHeaderInfo(buf)
 			if err != nil {
 				c.logger.Error("process command resend: cannot get header info from sentBuffer", "address", c.address.String(), "error", err)
 				return false
 			}
-			return seqNum == askSeq
+			return header.Seq == askSeq
 		})
 		if ok {
 			buf := dataSend.([]byte)
@@ -108,13 +113,10 @@ func (c *Client) processCommand(command Cmd, data []byte, n int) (transport.Mess
 			c.logger.Error("process command resend: packet not found in sentBuffer", "address", c.address.String(), "seq", askSeq)
 		}
 		// Remove the packet from buffer
-		c.removeThePacketFromBuffer(HEADER + n)
+		c.removeThePacketFromBuffer(HEADER + int(n))
 		c.bufLock.Unlock()
 		return c.ReadBuf(HEADER)
 	default:
-		c.removeThePacketFromBuffer(HEADER + n)
-		c.bufLock.Unlock()
-
 		return nil, errors.New("unknown command: " + hex.EncodeToString([]byte{byte(command)}))
 	}
 }

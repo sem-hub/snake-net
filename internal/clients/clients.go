@@ -9,9 +9,10 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
 
+	"github.com/sem-hub/snake-net/internal/network/transport"
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/interfaces"
-	"github.com/sem-hub/snake-net/internal/network/transport"
+	. "github.com/sem-hub/snake-net/internal/protocol/header"
 	"github.com/sem-hub/snake-net/internal/utils"
 )
 
@@ -42,7 +43,7 @@ type Client struct {
 	bufSignal      *sync.Cond
 	bufSize        int
 	bufOffset      int
-	seqIn          uint32 // always read/write under bufLock
+	seqIn          uint16 // always read/write under bufLock
 	seqOut         *atomic.Uint32
 	oooPackets     int
 	ooopTimer      *time.Timer

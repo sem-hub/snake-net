@@ -13,11 +13,7 @@ func Pad(buf []byte) []byte {
 		padLen = 2
 	}
 	logger.Trace("Padding", "padLen", padLen)
-	if buf == nil {
-		buf = make([]byte, 0)
-	}
-	buf = append(buf, bytes.Repeat([]byte{byte(padLen)}, padLen)...)
-	return buf
+	return append(buf, bytes.Repeat([]byte{byte(padLen)}, padLen)...)
 }
 
 func UnPad(buf []byte) ([]byte, error) {

@@ -6,7 +6,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/configs"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
-	. "github.com/sem-hub/snake-net/internal/interfaces"
+	. "github.com/sem-hub/snake-net/internal/protocol/header"
 )
 
 var logger *configs.ColorLogger = nil

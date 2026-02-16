@@ -4,7 +4,7 @@ import (
 	"time"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
-	. "github.com/sem-hub/snake-net/internal/interfaces"
+	. "github.com/sem-hub/snake-net/internal/protocol/header"
 )
 
 type PingerClient struct {

@@ -18,7 +18,7 @@ var SignatureList = []string{
 
 type SignatureInterface interface {
 	GetName() string
-	SignLen() int
+	SignLen() uint16
 	Verify(msg []byte, sig []byte) bool
 	Sign(msg []byte) []byte
 	SetSharedSecret(secret []byte)
@@ -75,7 +75,7 @@ func IsEngineSupported(engine string) bool {
 type SignatureConstructor func(sharedSecret []byte) SignatureInterface
 
 var (
-	signatureRegistry = make(map[string]SignatureConstructor)
+	signatureRegistry      = make(map[string]SignatureConstructor)
 	signatureRegistryMutex sync.RWMutex
 )
 

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
-	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
+	. "github.com/sem-hub/snake-net/internal/protocol/header"
 )
 
 func (c *Client) reaskTimer() {
@@ -23,7 +23,7 @@ func (c *Client) reaskTimer() {
 
 // Process special out-of-order packets received from the client
 // Executed under bufLock
-func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
+func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 	if seq > c.seqIn {
 		if c.lookInBufferForSeq(c.seqIn) {
 			// Found in buffer, process it
@@ -62,37 +62,37 @@ func (c *Client) processOOOP(n int, seq uint32) (transport.Message, error) {
 			return nil, errors.New("too many out of order packets")
 		}
 		// Go to next packet. Leave the packet in buffer.
-		c.bufOffset += HEADER + n
+		c.bufOffset += HEADER + int(n)
 	} else {
 		c.logger.Error("client ReadBuf: duplicate. Drop.")
-		c.removeThePacketFromBuffer(HEADER + n)
+		c.removeThePacketFromBuffer(HEADER + int(n))
 	}
 	c.bufLock.Unlock()
 	return c.ReadBuf(HEADER)
 }
 
 // Executed under bufLock
-func (c *Client) lookInBufferForSeq(reqSeq uint32) bool {
+func (c *Client) lookInBufferForSeq(reqSeq uint16) bool {
 	offset := 0
 	for offset < c.bufSize {
 		if c.bufSize-offset < HEADER {
 			return false
 		}
 
-		n, seq, _, err := c.getHeaderInfo(c.buf[offset : offset+HEADER])
+		header, err := c.getHeaderInfo(c.buf[offset : offset+HEADER])
 		if err != nil {
 			return false
 		}
-		if seq == reqSeq {
+		if header.Seq == reqSeq {
 			c.bufOffset = offset
 			return true
 		}
-		offset += HEADER + n
+		offset += HEADER + int(header.Size)
 	}
 	return false
 }
 
-func (c *Client) AskForResend(seq uint32) error {
+func (c *Client) AskForResend(seq uint16) error {
 	c.logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
 
 	c.reaskedPackets++

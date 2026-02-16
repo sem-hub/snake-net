@@ -28,7 +28,7 @@ func (s *SignatureHMACSHA256) GetName() string {
 	return s.name
 }
 
-func (s *SignatureHMACSHA256) SignLen() int {
+func (s *SignatureHMACSHA256) SignLen() uint16 {
 	return 32
 }
 

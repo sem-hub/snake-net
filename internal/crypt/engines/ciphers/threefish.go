@@ -102,7 +102,7 @@ func (e *ThreefishEngine) NewCipher() (cipher.Block, error) {
 
 func (e *ThreefishEngine) Encrypt(data []byte) ([]byte, error) {
 	e.tweak = make([]byte, tweakSize)
-	rand.Read(e.tweak)
+	_, _ = rand.Read(e.tweak)
 	chiperData, err := e.modes.Encrypt(data)
 	if err != nil {
 		return nil, err

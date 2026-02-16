@@ -1,6 +1,8 @@
 package clients
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"hash/crc32"
 	"net/netip"
@@ -9,11 +11,12 @@ import (
 	"github.com/sem-hub/snake-net/internal/crypt"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
-	. "github.com/sem-hub/snake-net/internal/interfaces"
 	"github.com/sem-hub/snake-net/internal/network/transport"
+	. "github.com/sem-hub/snake-net/internal/protocol/header"
 )
 
-func (c *Client) getHeaderInfo(buf []byte) (int, uint32, Cmd, error) {
+func (c *Client) getHeaderInfo(buf []byte) (Header, error) {
+	headerWithCRC := HeaderWithCRC{}
 	var dataHeader []byte
 	if c.t.IsEncrypted() {
 		dataHeader = buf
@@ -22,20 +25,22 @@ func (c *Client) getHeaderInfo(buf []byte) (int, uint32, Cmd, error) {
 		dataHeader, err = c.secrets.EncryptDecryptNoIV(buf[:HEADER])
 		if err != nil {
 			c.logger.Error("getHeaderInfo decrypt error", "address", c.address.String(), "error", err)
-			return 0, 0, NoneCmd, err
+			return Header{}, err
 		}
 	}
 
-	crc := uint32(dataHeader[5])<<24 | uint32(dataHeader[6])<<16 | uint32(dataHeader[7])<<8 | uint32(dataHeader[8])
-	if crc != crc32.ChecksumIEEE(dataHeader[:5]) {
-		c.logger.Error("getHeaderInfo CRC32 error", "address", c.address.String(), "crc", crc, "calculated", crc32.ChecksumIEEE(dataHeader[:5]))
-		return 0, 0, NoneCmd, errors.New("CRC32 mismatch")
+	err := binary.Read(bytes.NewReader(dataHeader), binary.BigEndian, &headerWithCRC)
+	if err != nil {
+		c.logger.Error("getHeaderInfo binary.Read error", "address", c.address.String(), "error", err)
+		return Header{}, err
 	}
-	n := int(dataHeader[0])<<8 | int(dataHeader[1])
-	seq := uint32(dataHeader[2])<<8 | uint32(dataHeader[3])
-	flags := Cmd(dataHeader[4])
 
-	return n, seq, flags, nil
+	if headerWithCRC.CRC != crc32.ChecksumIEEE(dataHeader[:5]) {
+		c.logger.Error("getHeaderInfo CRC32 error", "address", c.address.String(), "crc", headerWithCRC.CRC, "calculated", crc32.ChecksumIEEE(dataHeader[:5]))
+		return Header{}, errors.New("CRC32 mismatch")
+	}
+
+	return headerWithCRC.Header, nil
 }
 
 // ReadLoop reads data from network into client's buffer
@@ -99,12 +104,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		lastSize = c.bufSize
 		c.bufSignal.Wait()
 	}
-	// First 2 bytes are size
-	// Next 2 bytes are sequence number
-	// Next 1 byte is flags
-	// Next 4 bytes are CRC32 of the header (of 5 bytes)
-	// Next n bytes are message finished with 64 bytes signature
-	n, seq, flags, err := c.getHeaderInfo(c.buf[c.bufOffset : c.bufOffset+HEADER])
+	header, err := c.getHeaderInfo(c.buf[c.bufOffset : c.bufOffset+int(HEADER)])
 	if err != nil {
 		c.logger.Error("client ReadBuf: getHeaderInfo error", "address", c.address.String(), "error", err)
 		// Safe remove the packet from buffer when we don't believe to n
@@ -116,11 +116,11 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	}
 	c.logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 
-	addSize := 0
-	if c.secrets.SignatureEngine != nil && (flags&NoSignature) == 0 {
+	addSize := uint16(0)
+	if c.secrets.SignatureEngine != nil && (header.Flags&NoSignature) == 0 {
 		addSize = c.secrets.SignatureEngine.SignLen()
 	}
-	if n < addSize || HEADER+n > BUFSIZE {
+	if header.Size < addSize || HEADER+int(header.Size) > BUFSIZE {
 		// Safe remove the packet from buffer when we don't believe to n
 		copy(c.buf[c.bufOffset:], c.buf[c.bufOffset+(c.bufSize-lastSize):c.bufSize])
 		c.bufSize = lastSize
@@ -129,23 +129,23 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		return nil, errors.New("invalid message size")
 	}
 
-	c.logger.Debug("client ReadBuf size", "address", c.address.String(), "n", n)
-	if HEADER+n > c.bufSize-c.bufOffset {
+	c.logger.Debug("client ReadBuf size", "address", c.address.String(), "size", header.Size)
+	if HEADER+int(header.Size) > c.bufSize-c.bufOffset {
 		c.bufLock.Unlock()
-		c.logger.Error("client Readbuf: incomplete message", "address", c.address.String(), "needed", HEADER+n, "have", c.bufSize-c.bufOffset)
+		c.logger.Error("client Readbuf: incomplete message", "address", c.address.String(), "needed", HEADER+int(header.Size), "have", c.bufSize-c.bufOffset)
 		//return nil, errors.New("incomplete message")
-		return c.ReadBuf(HEADER + n)
+		return c.ReadBuf(HEADER + int(header.Size))
 	}
 	// Set flags for NoEncryption and NoSignature if transport already does it
 	if c.t.IsEncrypted() {
-		flags |= NoEncryption
-		flags |= NoSignature
+		header.Flags |= NoEncryption
+		header.Flags |= NoSignature
 	}
 
-	c.logger.Debug("client ReadBuf seq", "address", c.address, "seq", seq, "expected", c.seqIn)
+	c.logger.Debug("client ReadBuf seq", "address", c.address, "seq", header.Seq, "expected", c.seqIn)
 	// Sanity check of "n"
-	if n <= 0 || HEADER+n > BUFSIZE {
-		c.removeThePacketFromBuffer(HEADER + n)
+	if header.Size <= 0 || HEADER+int(header.Size) > BUFSIZE {
+		c.removeThePacketFromBuffer(HEADER + int(header.Size))
 
 		c.bufLock.Unlock()
 		return nil, errors.New("invalid message size")
@@ -153,11 +153,11 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	needResetOffset := false
 
 	// Out of order or lost packets processing
-	if seq != c.seqIn {
-		c.logger.Error("client ReadBuf: invalid sequence number", "seq", seq,
+	if header.Seq != c.seqIn {
+		c.logger.Error("client ReadBuf: invalid sequence number", "seq", header.Seq,
 			"expected", c.seqIn, "address", c.address, "oooPackets", c.oooPackets)
 		// We still hold lock here. Unlock inside the function.
-		return c.processOOOP(n, seq)
+		return c.processOOOP(header.Size, header.Seq)
 	} else {
 		// In order, reset bufOffset and oooPackets counter
 		if c.ooopTimer != nil {
@@ -170,28 +170,28 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 			if c.bufOffset != 0 {
 				needResetOffset = true
 			}
-			c.logger.Info("client ReadBuf: restored order", "address", c.address.String(), "seq", seq)
+			c.logger.Info("client ReadBuf: restored order", "address", c.address.String(), "seq", header.Seq)
 		}
 	}
 	c.seqIn++
 
 	// msg is a plaing data on finish: no header, no padding etc.
-	msg := make([]byte, n)
-	copy(msg, c.buf[c.bufOffset+HEADER:c.bufOffset+HEADER+n])
+	msg := make([]byte, header.Size)
+	copy(msg, c.buf[c.bufOffset+HEADER:c.bufOffset+HEADER+int(header.Size)])
 
-	if (flags & CmdMask) != NoneCmd {
-		c.logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", flags)
-		return c.processCommand(flags, msg, n)
+	if (header.Flags & CmdMask) != NoneCmd {
+		c.logger.Debug("client ReadBuf process command", "address", c.address.String(), "flags", header.Flags)
+		return c.processCommand(header.Flags, msg, header.Size)
 	}
 
-	if n == 0 {
+	if header.Size == 0 {
 		c.logger.Error("Only header in packet and it's not command. Ignore it", "address", c.address.String())
 		c.removeThePacketFromBuffer(HEADER)
 		return nil, errors.New("plain header and not command. Ignore")
 	}
 
 	/* Remove the packet from buffer */
-	c.removeThePacketFromBuffer(HEADER + n)
+	c.removeThePacketFromBuffer(HEADER + int(header.Size))
 	if needResetOffset {
 		c.logger.Debug("client ReadBuf: reset bufOffset to 0", "address", c.address.String())
 		c.bufOffset = 0
@@ -204,8 +204,8 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// Finished working with buf, unlock
 	c.bufLock.Unlock()
 
-	if c.secrets.Engine != nil || (flags&NoEncryption) == 0 {
-		msg, err = c.secrets.DecryptAndVerify(msg, n, flags)
+	if c.secrets.Engine != nil || (header.Flags&NoEncryption) == 0 {
+		msg, err = c.secrets.DecryptAndVerify(msg, header.Size, header.Flags)
 		if err != nil {
 			c.logger.Error("ReadBuf: DecryptAndVerify error", "address", c.address.String())
 			return nil, errors.New("decrypt&verify error")
@@ -213,7 +213,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	}
 
 	// Unpad if needed
-	if (flags & WithPadding) != 0 {
+	if (header.Flags & WithPadding) != 0 {
 		msg, err = crypt.UnPad(msg)
 		if err != nil {
 			c.logger.Error("ReadBuf: UnPadding error")

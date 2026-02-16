@@ -15,7 +15,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/crypt/signature"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
-	. "github.com/sem-hub/snake-net/internal/interfaces"
+	. "github.com/sem-hub/snake-net/internal/protocol/header"
 
 	// Import all engine implementations to register them
 	_ "github.com/sem-hub/snake-net/internal/crypt/engines/aead"
@@ -129,12 +129,12 @@ func (s *Secrets) EncryptDecryptNoIV(data []byte) ([]byte, error) {
 	return bufOut, nil
 }
 
-func (s *Secrets) DecryptAndVerify(msg []byte, n int, flags Cmd) ([]byte, error) {
+func (s *Secrets) DecryptAndVerify(msg []byte, n uint16, flags Cmd) ([]byte, error) {
 	if s.Engine.GetType() == "aead" {
 		flags |= NoSignature
 	}
 	buf := make([]byte, 0)
-	signLen := 0
+	signLen := uint16(0)
 	var signature []byte
 	// Save signature
 	if (flags & NoSignature) == 0 {

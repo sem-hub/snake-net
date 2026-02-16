@@ -34,7 +34,7 @@ func (e *BlockEngine) BlockEncrypt(NewCipher func() (cipher.Block, error), data 
 	padData := append(data, bytes.Repeat([]byte{byte(padding)}, padding)...)
 
 	iv := make([]byte, block.BlockSize())
-	rand.Read(iv)
+	_, _ = rand.Read(iv)
 	blockCipher := cipher.NewCBCEncrypter(block, iv)
 
 	bufOut := make([]byte, len(padData)+len(iv))

@@ -29,7 +29,7 @@ func (s *SignaturePoly1305) GetName() string {
 	return s.name
 }
 
-func (s *SignaturePoly1305) SignLen() int {
+func (s *SignaturePoly1305) SignLen() uint16 {
 	return 16
 }
 

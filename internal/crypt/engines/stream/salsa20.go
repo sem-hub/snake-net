@@ -43,7 +43,7 @@ func (e *Salsa20Engine) Encrypt(data []byte) ([]byte, error) {
 	//e.Logger.Debug("Encrypt", "datalen", len(data))
 
 	nonce := make([]byte, 8)
-	rand.Read(nonce)
+	_, _ = rand.Read(nonce)
 
 	bufOut := make([]byte, len(nonce)+len(data))
 	// copy nonce to output buf

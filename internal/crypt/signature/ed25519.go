@@ -25,7 +25,7 @@ func (s *SignatureEd25519) GetName() string {
 	return s.name
 }
 
-func (s *SignatureEd25519) SignLen() int {
+func (s *SignatureEd25519) SignLen() uint16 {
 	return 64
 }
 
