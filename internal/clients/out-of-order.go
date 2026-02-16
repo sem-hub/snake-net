@@ -2,6 +2,7 @@ package clients
 
 import (
 	"errors"
+	"strconv"
 	"time"
 
 	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
@@ -64,7 +65,7 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 		// Go to next packet. Leave the packet in buffer.
 		c.bufOffset += HEADER + int(n)
 	} else {
-		c.logger.Error("client ReadBuf: duplicate. Drop.")
+		c.logger.Error("client ReadBuf: duplicate. Drop. seq=" + strconv.Itoa(int(seq)) + " expected=" + strconv.Itoa(int(c.seqIn)) + " address=" + c.address.String())
 		c.removeThePacketFromBuffer(HEADER + int(n))
 	}
 	c.bufLock.Unlock()

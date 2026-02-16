@@ -105,7 +105,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		lastSize = c.bufSize
 		c.bufSignal.Wait()
 	}
-	header, err := c.getHeaderInfo(c.buf[c.bufOffset : c.bufOffset+int(HEADER)])
+	header, err := c.getHeaderInfo(c.buf[c.bufOffset : c.bufOffset+HEADER])
 	if err != nil {
 		c.logger.Error("client ReadBuf: getHeaderInfo error", "address", c.address.String(), "error", err)
 		// Safe remove the packet from buffer when we don't believe to n
@@ -117,14 +117,14 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	}
 	c.logger.Debug("client ReadBuf after reading", "address", c.address.String(), "lastSize", lastSize, "bufSize", c.bufSize, "bufOffset", c.bufOffset)
 
-	addSize := uint16(0)
+	addSize := 0
 	if !c.secrets.SignatureEngine.IsActive() {
 		header.Flags |= NoSignature
 	}
 	if c.secrets.SignatureEngine != nil && (header.Flags&NoSignature) == 0 {
-		addSize = c.secrets.SignatureEngine.SignLen()
+		addSize = int(c.secrets.SignatureEngine.SignLen())
 	}
-	if header.Size < addSize || HEADER+int(header.Size) > BUFSIZE {
+	if int(header.Size) < addSize || HEADER+int(header.Size) > BUFSIZE {
 		// Safe remove the packet from buffer when we don't believe to n
 		c.removeThePacketFromBuffer(c.bufSize - lastSize)
 		c.bufSize = lastSize
@@ -136,7 +136,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	c.logger.Debug("client ReadBuf size", "address", c.address.String(), "size", header.Size)
 	if HEADER+int(header.Size) > c.bufSize-c.bufOffset {
 		c.bufLock.Unlock()
-		c.logger.Error("client Readbuf: incomplete message", "address", c.address.String(), "needed", HEADER+int(header.Size), "have", c.bufSize-c.bufOffset)
+		c.logger.Warn("client Readbuf: incomplete message", "address", c.address.String(), "needed", HEADER+int(header.Size)+addSize, "have", c.bufSize-c.bufOffset)
 		//return nil, errors.New("incomplete message")
 		return c.ReadBuf(HEADER + int(header.Size))
 	}
