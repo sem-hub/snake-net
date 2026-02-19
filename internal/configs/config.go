@@ -67,6 +67,8 @@ type Log struct {
 	Route     string `toml:"route"`
 	Transport string `toml:"transport"`
 	Socks5    string `toml:"socks5"`
+	ICMP      string `toml:"icmp"`
+	Firewall  string `toml:"firewall"`
 }
 
 // RuntimeConfig holds the runtime configuration after parsing the config file, applying defaults, and command-line overrides

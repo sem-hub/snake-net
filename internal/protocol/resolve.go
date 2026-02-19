@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"math/rand"
 	"net"
 	"net/netip"
 	"strings"
@@ -28,13 +29,19 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		host = cfg.LocalAddr
 		port = int(cfg.LocalPort)
 		if port == 0 {
-			logger.Fatal("Local Port is mandatory for server")
+			port = rand.Intn(65535-1024) + 1024
+			cfg.LocalPort = uint16(port)
+			logger.Info("Using random port", "port", port)
+		}
+		err := network.OpenFirewallPort(uint16(port))
+		if err != nil {
+			logger.Fatal("Error opening firewall port", "error", err)
 		}
 	} else {
 		host = cfg.RemoteAddr
 		port = int(cfg.RemotePort)
-		if host == "" || port == 0 {
-			logger.Fatal("Remote Address and Port are mandatory for client")
+		if host == "" {
+			logger.Fatal("Remote Address is mandatory for client")
 		}
 	}
 
@@ -58,6 +65,9 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 	}
 
 	if cfg.Mode == "server" {
+		logger.Info("Starting ICMP listener for port requests")
+		network.StartICMPListen()
+
 		lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
 
 		if lAddrPort.Addr().Is6() {
@@ -91,6 +101,12 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 	} else {
 		attempts := 0
 		for tryNo := 0; tryNo < len(ips); tryNo++ {
+			if port == 0 {
+				logger.Info("Asking port from server via ICMP", "peer", ips[tryNo].String())
+				port = network.GetICMPPort(ips[tryNo].String())
+				logger.Info("Using ICMP port", "port", port)
+			}
+
 			rAddrPort := netip.AddrPortFrom(netip.MustParseAddr(ips[tryNo].String()).Unmap(), uint16(port))
 			lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
 

@@ -17,6 +17,8 @@ const (
 	LevelFatal = slog.Level(12)
 )
 
+var loggers map[string]*ColorLogger
+
 type ColorLogger struct {
 	slog.Logger
 }
@@ -163,6 +165,10 @@ func getLenvelByModule(module string) slog.Level {
 		return getLevelByString(configFile.Log.Transport)
 	case "socks5":
 		return getLevelByString(configFile.Log.Socks5)
+	case "icmp":
+		return getLevelByString(configFile.Log.ICMP)
+	case "firewall":
+		return getLevelByString(configFile.Log.Firewall)
 	default:
 		// XXX log.Debug here
 		if configFile.Main.Debug {
@@ -174,6 +180,12 @@ func getLenvelByModule(module string) slog.Level {
 }
 
 func InitLogger(module string) *ColorLogger {
+	if loggers == nil {
+		loggers = make(map[string]*ColorLogger)
+	}
+	if logger, exists := loggers[module]; exists {
+		return logger
+	}
 	level := getLenvelByModule(module)
 	mainLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: getLenvelByModule("main")}))
 	mainLogger.Debug("Initializing logger for module", "module", module, "with level", level.String())
@@ -204,5 +216,7 @@ func InitLogger(module string) *ColorLogger {
 			},
 		),
 	)
-	return &ColorLogger{*logger}
+	newLogger := &ColorLogger{*logger}
+	loggers[module] = newLogger
+	return newLogger
 }

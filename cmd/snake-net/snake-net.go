@@ -157,6 +157,8 @@ func main() {
 	cfg.Log.Route = "Info"
 	cfg.Log.Transport = "Info"
 	cfg.Log.Socks5 = "Info"
+	cfg.Log.ICMP = "Info"
+	cfg.Log.Firewall = "Info"
 
 	if configFile != "" {
 		_, err := toml.DecodeFile(configFile, cfg)
@@ -194,6 +196,8 @@ func main() {
 		cfg.Log.Route = "Debug"
 		cfg.Log.Transport = "Debug"
 		cfg.Log.Socks5 = "Debug"
+		cfg.Log.ICMP = "Debug"
+		cfg.Log.Firewall = "Debug"
 	}
 
 	logger := configs.InitLogger("main")
@@ -414,6 +418,13 @@ func main() {
 		<-done // Wait for processing to finish
 	case <-done:
 		cancel() // Clean up context
+	}
+
+	if cfg.Main.Mode == "server" {
+		err = network.CloseFirewallPort(configs.GetConfig().LocalPort)
+		if err != nil {
+			logger.Error("Error closing firewall port", "error", err)
+		}
 	}
 
 	logger.Info("Exit")

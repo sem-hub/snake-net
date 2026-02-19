@@ -5,9 +5,9 @@ id = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" # for client mode
 protocol = "tcp"    # or "udp", "quic", "tls", "dtls", "kcp"
 debug = false       # fast switch to all log levels to debug
 remote_addr = "hostname.or.ip"
-remote_port = 12345
+remote_port = 12345 # 0 means to ask server for the port
 #local_addr = "local.ip.address" # listen on the IP (for server mode)
-#local_port = 12345 # listen on the port (for server mode)
+#local_port = 12345 # listen on the port (for server mode) 0 means to listen on a random port
 attempts = 1                    # 0 means infinity
 retry_delay = 5
 [crypt]
@@ -37,3 +37,5 @@ clients = "Info"
 tun = "info"
 transport = "info"
 socks5 = "info"
+icmp = "info"
+firewall = "info"
