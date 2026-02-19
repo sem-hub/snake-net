@@ -23,6 +23,7 @@ import (
 // Otherwise server responds with error message.
 // If client wants to get IP addresses from server it does not add TUN addresses to the message.
 func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, string, error) {
+	logger := configs.InitLogger("protocol")
 	cfg := configs.GetConfig()
 	serverIPs := make([]utils.Cidr, 0)
 	clientIPs := make([]utils.Cidr, 0)
@@ -105,6 +106,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 }
 
 func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPort) error {
+	logger := configs.InitLogger("protocol")
 	cfg := configs.GetConfig()
 
 	// Well, really it's server but we call it client here

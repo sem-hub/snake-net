@@ -9,28 +9,6 @@ import (
 	. "github.com/sem-hub/snake-net/internal/protocol/header"
 )
 
-var logger *configs.ColorLogger = nil
-
-/*
-func getDstIP(packet []byte) (netip.Addr, bool) {
-    pkt := gopacket.NewPacket(packet, layers.LayerTypeIPv4, gopacket.Default)
-
-    if ipv4Layer := pkt.Layer(layers.LayerTypeIPv4); ipv4Layer != nil {
-        ipv4, _ := ipv4Layer.(*layers.IPv4)
-        addr, ok := netip.AddrFromSlice(ipv4.DstIP)
-        return addr, ok
-    }
-
-    if ipv6Layer := pkt.Layer(layers.LayerTypeIPv6); ipv6Layer != nil {
-        ipv6, _ := ipv6Layer.(*layers.IPv6)
-        addr, ok := netip.AddrFromSlice(ipv6.DstIP)
-        return addr, ok
-    }
-
-    return netip.Addr{}, false
-}
-*/
-
 func getDstIP(packet []byte) (netip.Addr, bool) {
 	if len(packet) < 1 {
 		return netip.Addr{}, false
@@ -65,9 +43,7 @@ func sendDataToClient(addr netip.AddrPort, data []byte) {
 // 2. From network read loop - when we read data from network, we need to route it to the correct client (server mode)
 // Returns true if the data was routed to a specific client, false if it should be written to TUN
 func Route(sourceClient netip.AddrPort, data []byte) bool {
-	if logger == nil {
-		logger = configs.InitLogger("route")
-	}
+	logger := configs.InitLogger("route")
 
 	address, ok := getDstIP(data)
 	if !ok {

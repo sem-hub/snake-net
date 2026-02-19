@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
+
+	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 func (iface *TunInterface) setUpInterface() error {
+	logger := configs.InitLogger("tun")
 	// Set MTU
 	cmd := exec.Command("netsh", "interface", "ipv6", "set", "interface", "interface=\""+iface.name+"\"",
 		"mtu="+strconv.Itoa(iface.mtu))

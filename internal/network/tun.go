@@ -27,12 +27,9 @@ type TunInterface struct {
 }
 
 var tunIf *TunInterface = nil
-var logger *configs.ColorLogger = nil
 
 func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, error) {
-	if logger == nil {
-		logger = configs.InitLogger("tun")
-	}
+	logger := configs.InitLogger("tun")
 
 	if mtu == 0 {
 		mtu = DefaultMTU
@@ -72,6 +69,7 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 // Read from TUN and pass to client(s)
 // It blocks main thread. Exit here, exit main.
 func ProcessTun() {
+	logger := configs.InitLogger("tun")
 	if tunIf == nil {
 		log.Fatal("TUN interface not initialized")
 	}
@@ -90,6 +88,7 @@ func ProcessTun() {
 }
 
 func (tunIf *TunInterface) ReadTun() ([]byte, error) {
+	logger := configs.InitLogger("tun")
 	if len(tunIf.readBuffs) > 0 {
 		buf := tunIf.readBuffs[0]
 		tunIf.readBuffs = tunIf.readBuffs[1:]
@@ -122,6 +121,7 @@ func (tunIf *TunInterface) ReadTun() ([]byte, error) {
 }
 
 func (tunIf *TunInterface) WriteTun(buf []byte) error {
+	logger := configs.InitLogger("tun")
 	if tunIf == nil {
 		log.Println("WriteTun: did not initialized yet")
 		return errors.New("did not initialized")
@@ -141,6 +141,7 @@ func (tunIf *TunInterface) WriteTun(buf []byte) error {
 }
 
 func (tunIf *TunInterface) Close() {
+	logger := configs.InitLogger("tun")
 	logger.Info("TUN Interface Close")
 	// Try to close underlying tun device to unblock Read
 	if tunIf.tunDev != nil {

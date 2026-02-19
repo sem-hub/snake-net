@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"math/rand"
+
+	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 func Pad(buf []byte) []byte {
+	logger := configs.InitLogger("crypt")
 	padLen := rand.Intn(128)
 	// At lest 2 bytes of padding
 	if padLen < 2 {
@@ -17,6 +20,7 @@ func Pad(buf []byte) []byte {
 }
 
 func UnPad(buf []byte) ([]byte, error) {
+	logger := configs.InitLogger("crypt")
 	bufLen := len(buf)
 	logger.Trace("UnPadding", "bufLen", bufLen)
 	pad := buf[bufLen-1]

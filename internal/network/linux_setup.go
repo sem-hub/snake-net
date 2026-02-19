@@ -2,7 +2,10 @@
 
 package network
 
-import "github.com/vishvananda/netlink"
+import (
+	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/vishvananda/netlink"
+)
 
 func (iface *TunInterface) setUpInterface() error {
 	link, err := netlink.LinkByName(iface.name)
@@ -16,7 +19,7 @@ func (iface *TunInterface) setUpInterface() error {
 			return err
 		}
 		mask, _ := cidr.Network.Mask.Size()
-		logger.Info("Set address for TUN", "addr", cidr.IP.String(), "mask", mask)
+		configs.InitLogger("tun").Info("Set address for TUN", "addr", cidr.IP.String(), "mask", mask)
 		err = netlink.AddrAdd(link, nladdr)
 		if err != nil {
 			return err
