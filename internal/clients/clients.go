@@ -145,6 +145,13 @@ func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
 func RemoveClient(address netip.AddrPort) {
 	client := FindClient(address)
 	if client != nil {
+		// Stop ping timers
+		if client.pinger != nil {
+			client.pinger.pingTimer.Stop()
+			if client.pinger.pongTimeoutTimer != nil {
+				client.pinger.pongTimeoutTimer.Stop()
+			}
+		}
 		client.Close() // Close connection here
 		// Remvove all tun addresses
 		for _, cidr := range client.tunAddrs {
