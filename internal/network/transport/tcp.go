@@ -1,11 +1,13 @@
 package transport
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/netip"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type TcpTransport struct {
@@ -57,10 +59,10 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		if rAddrPort.Addr().Is6() {
 			family = "tcp6"
 		}
-		remoteAddr := net.TCPAddrFromAddrPort(rAddrPort)
-		localAddr := net.TCPAddrFromAddrPort(lAddrPort)
 
-		conn, err := net.DialTCP(family, localAddr, remoteAddr)
+		dialer := net.Dialer{Timeout: time.Second * 5}
+		ctx := context.Background()
+		conn, err := dialer.DialTCP(ctx, family, lAddrPort, rAddrPort)
 		if err != nil {
 			return errors.New("DialTCP error: " + err.Error())
 		}

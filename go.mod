@@ -1,6 +1,8 @@
 module github.com/sem-hub/snake-net
 
-go 1.24.5
+go 1.26
+
+toolchain go1.26.0
 
 require (
 	github.com/BurntSushi/toml v1.5.0
@@ -23,6 +25,7 @@ require (
 	github.com/xtaci/kcp-go/v5 v5.6.66
 	gitlab.com/go-extension/aes-ccm v0.0.0-20230221065045-e58665ef23c7
 	golang.org/x/crypto v0.45.0
+	golang.org/x/net v0.47.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	gonum.org/v1/plot v0.16.0
 )
@@ -47,7 +50,6 @@ require (
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	golang.org/x/image v0.25.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
