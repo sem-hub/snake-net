@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"time"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/utils"
@@ -42,9 +43,7 @@ func RunSOCKS5(ctx context.Context, cidrs []utils.Cidr, port int, username, pass
 	for _, cidr := range cidrs {
 		var addr *net.TCPAddr
 		family := "tcp4"
-		if cidr.IP.Is4() {
-			family = "tcp4"
-		} else {
+		if !cidr.IP.Is4() {
 			family = "tcp6"
 		}
 		addr = &net.TCPAddr{
@@ -67,6 +66,7 @@ func RunSOCKS5(ctx context.Context, cidrs []utils.Cidr, port int, username, pass
 			}
 		}()
 		listeners = append(listeners, listener)
+		time.Sleep(100 * time.Millisecond)
 	}
 	// Wait for context cancellation
 	<-ctx.Done()
