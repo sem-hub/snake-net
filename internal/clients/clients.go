@@ -133,7 +133,7 @@ func (c *Client) AddTunAddressesToClient(cidrs []utils.Cidr) {
 		tunAddrsLock.Lock()
 		tunAddrs[cidr.IP] = c
 		tunAddrsLock.Unlock()
-		c.logger.Info("AddTunAddressesToClient", "address", c.address.String(), "tunAddr", cidr)
+		c.logger.Debug("AddTunAddressesToClient", "address", c.address.String(), "tunAddr", cidr)
 	}
 }
 
