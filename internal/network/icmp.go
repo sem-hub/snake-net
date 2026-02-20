@@ -16,6 +16,8 @@ import (
 
 var cEngine engines.CryptoEngine
 
+const IDSTRING = "SNAKE_NET_PORT_REQUEST"
+
 func StartICMPListen() {
 	var err error
 	cEngine, err = engines.NewEngineByName("aes", []byte(crypt.FIRSTSECRET), 256, "gcm")
@@ -37,12 +39,12 @@ func isOurPacket(data []byte) bool {
 		logger.Debug("Error decrypting data", "error", err)
 		return false
 	}
-	logger.Trace("Decrypted ICMP data", "data", string(buf))
-	return string(buf) == "SNAKE_NET_PORT_REQUEST"
+	logger.Trace("Decrypted ICMP data", "data", string(buf), "len", len(buf))
+	return string(buf[:len(IDSTRING)]) == IDSTRING
 }
 
 func fillData(data []byte) []byte {
-	buf := make([]byte, len(data))
+	buf := make([]byte, 28)
 	port, err := strconv.Atoi(string(data))
 	if err == nil {
 		buf[0] = byte(port >> 8)
@@ -65,7 +67,7 @@ func decodePort(data []byte) int {
 		logger.Error("Error decrypting data", "error", err)
 		return 0
 	}
-	if string(decBuf) == "SNAKE_NET_PORT_REQUEST" {
+	if string(decBuf[:len(IDSTRING)]) == IDSTRING {
 		logger.Debug("Received OS reply, ignoring")
 		return 0
 	}
