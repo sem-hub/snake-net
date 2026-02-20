@@ -50,13 +50,13 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 	ip := net.ParseIP(host)
 	var ips []net.IP
 	if ip == nil {
-		logger.Debug("Resolving.")
+		logger.Debug("Start resolving", "host", host)
 		var err error
 		ips, err = net.LookupIP(host)
 		if err != nil {
 			logger.Fatal("Error resolving host", "error", err)
 		}
-		logger.Info("Resolving", "host", host, "ips", ips)
+		logger.Info("Resolved", "host", host, "ips", ips)
 	} else {
 		ips = []net.IP{ip}
 	}
@@ -101,6 +101,9 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 			if port == 0 {
 				logger.Info("Asking port from server via ICMP", "peer", ips[tryNo].String())
 				port = network.GetICMPPort(net.IPAddr{IP: ips[tryNo]})
+				if port == 0 {
+					logger.Fatal("Failed to get port from server via ICMP, will retry", "peer", ips[tryNo].String())
+				}
 				logger.Info("Got port from server", "port", port)
 			}
 
@@ -142,7 +145,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 				continue
 			}
 
-			logger.Info("Connected to", "addr", cfg.RemoteAddr, "port", cfg.RemotePort)
+			logger.Debug("Connected to", "server", rAddrPort.String())
 
 			// Run client in a goroutine so we can listen for context cancellation
 			v := make(chan bool)

@@ -65,7 +65,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 	if str[0] == "Welcome" {
 		i := 1
 		for _, addr := range str[i : i+2] {
-			logger.Debug("Server IPs", "addr", addr)
+			logger.Info("Server TUN IPs", "addr", addr)
 			ip, network, err := net.ParseCIDR(addr)
 			netIp, _ := netip.AddrFromSlice(ip)
 			if err != nil {
@@ -77,7 +77,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 			i++
 		}
 		for _, addr := range str[i : i+2] {
-			logger.Debug("Client IPs", "addr", addr)
+			logger.Info("Client TUN IPs", "addr", addr)
 			ip, network, err := net.ParseCIDR(addr)
 			netIp, _ := netip.AddrFromSlice(ip)
 			if err != nil {
@@ -185,7 +185,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 	}
 
 	// Set up TUN interface
-	logger.Info("TUN Addresses", "addrs", cfg.TunAddrs)
+	logger.Debug("TUN Addresses", "addrs", cfg.TunAddrs)
 
 	tunIf, err := network.NewTUN(cfg.TunName, cfg.TunAddrs, cfg.TunMTU)
 	if err != nil {
@@ -203,7 +203,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 	c.SetClientState(clients.Ready)
 
 	c.ProcessNetworkDataLoop("client")
-	logger.Info("client started", "address", addr.String())
+	logger.Info("client started for", "server", addr.String())
 	network.ProcessTun()
 	logger.Debug("client finished")
 	return nil
