@@ -19,7 +19,7 @@ func (iface *TunInterface) setUpInterface() error {
 			return err
 		}
 		mask, _ := cidr.Network.Mask.Size()
-		configs.InitLogger("tun").Info("Set address for TUN", "addr", cidr.IP.String(), "mask", mask)
+		configs.InitLogger("tun").Debug("Set address for TUN", "addr", cidr.IP.String(), "mask", mask)
 		err = netlink.AddrAdd(link, nladdr)
 		if err != nil {
 			return err
