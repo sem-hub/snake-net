@@ -3,15 +3,25 @@ package network
 import (
 	"math/rand"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/sem-hub/snake-net/internal/configs"
+	"github.com/sem-hub/snake-net/internal/crypt"
+	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 )
 
+var cEngine engines.CryptoEngine
+
 func StartICMPListen() {
+	var err error
+	cEngine, err = engines.NewEngineByName("aes", []byte(crypt.FIRSTSECRET), 256, "gcm")
+	if err != nil {
+		configs.InitLogger("icmp").Fatal("Error initializing crypto engine", "error", err)
+	}
 	go func() {
 		StartICMPCommonListen(true)
 	}()
@@ -21,21 +31,45 @@ func StartICMPListen() {
 }
 
 func isOurPacket(data []byte) bool {
-	return string(data) == "SNAKE_NET_PORT_REQUEST"
+	logger := configs.InitLogger("icmp")
+	buf, err := cEngine.Decrypt(data)
+	if err != nil {
+		logger.Debug("Error decrypting data", "error", err)
+		return false
+	}
+	logger.Trace("Decrypted ICMP data", "data", string(buf))
+	return string(buf) == "SNAKE_NET_PORT_REQUEST"
 }
 
-func fiilData(port uint16) []byte {
-	logger := configs.InitLogger("icmp")
-	logger.Debug("Filling ICMP data with port", "port", port)
-	data := make([]byte, 3)
-	data[0] = 0xff
-	data[1] = byte(port >> 8)
-	data[2] = byte(port & 0xFF)
-	return data
+func fillData(data []byte) []byte {
+	buf := make([]byte, len(data))
+	port, err := strconv.Atoi(string(data))
+	if err == nil {
+		buf[0] = byte(port >> 8)
+		buf[1] = byte(port & 0xFF)
+	} else {
+		copy(buf, data)
+	}
+	encBuf, err := cEngine.Encrypt(buf)
+	if err != nil {
+		configs.InitLogger("icmp").Fatal("Error encrypting data", "error", err)
+	}
+	return encBuf
 }
 
 func decodePort(data []byte) int {
-	port := (int(data[1]) << 8) | int(data[2])
+	logger := configs.InitLogger("icmp")
+	logger.Debug("decodePort", "len", len(data))
+	decBuf, err := cEngine.Decrypt(data)
+	if err != nil {
+		logger.Error("Error decrypting data", "error", err)
+		return 0
+	}
+	if string(decBuf) == "SNAKE_NET_PORT_REQUEST" {
+		logger.Debug("Received OS reply, ignoring")
+		return 0
+	}
+	port := (int(decBuf[0]) << 8) | int(decBuf[1])
 	return port
 }
 
@@ -85,10 +119,13 @@ func StartICMPCommonListen(isIPv4 bool) {
 			if !isOurPacket(echo.Data) {
 				logger.Trace("Ignore alien packet")
 				continue
+			} else {
+				logger.Debug("Received valid ICMP Echo with port request from", "peer", peer)
 			}
 			logger.Trace("Received ICMP Echo from", "peer", peer, "id", echo.ID, "seq", echo.Seq)
 			// Process the echo request and send a reply
-			data := fiilData(configs.GetConfig().LocalPort)
+			portNo := int(configs.GetConfig().LocalPort)
+			data := fillData([]byte(strconv.Itoa(portNo)))
 
 			reply := &icmp.Message{
 				Type: func(isIPv4 bool) icmp.Type {
@@ -123,9 +160,13 @@ func StartICMPCommonListen(isIPv4 bool) {
 func GetICMPPort(addr net.IPAddr) int {
 	logger := configs.InitLogger("icmp")
 	logger.Debug("Asking port from server via ICMP", "peer", addr)
+	var err error
+	cEngine, err = engines.NewEngineByName("aes", []byte(crypt.FIRSTSECRET), 256, "gcm")
+	if err != nil {
+		logger.Fatal("Error initializing crypto engine", "error", err)
+	}
 
 	var icmpConn *icmp.PacketConn
-	var err error
 	if addr.IP.To4() != nil {
 		icmpConn, err = icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	} else {
@@ -136,7 +177,7 @@ func GetICMPPort(addr net.IPAddr) int {
 	}
 	defer icmpConn.Close()
 
-	data := []byte("SNAKE_NET_PORT_REQUEST")
+	data := fillData([]byte("SNAKE_NET_PORT_REQUEST"))
 	id := rand.Intn(65535)
 	icmpMessage := &icmp.Message{
 		Type: func(isIPv4 bool) icmp.Type {
@@ -159,7 +200,7 @@ func GetICMPPort(addr net.IPAddr) int {
 	if _, err := icmpConn.WriteTo(icmpBytes, &addr); err != nil {
 		logger.Fatal("Error sending ICMP Echo", "error", err)
 	}
-	logger.Debug("Sent ICMP Echo to", "peer", addr)
+	logger.Debug("Sent ICMP Echo to", "peer", addr.String())
 	reply := make([]byte, 1500)
 	if err := icmpConn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		logger.Fatal("Error setting ICMP read deadline", "error", err)
@@ -195,9 +236,15 @@ func GetICMPPort(addr net.IPAddr) int {
 		case ipv4.ICMPTypeEchoReply, ipv6.ICMPTypeEchoReply:
 			logger.Debug("Received ICMP Echo Reply from", "peer", peer)
 			if echo, ok := rm.Body.(*icmp.Echo); ok {
-				if echo.ID == id && echo.Data[0] == 0xff {
+				if echo.ID == id && echo.Seq == 1 {
 					logger.Debug("Received valid ICMP Echo Reply with port request from", "peer", peer)
-					return decodePort(echo.Data)
+					port := decodePort(echo.Data)
+					if port != 0 {
+						logger.Debug("Received port number from ICMP Echo Reply", "peer", peer, "port", port)
+						return port
+					}
+					// Ignore the packet
+					continue
 				} else {
 					logger.Debug("Received ICMP Echo Reply with invalid data from", "peer", peer)
 					continue
