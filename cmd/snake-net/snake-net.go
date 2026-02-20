@@ -421,7 +421,7 @@ func main() {
 	}
 
 	if cfg.Main.Mode == "server" {
-		err = network.CloseFirewallPort(configs.GetConfig().LocalPort)
+		err = network.CloseFirewallPort(configs.GetConfig().LocalPort, t.GetType())
 		if err != nil {
 			logger.Error("Error closing firewall port", "error", err)
 		}

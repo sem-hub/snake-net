@@ -120,11 +120,17 @@ func StartICMPCommonListen(isIPv4 bool) {
 	}
 }
 
-func GetICMPPort(addr string) int {
+func GetICMPPort(addr net.IPAddr) int {
 	logger := configs.InitLogger("icmp")
 	logger.Debug("Asking port from server via ICMP", "peer", addr)
 
-	icmpConn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
+	var icmpConn *icmp.PacketConn
+	var err error
+	if addr.IP.To4() != nil {
+		icmpConn, err = icmp.ListenPacket("ip4:icmp", "0.0.0.0")
+	} else {
+		icmpConn, err = icmp.ListenPacket("ip6:ipv6-icmp", "::")
+	}
 	if err != nil {
 		logger.Fatal("Error listening for ICMP packets", "error", err)
 	}
@@ -133,7 +139,12 @@ func GetICMPPort(addr string) int {
 	data := []byte("SNAKE_NET_PORT_REQUEST")
 	id := rand.Intn(65535)
 	icmpMessage := &icmp.Message{
-		Type: ipv4.ICMPTypeEcho,
+		Type: func(isIPv4 bool) icmp.Type {
+			if isIPv4 {
+				return ipv4.ICMPTypeEcho
+			}
+			return ipv6.ICMPTypeEchoRequest
+		}(addr.IP.To4() != nil),
 		Code: 0,
 		Body: &icmp.Echo{
 			ID:   id,
@@ -145,7 +156,7 @@ func GetICMPPort(addr string) int {
 	if err != nil {
 		logger.Fatal("Marshaling error", "error", err)
 	}
-	if _, err := icmpConn.WriteTo(icmpBytes, &net.IPAddr{IP: net.ParseIP(addr)}); err != nil {
+	if _, err := icmpConn.WriteTo(icmpBytes, &addr); err != nil {
 		logger.Fatal("Error sending ICMP Echo", "error", err)
 	}
 	logger.Debug("Sent ICMP Echo to", "peer", addr)
@@ -165,7 +176,12 @@ func GetICMPPort(addr string) int {
 			logger.Error("Error receiving ICMP Echo Reply", "error", err)
 			return 0
 		}
-		rm, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply[:n])
+		var rm *icmp.Message
+		if addr.IP.To4() != nil {
+			rm, err = icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply[:n])
+		} else {
+			rm, err = icmp.ParseMessage(ipv6.ICMPTypeEchoReply.Protocol(), reply[:n])
+		}
 		if err != nil {
 			logger.Debug("Error parsing ICMP message", "error", err)
 			continue
@@ -176,7 +192,7 @@ func GetICMPPort(addr string) int {
 			break
 		}
 		switch rm.Type {
-		case ipv4.ICMPTypeEchoReply:
+		case ipv4.ICMPTypeEchoReply, ipv6.ICMPTypeEchoReply:
 			logger.Debug("Received ICMP Echo Reply from", "peer", peer)
 			if echo, ok := rm.Body.(*icmp.Echo); ok {
 				if echo.ID == id && echo.Data[0] == 0xff {

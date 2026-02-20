@@ -30,7 +30,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 			cfg.LocalPort = uint16(port)
 			logger.Info("Using random port", "port", port)
 		}
-		err := network.OpenFirewallPort(uint16(port))
+		err := network.OpenFirewallPort(uint16(port), t.GetType())
 		if err != nil {
 			logger.Fatal("Error opening firewall port", "error", err)
 		}
@@ -100,7 +100,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		for tryNo := 0; tryNo < len(ips); tryNo++ {
 			if port == 0 {
 				logger.Info("Asking port from server via ICMP", "peer", ips[tryNo].String())
-				port = network.GetICMPPort(ips[tryNo].String())
+				port = network.GetICMPPort(net.IPAddr{IP: ips[tryNo]})
 				logger.Info("Using ICMP port", "port", port)
 			}
 
