@@ -101,7 +101,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 			if port == 0 {
 				logger.Info("Asking port from server via ICMP", "peer", ips[tryNo].String())
 				port = network.GetICMPPort(net.IPAddr{IP: ips[tryNo]})
-				logger.Info("Using ICMP port", "port", port)
+				logger.Info("Got port from server", "port", port)
 			}
 
 			rAddrPort := netip.AddrPortFrom(netip.MustParseAddr(ips[tryNo].String()).Unmap(), uint16(port))
