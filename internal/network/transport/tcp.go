@@ -73,7 +73,7 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		tcp.logger.Debug("TCP connected", "netipRemote", netipRemote.String())
 		tcp.conn[netipRemote] = conn
 		tcp.connLock.Unlock()
-		tcp.logger.Info("Connected to server", "rAddrPort", rAddrPort, "from", conn.LocalAddr().String())
+		tcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
 
 	return nil

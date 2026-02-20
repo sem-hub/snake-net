@@ -82,7 +82,7 @@ func (quic *QuicTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 		quic.conn[rAddrPort] = conn
 		quic.stream[rAddrPort] = stream
 		quic.connLock.Unlock()
-		quic.logger.Info("Connected to server", "rAddrPort", rAddrPort, "from", conn.LocalAddr().String())
+		quic.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
 
 	return nil

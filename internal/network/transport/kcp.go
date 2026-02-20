@@ -73,7 +73,7 @@ func (kcp *KcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		kcp.connLock.Lock()
 		kcp.conn[rAddrPort] = conn
 		kcp.connLock.Unlock()
-		kcp.logger.Info("Connected to server", "rAddrPort", rAddrPort, "from", conn.LocalAddr().String())
+		kcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
 
 	return nil
