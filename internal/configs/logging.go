@@ -88,16 +88,15 @@ func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
 		}
 	}
 
-	fields := make(map[string]interface{}, r.NumAttrs())
+	fields := make([]slog.Attr, 0, r.NumAttrs())
 	r.Attrs(func(a slog.Attr) bool {
-		fields[a.Key] = a.Value.Any()
-
+		fields = append(fields, a)
 		return true
 	})
 
 	b := ""
-	for k, v := range fields {
-		b += fmt.Sprintf("%s=%v ", k, v)
+	for _, attr := range fields {
+		b += fmt.Sprintf("%s=%v ", attr.Key, attr.Value.Any())
 	}
 
 	timeStr := r.Time.Format("[15:05:05.000]")
