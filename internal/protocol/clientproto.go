@@ -30,8 +30,9 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 	chipherName := ""
 	signatureName := ""
 
+	// Prepare Hello message. It contains client ID, TUN addresses (optional) and crypto engine info (optional).
+	// If addresses and/or crypto engine info are missing, they will be get from the server.
 	msg := []byte("Hello " + cfg.ClientId)
-
 	for _, addr := range cfg.TunAddrs {
 		logger.Debug("Adding TUN address to identification", "addr", addr)
 		msg = append(msg, ' ')
@@ -56,6 +57,7 @@ func Identification(c *clients.Client) ([]utils.Cidr, []utils.Cidr, string, stri
 	if err != nil {
 		return nil, nil, "", "", err
 	}
+	// Process welcome message. It contains server TUN addresses, client TUN addresses and crypto engines info.
 	str := strings.Fields(string(msg1))
 	logger.Debug("ID", "msg", string(msg1))
 
@@ -151,8 +153,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 		c.AddSecretsToClient(sNew)
 	}
 
-	c.SetClientState(clients.Authenticated)
-
+	// If transport is encrypted, we must be sure that client has the same shared secret.
 	if t.IsEncrypted() {
 		// zero-knowledge proof of shared secret knowledge
 		logger.Debug("Comparing secrets with the server")
@@ -183,6 +184,9 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 			return err
 		}
 	}
+
+	// Now we are authenticated and can start processing data
+	c.SetClientState(clients.Authenticated)
 
 	// Set up TUN interface
 	logger.Debug("TUN Addresses", "addrs", cfg.TunAddrs)

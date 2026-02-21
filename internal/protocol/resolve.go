@@ -25,6 +25,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 	if cfg.Mode == "server" {
 		host = cfg.LocalAddr
 		port = int(cfg.LocalPort)
+		// If port is 0, we will choose a random port and open it in firewall.
 		if port == 0 {
 			port = rand.Intn(65535-1024) + 1024
 			cfg.LocalPort = uint16(port)
@@ -47,6 +48,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 	if strings.HasPrefix((host), "[") && strings.HasSuffix(host, "]") {
 		host = host[1 : len(host)-1]
 	}
+	// Check if we have plain IP or if we need to resolve
 	ip := net.ParseIP(host)
 	var ips []net.IP
 	if ip == nil {
@@ -96,6 +98,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		}
 		<-ctx.Done()
 	} else {
+		// For client, we will traverse to each resolved server IP until we succeed.
 		attempts := 0
 		for tryNo := 0; tryNo < len(ips); tryNo++ {
 			if port == 0 {
@@ -116,12 +119,12 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 				cfg.RemoteAddr = ips[tryNo].String()
 			}
 
-			// Set up transport. No callback for client mode
+			// Set up transport. No callback for client mode.
 			err := t.Init("client", rAddrPort, lAddrPort, nil)
 			if err != nil {
 				logger.Error("Transport init error", "error", err)
 				attempts++
-				// MaxAttempts == 0 means infinite attempts
+				// MaxAttempts == 0 means infinite attempts.
 				if configs.GetConfig().Attempts > 0 &&
 					attempts >= configs.GetConfig().Attempts {
 					logger.Info("Max attempts reached, give up")
