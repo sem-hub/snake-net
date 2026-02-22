@@ -51,6 +51,7 @@ var (
 	retryDelay int
 	preferIPv6 bool
 	preferIPv4 bool
+	discovery  bool
 )
 
 var flagAlias = map[string]string{
@@ -70,6 +71,17 @@ var flagAlias = map[string]string{
 	"tun":         "t",
 	"mtu":         "u",
 	"socks5":      "x",
+	"discovery":   "y",
+}
+
+func isFlagPresent(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }
 
 func checkLogLevel(level string) bool {
@@ -136,6 +148,7 @@ func init() {
 	flag.IntVar(&retryDelay, "retry", 5, "Delay in seconds between connection attempts.")
 	flag.BoolVar(&preferIPv6, "prefer_ipv6", false, "Prefer IPv6 for remote address resolution.")
 	flag.BoolVar(&preferIPv4, "prefer_ipv4", false, "Prefer IPv4 for remote address resolution.")
+	flag.BoolVar(&discovery, "discovery", false, "Enable discovery mode.")
 	// Setup flag aliases
 	for from, to := range flagAlias {
 		flagSet := flag.Lookup(from)
@@ -171,12 +184,15 @@ func main() {
 	cfg.Main.RetryDelay = retryDelay
 	cfg.Main.Attempts = attempts
 
-	if !preferIPv6 && !preferIPv4 {
-		preferIPv6 = true
-		preferIPv4 = true
+	if isFlagPresent("prefer_ipv6") || isFlagPresent("6") {
+		cfg.Main.PreferIPv6 = true
 	}
-	cfg.Main.PreferIPv6 = preferIPv6
-	cfg.Main.PreferIPv4 = preferIPv4
+	if isFlagPresent("prefer_ipv4") || isFlagPresent("4") {
+		cfg.Main.PreferIPv4 = true
+	}
+	if isFlagPresent("discovery") || isFlagPresent("y") {
+		cfg.Main.Discovery = true
+	}
 
 	// Client may have empty engine and sign engine to get from server
 	cfg.Crypt.Engine = ""

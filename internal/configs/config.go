@@ -31,6 +31,7 @@ type Main struct {
 	Attempts   int    `toml:"attempts"`
 	PreferIPv6 bool   `toml:"prefer_ipv6"`
 	PreferIPv4 bool   `toml:"prefer_ipv4"`
+	Discovery  bool   `toml:"discovery"`
 }
 
 type Crypt struct {
@@ -100,6 +101,7 @@ type RuntimeConfig struct {
 	Socks5Password string
 	PreferIPv6     bool
 	PreferIPv4     bool
+	Discovery      bool
 }
 
 var (
@@ -148,6 +150,7 @@ func GetConfig() *RuntimeConfig {
 			CAFile:         configFile.Tls.CAFile,
 			PreferIPv6:     configFile.Main.PreferIPv6,
 			PreferIPv4:     configFile.Main.PreferIPv4,
+			Discovery:      configFile.Main.Discovery,
 		}
 		if len(configFile.Tun.TunAddrStr) > 0 {
 			for _, addr := range configFile.Tun.TunAddrStr {
