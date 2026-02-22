@@ -134,7 +134,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	c.logger.Debug("client ReadBuf size", "address", c.address.String(), "size", header.Size)
 	if HEADER+int(header.Size) > c.bufSize-c.bufOffset {
 		c.bufLock.Unlock()
-		c.logger.Warn("client Readbuf: incomplete message", "address", c.address.String(), "needed", HEADER+int(header.Size)+addSize, "have", c.bufSize-c.bufOffset)
+		c.logger.Debug("client Readbuf: incomplete message", "address", c.address.String(), "needed", HEADER+int(header.Size)+addSize, "have", c.bufSize-c.bufOffset)
 		//return nil, errors.New("incomplete message")
 		return c.ReadBuf(HEADER + int(header.Size))
 	}
