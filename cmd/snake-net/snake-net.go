@@ -41,7 +41,6 @@ var (
 	defaultLog string
 	clientId   string
 	proto      string
-	remote     string
 	local      string
 	logLevel   logType
 	cipher     string
@@ -195,7 +194,8 @@ func main() {
 	cfg.Log.ICMP = defaultLog
 	cfg.Log.Firewall = defaultLog
 
-	if configFile != "" {
+	addr = strings.ToLower(flag.Arg(0))
+	if configFile != "" && addr == "" {
 		_, err := toml.DecodeFile(configFile, cfg)
 		if err != nil {
 			log.Fatalln("Failed to decode config file: ", err)
@@ -208,9 +208,6 @@ func main() {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.RemoteAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.RemotePort))
 		}
-
-	} else {
-		addr = strings.ToLower(flag.Arg(0))
 	}
 
 	// Override with command line switches and sanity checks
@@ -232,20 +229,6 @@ func main() {
 		cfg.Main.Secret = crypt.FIRSTSECRET
 	}
 
-	if remote != "" {
-		p := strings.Split(remote, ":")
-		if len(p) < 2 {
-			cfg.Main.RemoteAddr = remote
-			cfg.Main.RemotePort = 0
-		} else {
-			cfg.Main.RemoteAddr = p[0]
-			port, err := strconv.Atoi(p[1])
-			if err != nil {
-				logger.Fatal("Remote address parse error", "error", err)
-			}
-			cfg.Main.RemotePort = uint16(port)
-		}
-	}
 	if local != "" {
 		p := strings.Split(local, ":")
 		if len(p) < 2 {
@@ -343,7 +326,7 @@ func main() {
 	}
 
 	m := re.FindStringSubmatch(addr)
-	cfg.Main.Protocol = m[1]
+	cfg.Main.Protocol = strings.ToLower(m[1])
 	host := m[2]
 	port := 0
 	var err error
@@ -356,9 +339,16 @@ func main() {
 
 	logger.Debug("Parsed address", "protocol", cfg.Main.Protocol, "host", host, "port", port)
 
-	// Override config protocol if command line switch is used
+	if cfg.Main.IsServer {
+		cfg.Main.LocalAddr = host
+		cfg.Main.LocalPort = uint16(port)
+	} else {
+		cfg.Main.RemoteAddr = host
+		cfg.Main.RemotePort = uint16(port)
+	}
+
 	if proto != "" {
-		cfg.Main.Protocol = proto
+		cfg.Main.Protocol = strings.ToLower(proto)
 	}
 
 	if configFile != "" {
@@ -370,13 +360,6 @@ func main() {
 			tunAddr = append(tunAddr, cidrStr)
 		}
 	} else {
-		if cfg.Main.IsServer {
-			cfg.Main.LocalAddr = host
-			cfg.Main.LocalPort = uint16(port)
-		} else {
-			cfg.Main.RemoteAddr = host
-			cfg.Main.RemotePort = uint16(port)
-		}
 		cfg.Tun.TunAddrStr = tunAddr
 		cfg.Tun.MTU = mtu
 		cfg.Tun.Name = name
