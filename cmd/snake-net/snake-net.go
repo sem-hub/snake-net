@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"flag"
 	"fmt"
 	"log"
@@ -23,7 +22,6 @@ import (
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/signature"
 	"github.com/sem-hub/snake-net/internal/network"
-	"github.com/sem-hub/snake-net/internal/network/transport"
 	"github.com/sem-hub/snake-net/internal/protocol"
 )
 
@@ -397,33 +395,6 @@ func main() {
 	}
 	// ================== Configuration parsed ==================
 
-	var t transport.Transport
-	// Check if transport is available
-	if !transport.IsTransportAvailable(cfg.Main.Protocol) {
-		logger.Fatal("Transport " + cfg.Main.Protocol + " is not available. Available transports: " +
-			strings.Join(transport.GetAvailableTransports(), ", "))
-	}
-
-	logger.Info("Using transport: " + strings.ToUpper(cfg.Main.Protocol))
-
-	// Create transport based on protocol
-	if cfg.Main.Protocol == "kcp" {
-		// KCP requires a key
-		sum256 := sha256.Sum256([]byte(cfg.Main.Secret))
-		kcpKey := sum256[:]
-		t, err = transport.NewTransportByName(cfg.Main.Protocol, kcpKey)
-	} else {
-		t, err = transport.NewTransportByName(cfg.Main.Protocol)
-	}
-
-	if err != nil {
-		logger.Fatal("Failed to create transport: " + err.Error())
-	}
-
-	if cfg.Main.IsServer && !t.IsEncrypted() && (cfg.Crypt.Engine == "") {
-		logger.Fatal("Transport is not encrypted and no cipher/signature engine is specified.")
-	}
-
 	// Setup signal handling
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -434,7 +405,7 @@ func main() {
 	// Start processing in a goroutine
 	done := make(chan struct{})
 	go func() {
-		protocol.ResolveAndProcess(ctx, t)
+		protocol.ResolveAndProcess(ctx)
 		close(done)
 	}()
 
@@ -451,15 +422,5 @@ func main() {
 		cancel() // Clean up context
 	}
 
-	if cfg.Main.IsServer {
-		err = network.CloseFirewallPort(configs.GetConfig().LocalPort, t.GetType())
-		if err != nil {
-			logger.Error("Error closing firewall port", "error", err)
-		}
-	}
-
 	logger.Info("Exit")
-	if t != nil {
-		t.Close()
-	}
 }

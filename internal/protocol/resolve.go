@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"crypto/sha256"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -14,7 +15,7 @@ import (
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
-func ResolveAndProcess(ctx context.Context, t transport.Transport) {
+func ResolveAndProcess(ctx context.Context) {
 	logger := configs.InitLogger("protocol")
 	cfg := configs.GetConfig()
 	logger.Debug("Crypto engine: " + cfg.Engine)
@@ -31,16 +32,40 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 			cfg.LocalPort = uint16(port)
 			logger.Info("Using random port", "port", port)
 		}
-		err := network.OpenFirewallPort(uint16(port), t.WireProtocol())
-		if err != nil {
-			logger.Fatal("Error opening firewall port", "error", err)
-		}
 	} else {
 		host = cfg.RemoteAddr
 		port = int(cfg.RemotePort)
 		if host == "" {
 			logger.Fatal("Remote Address is mandatory for client")
 		}
+	}
+
+	var t transport.Transport
+	// Check if transport is available
+	if !transport.IsTransportAvailable(cfg.Protocol) {
+		logger.Fatal("Transport " + cfg.Protocol + " is not available. Available transports: " +
+			strings.Join(transport.GetAvailableTransports(), ", "))
+	}
+
+	logger.Info("Using transport: " + strings.ToUpper(cfg.Protocol))
+
+	var err error
+	// Create transport based on protocol
+	if cfg.Protocol == "kcp" {
+		// KCP requires a key
+		sum256 := sha256.Sum256([]byte(cfg.Secret))
+		kcpKey := sum256[:]
+		t, err = transport.NewTransportByName(cfg.Protocol, kcpKey)
+	} else {
+		t, err = transport.NewTransportByName(cfg.Protocol)
+	}
+
+	if err != nil {
+		logger.Fatal("Failed to create transport: " + err.Error())
+	}
+
+	if cfg.IsServer && !t.IsEncrypted() && (cfg.Engine == "") {
+		logger.Fatal("Transport is not encrypted and no cipher/signature engine is specified.")
 	}
 
 	logger.Debug("URI", "Protocol", cfg.Protocol, "address", host, "port", port)
@@ -69,6 +94,13 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 
 		lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
 
+		// Open Firewall port for incoming connections
+		err = network.OpenFirewallPort(lAddrPort.Port(), t.WireProtocol())
+		if err != nil {
+			logger.Error("Error opening firewall port", "error", err)
+			return
+		}
+
 		if lAddrPort.Addr().Is6() {
 			cfg.LocalAddr = "[" + lAddrPort.Addr().String() + "]"
 		}
@@ -96,7 +128,15 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 				network.RunSOCKS5(ctx, cfg.TunAddrs, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
 			}()
 		}
+		// Wait for context cancellation (Ctrl-C)
 		<-ctx.Done()
+
+		if cfg.IsServer {
+			err = network.CloseFirewallPort(lAddrPort.Port(), t.WireProtocol())
+			if err != nil {
+				logger.Error("Error closing firewall port", "error", err)
+			}
+		}
 	} else {
 		// For client, we will traverse to each resolved server IP until we succeed.
 		attempts := 0
@@ -190,5 +230,10 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 			}
 			logger.Info("ProcessServer exited")
 		}
+	}
+
+	// Clean up transport
+	if t != nil {
+		t.Close()
 	}
 }
