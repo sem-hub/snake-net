@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -53,7 +54,10 @@ func fillData(data []byte) []byte {
 	buf := make([]byte, 28)
 	port, err := strconv.Atoi(string(data))
 	if err == nil {
-		binary.Encode(buf, binary.BigEndian, uint16(port))
+		_, err = binary.Encode(buf, binary.BigEndian, uint16(port))
+		if err != nil {
+			configs.GetLogger("icmp").Fatal("Error encoding port to data", "error", err)
+		}
 		copy(buf[2:], cfg.Protocol+"\x00") // Null-terminated protocol string
 	} else {
 		copy(buf, data)
@@ -84,7 +88,10 @@ func decodeData(data []byte) (uint16, string) {
 		return 0, ""
 	}
 	protocol := string(decBuf[2:])
-	protocol = protocol[:len(protocol)-1] // Remove null terminator
+	idx := strings.IndexByte(protocol, 0)
+	if idx != -1 {
+		protocol = protocol[:idx] // Remove null terminator and any trailing garbage
+	}
 	return port, protocol
 }
 
