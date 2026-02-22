@@ -89,7 +89,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 			c.logger.Error("process command AskForResend: binary.Read error", "address", c.address.String(), "error", err)
 			return nil, err
 		}
-		c.logger.Info("client asked to resend packet", "address", c.address.String(), "seq", askSeq)
+		c.logger.Warn("client asked to resend packet", "address", c.address.String(), "seq", askSeq)
 
 		dataSend, ok := c.sentBuffer.Find(func(index interface{}) bool {
 			buf := index.([]byte)
@@ -102,7 +102,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 		})
 		if ok {
 			buf := dataSend.([]byte)
-			c.logger.Info("client resend for", "address", c.address.String(), "seq", askSeq)
+			c.logger.Debug("client resend for", "address", c.address.String(), "seq", askSeq)
 			err := c.t.Send(c.address, &buf)
 			if err != nil {
 				c.logger.Error("process command resend failed", "address", c.address.String(), "seq", askSeq, "error", err)

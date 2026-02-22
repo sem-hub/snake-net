@@ -18,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"github.com/sem-hub/snake-net/internal/crypt/signature"
 	"github.com/sem-hub/snake-net/internal/network"
@@ -224,7 +223,7 @@ func main() {
 	}
 	// Default secret if not set
 	if cfg.Main.Secret == "" {
-		cfg.Main.Secret = crypt.FIRSTSECRET
+		logger.Fatal("Secret key is mandatory")
 	}
 
 	if local != "" {

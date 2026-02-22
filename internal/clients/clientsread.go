@@ -156,7 +156,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 
 	// Out of order or lost packets processing
 	if header.Seq != c.seqIn {
-		c.logger.Error("client ReadBuf: invalid sequence number", "seq", header.Seq,
+		c.logger.Warn("client ReadBuf: invalid sequence number", "seq", header.Seq,
 			"expected", c.seqIn, "address", c.address, "oooPackets", c.oooPackets)
 		// We still hold lock here. Unlock inside the function.
 		return c.processOOOP(header.Size, header.Seq)

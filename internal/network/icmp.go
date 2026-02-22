@@ -1,13 +1,13 @@
 package network
 
 import (
+	"crypto/sha256"
 	"math/rand"
 	"net"
 	"strconv"
 	"time"
 
 	"github.com/sem-hub/snake-net/internal/configs"
-	"github.com/sem-hub/snake-net/internal/crypt"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
@@ -18,9 +18,13 @@ var cEngine engines.CryptoEngine
 
 const IDSTRING = "SNAKE_NET_PORT_REQUEST"
 
-func StartICMPListen() {
+func StartICMPListen(secret string) {
+	secretBin := make([]byte, 32)
+	sum256 := sha256.Sum256([]byte(secret))
+	copy(secretBin, sum256[:])
+
 	var err error
-	cEngine, err = engines.NewEngineByName("aes", []byte(crypt.FIRSTSECRET), 256, "gcm")
+	cEngine, err = engines.NewEngineByName("aes", secretBin, 256, "gcm")
 	if err != nil {
 		configs.InitLogger("icmp").Fatal("Error initializing crypto engine", "error", err)
 	}
@@ -159,11 +163,15 @@ func StartICMPCommonListen(isIPv4 bool) {
 	}
 }
 
-func GetICMPPort(addr net.IPAddr) int {
+func GetICMPPort(addr net.IPAddr, secret string) int {
+	secretBin := make([]byte, 32)
+	sum256 := sha256.Sum256([]byte(secret))
+	copy(secretBin, sum256[:])
+
 	logger := configs.InitLogger("icmp")
 	logger.Debug("Asking port from server via ICMP", "peer", addr)
 	var err error
-	cEngine, err = engines.NewEngineByName("aes", []byte(crypt.FIRSTSECRET), 256, "gcm")
+	cEngine, err = engines.NewEngineByName("aes", secretBin, 256, "gcm")
 	if err != nil {
 		logger.Fatal("Error initializing crypto engine", "error", err)
 	}

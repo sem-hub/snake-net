@@ -28,7 +28,7 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 	if seq > c.seqIn {
 		if c.lookInBufferForSeq(c.seqIn) {
 			// Found in buffer, process it
-			c.logger.Debug("client OOOP: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
+			c.logger.Warn("client OOOP: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
 			c.bufLock.Unlock()
 			return c.ReadBuf(HEADER)
 		}
@@ -55,7 +55,8 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 		c.oooPackets++
 		if c.reaskedPackets >= 3 || c.oooPackets > 30 {
 			// Too many out of order packets, ignore the lost packet
-			c.logger.Error("client ReadBuf: too many out of order packets, ignore the sequence number", "oooPackets", c.oooPackets, "address", c.address.String())
+			c.logger.Warn("client ReadBuf: too many out of order packets, ignore the sequence number", "seq", c.seqIn,
+				"oooPackets", c.oooPackets, "address", c.address.String())
 			c.seqIn++
 			c.oooPackets = 0
 			c.reaskedPackets = 0
@@ -65,7 +66,8 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 		// Go to next packet. Leave the packet in buffer.
 		c.bufOffset += HEADER + int(n)
 	} else {
-		c.logger.Error("client ReadBuf: duplicate. Drop. seq=" + strconv.Itoa(int(seq)) + " expected=" + strconv.Itoa(int(c.seqIn)) + " address=" + c.address.String())
+		c.logger.Warn("client ReadBuf: duplicate. Drop. seq=" + strconv.Itoa(int(seq)) + " expected=" +
+			strconv.Itoa(int(c.seqIn)) + " address=" + c.address.String())
 		c.removeThePacketFromBuffer(HEADER + int(n))
 	}
 	c.bufLock.Unlock()
@@ -94,7 +96,7 @@ func (c *Client) lookInBufferForSeq(reqSeq uint16) bool {
 }
 
 func (c *Client) AskForResend(seq uint16) error {
-	c.logger.Debug("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
+	c.logger.Warn("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
 
 	c.reaskedPackets++
 	buf := make([]byte, 2)

@@ -23,8 +23,6 @@ import (
 	_ "github.com/sem-hub/snake-net/internal/crypt/engines/stream"
 )
 
-const FIRSTSECRET = "pu6apieV6chohghah2MooshepaethuCh"
-
 type Secrets struct {
 	sharedSecret    []byte
 	Engine          engines.CryptoEngine
@@ -35,12 +33,6 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	s := Secrets{}
 	logger := configs.InitLogger("crypt")
 	s.sharedSecret = make([]byte, 32)
-	if secret == "" {
-		logger.Info("Using default shared secret")
-		secret = FIRSTSECRET
-	} else {
-		logger.Info("Using provided shared secret")
-	}
 	sum256 := sha256.Sum256([]byte(secret))
 	copy(s.sharedSecret, sum256[:])
 

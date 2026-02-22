@@ -90,7 +90,7 @@ func ResolveAndProcess(ctx context.Context) {
 
 	if cfg.IsServer {
 		logger.Info("Starting ICMP listener for port requests")
-		network.StartICMPListen()
+		network.StartICMPListen(cfg.Secret)
 
 		lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
 
@@ -143,7 +143,7 @@ func ResolveAndProcess(ctx context.Context) {
 		for tryNo := 0; tryNo < len(ips); tryNo++ {
 			if port == 0 {
 				logger.Info("Asking port from server via ICMP", "peer", ips[tryNo].String())
-				port = network.GetICMPPort(net.IPAddr{IP: ips[tryNo]})
+				port = network.GetICMPPort(net.IPAddr{IP: ips[tryNo]}, cfg.Secret)
 				if port == 0 {
 					logger.Fatal("Failed to get port from server via ICMP, will retry", "peer", ips[tryNo].String())
 				}
