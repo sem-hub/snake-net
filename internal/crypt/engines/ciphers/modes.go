@@ -52,7 +52,7 @@ func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret [
 	engine := Modes{}
 	engine.allowedKeySizes = allowedKeySizes
 	engine.KeySize = size
-	engine.logger = configs.InitLogger("crypt")
+	engine.logger = configs.GetLogger("crypt")
 	if engines.ModesList[mode] == "aead" {
 		engine.AeadEngine = *aead.NewAeadEngine(name + "-" + mode)
 		engine.EngineData = engine.AeadEngine.EngineData

@@ -47,7 +47,7 @@ func NewSignature(secret []byte, name string) *Signature {
 		active:       true,
 	}
 
-	sig.Logger = configs.InitLogger("crypt")
+	sig.Logger = configs.GetLogger("crypt")
 	return sig
 }
 

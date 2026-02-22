@@ -238,7 +238,7 @@ func main() {
 	}
 
 	// Override with command line switches and sanity checks
-	logger := configs.InitLogger("main")
+	logger := configs.GetLogger("main")
 
 	if cfg.Main.IsServer {
 		if cfg.Tun == nil || len(cfg.Tun.TunAddrStr) == 0 && len(tunAddr) == 0 {

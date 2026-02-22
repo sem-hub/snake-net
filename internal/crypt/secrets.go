@@ -31,7 +31,7 @@ type Secrets struct {
 
 func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 	s := Secrets{}
-	logger := configs.InitLogger("crypt")
+	logger := configs.GetLogger("crypt")
 	s.sharedSecret = make([]byte, 32)
 	sum256 := sha256.Sum256([]byte(secret))
 	copy(s.sharedSecret, sum256[:])
@@ -105,7 +105,7 @@ func (s *Secrets) GetSharedSecret() []byte {
 
 // We just make zero IV and don't keep it. So len(data) == len(bufOut) (constant size and symmetric operation)
 func (s *Secrets) EncryptDecryptNoIV(data []byte) ([]byte, error) {
-	logger := configs.InitLogger("crypt")
+	logger := configs.GetLogger("crypt")
 	logger.Trace("EncryptNoIV", "datalen", len(data))
 
 	block, err := maes.NewCipher(s.sharedSecret)
@@ -122,7 +122,7 @@ func (s *Secrets) EncryptDecryptNoIV(data []byte) ([]byte, error) {
 }
 
 func (s *Secrets) DecryptAndVerify(msg []byte, n uint16, flags Cmd) ([]byte, error) {
-	logger := configs.InitLogger("crypt")
+	logger := configs.GetLogger("crypt")
 	if s.Engine.GetType() == "aead" {
 		flags |= NoSignature
 	}
@@ -158,7 +158,7 @@ func (s *Secrets) DecryptAndVerify(msg []byte, n uint16, flags Cmd) ([]byte, err
 }
 
 func (s *Secrets) SignAndEncrypt(msg []byte, flags Cmd) ([]byte, error) {
-	logger := configs.InitLogger("crypt")
+	logger := configs.GetLogger("crypt")
 	if s.Engine.GetType() == "aead" {
 		flags |= NoSignature
 	}
@@ -187,7 +187,7 @@ func (s *Secrets) SignAndEncrypt(msg []byte, flags Cmd) ([]byte, error) {
 }
 
 func CreateEngine(engineName, mode string, keySize int, sharedSecret []byte) (engines.CryptoEngine, error) {
-	logger := configs.InitLogger("crypt")
+	logger := configs.GetLogger("crypt")
 	if !engines.IsEngineAvailable(engineName) {
 		logger.Error("Engine not available", "engine", engineName, "available", engines.GetAvailableEngines())
 		return nil, errors.New("engine " + engineName + " is not available (may require build tag)")
@@ -196,7 +196,7 @@ func CreateEngine(engineName, mode string, keySize int, sharedSecret []byte) (en
 }
 
 func CreateSignatureEngine(signEngine string, sharedSecret []byte) (signature.SignatureInterface, error) {
-	logger := configs.InitLogger("crypt")
+	logger := configs.GetLogger("crypt")
 	if !signature.IsSignatureEngineAvailable(signEngine) {
 		logger.Error("Signature engine not available", "engine", signEngine, "available", signature.GetAvailableSignatureEngines())
 		return nil, errors.New("signature engine " + signEngine + " is not available (may require build tag)")

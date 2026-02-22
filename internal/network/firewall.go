@@ -8,7 +8,7 @@ import (
 )
 
 func OpenFirewallPort(port uint16, protocol string) error {
-	logger := configs.InitLogger("firewall")
+	logger := configs.GetLogger("firewall")
 	logger.Info("Opening firewall port", "port", port)
 	cmd := exec.Command("iptables", "-I", "INPUT", "-p", protocol, "--dport", fmt.Sprintf("%d", port), "-j", "ACCEPT")
 	if err := cmd.Run(); err != nil {
@@ -26,7 +26,7 @@ func OpenFirewallPort(port uint16, protocol string) error {
 }
 
 func CloseFirewallPort(port uint16, protocol string) error {
-	logger := configs.InitLogger("firewall")
+	logger := configs.GetLogger("firewall")
 	logger.Info("Closing firewall port", "port", port)
 	cmd := exec.Command("iptables", "-D", "INPUT", "-p", protocol, "--dport", fmt.Sprintf("%d", port), "-j", "ACCEPT")
 	if err := cmd.Run(); err != nil {

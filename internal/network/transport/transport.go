@@ -37,7 +37,7 @@ const NETBUFSIZE = 9000
 
 func NewTransport() *TransportData {
 	t := &TransportData{}
-	t.logger = configs.InitLogger("transport")
+	t.logger = configs.GetLogger("transport")
 	return t
 }
 

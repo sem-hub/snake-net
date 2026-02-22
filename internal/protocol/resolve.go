@@ -15,8 +15,37 @@ import (
 	"github.com/sem-hub/snake-net/internal/network/transport"
 )
 
+func CreateTransport(protocol string, secret string) transport.Transport {
+	logger := configs.GetLogger("protocol")
+	// Check if transport is available
+	if !transport.IsTransportAvailable(protocol) {
+		logger.Fatal("Transport " + protocol + " is not available. Available transports: " +
+			strings.Join(transport.GetAvailableTransports(), ", "))
+	}
+
+	logger.Info("Using transport: " + strings.ToUpper(protocol))
+
+	var err error
+	var t transport.Transport
+	// Create transport based on protocol
+	if protocol == "kcp" {
+		// KCP requires a key
+		sum256 := sha256.Sum256([]byte(secret))
+		kcpKey := sum256[:]
+		t, err = transport.NewTransportByName(protocol, kcpKey)
+	} else {
+		t, err = transport.NewTransportByName(protocol)
+	}
+
+	if err != nil {
+		logger.Fatal("Failed to create transport: " + err.Error())
+	}
+
+	return t
+}
+
 func ResolveAndProcess(ctx context.Context) {
-	logger := configs.InitLogger("protocol")
+	logger := configs.GetLogger("protocol")
 	cfg := configs.GetConfig()
 	logger.Debug("Crypto engine: " + cfg.Engine)
 	logger.Debug("Signature engine: " + cfg.SignEngine)
@@ -40,29 +69,7 @@ func ResolveAndProcess(ctx context.Context) {
 		}
 	}
 
-	var t transport.Transport
-	// Check if transport is available
-	if !transport.IsTransportAvailable(cfg.Protocol) {
-		logger.Fatal("Transport " + cfg.Protocol + " is not available. Available transports: " +
-			strings.Join(transport.GetAvailableTransports(), ", "))
-	}
-
-	logger.Info("Using transport: " + strings.ToUpper(cfg.Protocol))
-
-	var err error
-	// Create transport based on protocol
-	if cfg.Protocol == "kcp" {
-		// KCP requires a key
-		sum256 := sha256.Sum256([]byte(cfg.Secret))
-		kcpKey := sum256[:]
-		t, err = transport.NewTransportByName(cfg.Protocol, kcpKey)
-	} else {
-		t, err = transport.NewTransportByName(cfg.Protocol)
-	}
-
-	if err != nil {
-		logger.Fatal("Failed to create transport: " + err.Error())
-	}
+	t := CreateTransport(cfg.Protocol, cfg.Secret)
 
 	if cfg.IsServer && !t.IsEncrypted() && (cfg.Engine == "") {
 		logger.Fatal("Transport is not encrypted and no cipher/signature engine is specified.")
@@ -97,7 +104,7 @@ func ResolveAndProcess(ctx context.Context) {
 		lAddrPort := netip.AddrPortFrom(netip.MustParseAddr(cfg.LocalAddr).Unmap(), uint16(cfg.LocalPort))
 
 		// Open Firewall port for incoming connections
-		err = network.OpenFirewallPort(lAddrPort.Port(), t.WireProtocol())
+		err := network.OpenFirewallPort(lAddrPort.Port(), t.WireProtocol())
 		if err != nil {
 			logger.Error("Error opening firewall port", "error", err)
 			return
@@ -108,7 +115,7 @@ func ResolveAndProcess(ctx context.Context) {
 		}
 
 		// Set up transport with callback for new clients
-		err := t.Init("server", netip.AddrPort{}, lAddrPort, ProcessNewClient)
+		err = t.Init("server", netip.AddrPort{}, lAddrPort, ProcessNewClient)
 		if err != nil {
 			logger.Error("Transport init error", "error", err)
 			return
@@ -156,11 +163,14 @@ func ResolveAndProcess(ctx context.Context) {
 			}
 			if port == 0 && cfg.Discovery {
 				logger.Info("Asking port from server via ICMP", "peer", ips[tryNo].String())
-				port = network.GetICMPPort(net.IPAddr{IP: ips[tryNo]}, cfg.Secret)
-				if port == 0 {
+				var portNo uint16
+				var protocol string
+				portNo, protocol = network.GetICMPPort(net.IPAddr{IP: ips[tryNo]}, cfg.Secret)
+				if portNo == 0 {
 					logger.Fatal("Failed to get port from server via ICMP, will retry", "peer", ips[tryNo].String())
 				}
-				logger.Info("Got port from server", "port", port)
+				port = int(portNo)
+				logger.Info("Got port from server", "port", port, "protocol", protocol)
 			} else {
 				logger.Fatal("Port is not specified and discovery mode is not enabled, cannot connect to server")
 			}

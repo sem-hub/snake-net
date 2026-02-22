@@ -193,10 +193,10 @@ func getLenvelByModule(module string) slog.Level {
 
 func ReinitLogger(module string) *ColorLogger {
 	delete(loggers, module)
-	return InitLogger(module)
+	return GetLogger(module)
 }
 
-func InitLogger(module string) *ColorLogger {
+func GetLogger(module string) *ColorLogger {
 	if loggers == nil {
 		loggers = make(map[string]*ColorLogger)
 	}

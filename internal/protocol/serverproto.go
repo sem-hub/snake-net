@@ -19,7 +19,7 @@ import (
 )
 
 func checkIP(cidrStr string) error {
-	logger := configs.InitLogger("protocol")
+	logger := configs.GetLogger("protocol")
 	logger.Debug("CIDR", "clientNet", cidrStr)
 	ip, _, err := net.ParseCIDR(cidrStr)
 	if err != nil {
@@ -47,7 +47,7 @@ func checkIP(cidrStr string) error {
 }
 
 func DynamicClientIPs(tunAddrs []utils.Cidr) []utils.Cidr {
-	logger := configs.InitLogger("protocol")
+	logger := configs.GetLogger("protocol")
 	clientIPs := make([]utils.Cidr, 0)
 	for _, cidr := range tunAddrs {
 		ipNet := cidr.Network
@@ -65,7 +65,7 @@ func DynamicClientIPs(tunAddrs []utils.Cidr) []utils.Cidr {
 }
 
 func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
-	logger := configs.InitLogger("protocol")
+	logger := configs.GetLogger("protocol")
 	clientIPs := make([]utils.Cidr, 0)
 	cfg := configs.GetConfig()
 
@@ -180,7 +180,7 @@ func IdentifyClient(c *clients.Client) ([]utils.Cidr, string, string, error) {
 }
 
 func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
-	logger := configs.InitLogger("protocol")
+	logger := configs.GetLogger("protocol")
 	logger.Info("ProcessNewClient", "gotAddr", addr.String())
 	cfg := configs.GetConfig()
 

@@ -12,7 +12,7 @@ import (
 )
 
 func RunSOCKS5(ctx context.Context, cidrs []utils.Cidr, port int, username, password string) {
-	logger := configs.InitLogger("socks5")
+	logger := configs.GetLogger("socks5")
 	requireAuth := username != ""
 
 	if requireAuth {
