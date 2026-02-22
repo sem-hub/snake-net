@@ -141,6 +141,17 @@ func ResolveAndProcess(ctx context.Context) {
 		// For client, we will traverse to each resolved server IP until we succeed.
 		attempts := 0
 		for tryNo := 0; tryNo < len(ips); tryNo++ {
+			if ips[tryNo].To4() != nil {
+				if cfg.PreferIPv6 && !cfg.PreferIPv4 {
+					logger.Debug("Skipping IPv4 address due to prefer_ipv4=false", "ip", ips[tryNo].String())
+					continue
+				}
+			} else {
+				if cfg.PreferIPv4 && !cfg.PreferIPv6 {
+					logger.Debug("Skipping IPv6 address due to prefer_ipv6=false", "ip", ips[tryNo].String())
+					continue
+				}
+			}
 			if port == 0 {
 				logger.Info("Asking port from server via ICMP", "peer", ips[tryNo].String())
 				port = network.GetICMPPort(net.IPAddr{IP: ips[tryNo]}, cfg.Secret)

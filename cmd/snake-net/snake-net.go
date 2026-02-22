@@ -49,23 +49,27 @@ var (
 	socks5Pass string
 	attempts   int
 	retryDelay int
+	preferIPv6 bool
+	preferIPv4 bool
 )
 
 var flagAlias = map[string]string{
-	"attempts": "a",
-	"config":   "c",
-	"debug":    "d",
-	"log":      "D",
-	"cipher":   "e",
-	"id":       "i",
-	"key":      "k",
-	"local":    "l",
-	"name":     "n",
-	"proto":    "p",
-	"server":   "s",
-	"tun":      "t",
-	"mtu":      "u",
-	"socks5":   "x",
+	"attempts":    "a",
+	"config":      "c",
+	"debug":       "d",
+	"log":         "D",
+	"cipher":      "e",
+	"id":          "i",
+	"key":         "k",
+	"local":       "l",
+	"name":        "n",
+	"prefer_ipv4": "4",
+	"prefer_ipv6": "6",
+	"proto":       "p",
+	"server":      "s",
+	"tun":         "t",
+	"mtu":         "u",
+	"socks5":      "x",
 }
 
 func checkLogLevel(level string) bool {
@@ -130,7 +134,8 @@ func init() {
 	flag.StringVar(&socks5Pass, "socks5pass", "", "SOCKS5 proxy password.")
 	flag.IntVar(&attempts, "attempts", 1, "Number of connection attempts before giving up (0 means infinite).")
 	flag.IntVar(&retryDelay, "retry", 5, "Delay in seconds between connection attempts.")
-
+	flag.BoolVar(&preferIPv6, "prefer_ipv6", false, "Prefer IPv6 for remote address resolution.")
+	flag.BoolVar(&preferIPv4, "prefer_ipv4", false, "Prefer IPv4 for remote address resolution.")
 	// Setup flag aliases
 	for from, to := range flagAlias {
 		flagSet := flag.Lookup(from)
@@ -166,6 +171,13 @@ func main() {
 	cfg.Main.RetryDelay = retryDelay
 	cfg.Main.Attempts = attempts
 
+	if !preferIPv6 && !preferIPv4 {
+		preferIPv6 = true
+		preferIPv4 = true
+	}
+	cfg.Main.PreferIPv6 = preferIPv6
+	cfg.Main.PreferIPv4 = preferIPv4
+
 	// Client may have empty engine and sign engine to get from server
 	cfg.Crypt.Engine = ""
 	cfg.Crypt.SignEngine = ""
@@ -191,8 +203,7 @@ func main() {
 	cfg.Log.ICMP = defaultLog
 	cfg.Log.Firewall = defaultLog
 
-	addr = strings.ToLower(flag.Arg(0))
-	if configFile != "" && addr == "" {
+	if configFile != "" {
 		_, err := toml.DecodeFile(configFile, cfg)
 		if err != nil {
 			log.Fatalln("Failed to decode config file: ", err)
@@ -205,6 +216,9 @@ func main() {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.RemoteAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.RemotePort))
 		}
+	}
+	if flag.NArg() > 0 {
+		addr = strings.ToLower(flag.Arg(0))
 	}
 
 	// Override with command line switches and sanity checks
@@ -317,13 +331,15 @@ func main() {
 	ipv6_regex := `\[(?:[0-9a-f]{0,4}:){1,7}[0-9a-f]{0,4}\]`
 	fqdn_regex := `(?:(?:(?:[a-z0-9][a-z0-9\-]*[a-z0-9])|[a-z0-9]+)\.)*(?:[a-z]+|xn\-\-[a-z0-9]+)\.?`
 	port_regex := `[0-9]{1,5}`
-	re := regexp.MustCompile(proto_regex + `((?:` + ipv4_regex + `)|(?:` + ipv6_regex + `)|(?:` + fqdn_regex + `))*(?::(` + port_regex + `))?`)
+	re := regexp.MustCompile(`(?:` + proto_regex + `)?((?:` + ipv4_regex + `)|(?:` + ipv6_regex + `)|(?:` + fqdn_regex + `))*(?::(` + port_regex + `))?`)
 	if !re.MatchString(addr) {
 		logger.Fatal("Invalid Address: " + addr + ". proto://host:port format expected.")
 	}
 
 	m := re.FindStringSubmatch(addr)
-	cfg.Main.Protocol = strings.ToLower(m[1])
+	if m[1] != "" {
+		cfg.Main.Protocol = strings.ToLower(m[1])
+	}
 	host := m[2]
 	port := 0
 	var err error

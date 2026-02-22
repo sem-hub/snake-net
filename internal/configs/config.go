@@ -29,6 +29,8 @@ type Main struct {
 	ClientId   string `toml:"id"`
 	RetryDelay int    `toml:"retry_delay"`
 	Attempts   int    `toml:"attempts"`
+	PreferIPv6 bool   `toml:"prefer_ipv6"`
+	PreferIPv4 bool   `toml:"prefer_ipv4"`
 }
 
 type Crypt struct {
@@ -96,6 +98,8 @@ type RuntimeConfig struct {
 	Socks5Port     uint16
 	Socks5Username string
 	Socks5Password string
+	PreferIPv6     bool
+	PreferIPv4     bool
 }
 
 var (
@@ -142,6 +146,8 @@ func GetConfig() *RuntimeConfig {
 			CertFile:       configFile.Tls.CertFile,
 			KeyFile:        configFile.Tls.KeyFile,
 			CAFile:         configFile.Tls.CAFile,
+			PreferIPv6:     configFile.Main.PreferIPv6,
+			PreferIPv4:     configFile.Main.PreferIPv4,
 		}
 		if len(configFile.Tun.TunAddrStr) > 0 {
 			for _, addr := range configFile.Tun.TunAddrStr {
