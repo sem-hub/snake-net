@@ -45,6 +45,10 @@ func (dtls *DtlsTransport) GetType() string {
 	return "datagram"
 }
 
+func (dtls *DtlsTransport) WireProtocol() string {
+	return "udp"
+}
+
 func (dtls *DtlsTransport) IsEncrypted() bool {
 	return false
 }

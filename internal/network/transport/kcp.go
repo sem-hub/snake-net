@@ -48,8 +48,11 @@ func (kcp *KcpTransport) GetName() string {
 }
 
 func (kcp *KcpTransport) GetType() string {
-	// it works with UDP, so we need to return "datagram" to open correct firewall port. But it's stream really.
-	return "datagram"
+	return "stream"
+}
+
+func (kcp *KcpTransport) WireProtocol() string {
+	return "udp"
 }
 
 func (kcp *KcpTransport) IsEncrypted() bool {

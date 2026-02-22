@@ -43,8 +43,11 @@ func (quic *QuicTransport) GetName() string {
 }
 
 func (quic *QuicTransport) GetType() string {
-	// it works with UDP, so we need to return "datagram" to open correct firewall port. But it's stream really.
-	return "datagram"
+	return "stream"
+}
+
+func (quic *QuicTransport) WireProtocol() string {
+	return "udp"
 }
 
 func (quic *QuicTransport) IsEncrypted() bool {

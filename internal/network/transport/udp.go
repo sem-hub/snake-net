@@ -44,6 +44,10 @@ func (udp *UdpTransport) GetType() string {
 	return "datagram"
 }
 
+func (udp *UdpTransport) WireProtocol() string {
+	return "udp"
+}
+
 func (udp *UdpTransport) IsEncrypted() bool {
 	return false
 }

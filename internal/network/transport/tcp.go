@@ -40,6 +40,10 @@ func (tcp *TcpTransport) GetType() string {
 	return "stream"
 }
 
+func (tcp *TcpTransport) WireProtocol() string {
+	return "tcp"
+}
+
 func (tcp *TcpTransport) IsEncrypted() bool {
 	return false
 }

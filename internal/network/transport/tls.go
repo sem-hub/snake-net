@@ -42,6 +42,10 @@ func (tls *TlsTransport) GetType() string {
 	return "stream"
 }
 
+func (tls *TlsTransport) WireProtocol() string {
+	return "tcp"
+}
+
 func (tls *TlsTransport) IsEncrypted() bool {
 	return true
 }

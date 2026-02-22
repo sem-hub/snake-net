@@ -24,6 +24,7 @@ type Transport interface {
 	GetName() string
 	// Return protocol type (stream/datagram)
 	GetType() string
+	WireProtocol() string // Return underlying protocol (TCP/UDP)
 	// Does the protocol support Crypt on low-level?
 	IsEncrypted() bool
 }

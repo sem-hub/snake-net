@@ -31,7 +31,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 			cfg.LocalPort = uint16(port)
 			logger.Info("Using random port", "port", port)
 		}
-		err := network.OpenFirewallPort(uint16(port), t.GetType())
+		err := network.OpenFirewallPort(uint16(port), t.WireProtocol())
 		if err != nil {
 			logger.Fatal("Error opening firewall port", "error", err)
 		}
