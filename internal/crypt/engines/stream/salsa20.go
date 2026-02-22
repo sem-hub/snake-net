@@ -72,3 +72,7 @@ func (e *Salsa20Engine) Decrypt(data []byte) ([]byte, error) {
 	salsa20.XORKeyStream(bufOut, data, nonce, &secret)
 	return bufOut, nil
 }
+
+func (e *Salsa20Engine) GetOverhead() int {
+	return 8
+}
