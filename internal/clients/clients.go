@@ -166,7 +166,7 @@ func RemoveClient(address netip.AddrPort) {
 		client.logger.Info("RemoveClient", "address", address.String())
 	}
 	if GetClientsCount() == 0 {
-		if configs.GetConfig().Mode != "server" && tunIf != nil {
+		if !configs.GetConfig().IsServer && tunIf != nil {
 			tunIf.Close()
 		}
 		/* Close transport
@@ -226,7 +226,7 @@ func SendShutdownRequest() {
 	for _, c := range clients {
 		c.logger.Info("Sending shutdown request to client", "address", c.address.String())
 		var cmd Cmd
-		if configs.GetConfig().Mode == "server" {
+		if configs.GetConfig().IsServer {
 			cmd = ShutdownRequest
 		} else {
 			cmd = ShutdownNotify

@@ -22,7 +22,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 
 	host := ""
 	port := 0
-	if cfg.Mode == "server" {
+	if cfg.IsServer {
 		host = cfg.LocalAddr
 		port = int(cfg.LocalPort)
 		// If port is 0, we will choose a random port and open it in firewall.
@@ -63,7 +63,7 @@ func ResolveAndProcess(ctx context.Context, t transport.Transport) {
 		ips = []net.IP{ip}
 	}
 
-	if cfg.Mode == "server" {
+	if cfg.IsServer {
 		logger.Info("Starting ICMP listener for port requests")
 		network.StartICMPListen()
 

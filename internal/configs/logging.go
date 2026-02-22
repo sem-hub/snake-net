@@ -96,7 +96,20 @@ func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	b := ""
 	for _, attr := range fields {
-		b += fmt.Sprintf("%s=%v ", attr.Key, attr.Value.Any())
+		if attr.Key == "level" {
+			if attr.Value.Kind() == slog.KindString {
+				levelName := attr.Value.String()
+				switch levelName {
+				case "DEBUG-4":
+					levelName = "TRACE"
+				case "DEBUG+8":
+					levelName = "FATAL"
+				}
+				b += fmt.Sprintf("%s=%s ", attr.Key, levelName)
+			}
+		} else {
+			b += fmt.Sprintf("%s=%v ", attr.Key, attr.Value.Any())
+		}
 	}
 
 	timeStr := r.Time.Format("[15:05:05.000]")
@@ -170,12 +183,17 @@ func getLenvelByModule(module string) slog.Level {
 		return getLevelByString(configFile.Log.Firewall)
 	default:
 		// XXX log.Debug here
-		if configFile.Main.Debug {
-			return slog.LevelDebug
-		} else {
+		if configFile.Main.DefaultLog == "" {
 			return slog.LevelInfo
+		} else {
+			return getLevelByString(configFile.Main.DefaultLog)
 		}
 	}
+}
+
+func ReinitLogger(module string) *ColorLogger {
+	delete(loggers, module)
+	return InitLogger(module)
 }
 
 func InitLogger(module string) *ColorLogger {
@@ -186,8 +204,6 @@ func InitLogger(module string) *ColorLogger {
 		return logger
 	}
 	level := getLenvelByModule(module)
-	mainLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: getLenvelByModule("main")}))
-	mainLogger.Debug("Initializing logger for module", "module", module, "with level", level.String())
 	var out io.Writer
 	noColor := false
 	if configFile.Log.NoColor {
@@ -216,6 +232,8 @@ func InitLogger(module string) *ColorLogger {
 		),
 	)
 	newLogger := &ColorLogger{*logger}
+	newLogger.Debug("Initializing logger for module", "module", module, "level", level.String())
+
 	loggers[module] = newLogger
 	return newLogger
 }

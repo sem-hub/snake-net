@@ -1,25 +1,25 @@
 [main]
-mode = "client" # "server" or "client"
-secret = "not_simply_password"
-id = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" # for client mode
+server = false # true for server mode, false for client mode
+secret = "not_simply_password"      # secret key
+id = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" # for client mode. Will be generated temporary if not specified
 protocol = "tcp"    # or "udp", "quic", "tls", "dtls", "kcp"
-debug = false       # fast switch to all log levels to debug
-remote_addr = "hostname.or.ip"
+default_log = "Info"      # default log level for all modules, can be overridden by module-specific settings below
+remote_addr = "hostname.or.ip"  # mandatory for client mode
 remote_port = 12345 # 0 means to ask server for the port
 #local_addr = "local.ip.address" # listen on the IP (for server mode)
 #local_port = 12345 # listen on the port (for server mode) 0 means to listen on a random port
 attempts = 1                    # 0 means infinity
-retry_delay = 5
+retry_delay = 5               # seconds
 [crypt]
-engine = "aes-cbc"
-sign_engine = "ed25519"
+engine = "aes-cbc"          # optional. will be get from server if not specified
+sign_engine = "ed25519"     # optional. will be get from server if not specified
 [tls]
-cert_file = ""
-key_file = ""
+cert_file = ""              # will generated if not specified
+priv_key_file = ""
 [tun]
-tun_addr = ["10.0.0.10/24","fd11::10/64"]
+tun_addr = ["10.0.0.10/24","fd11::10/64"] # mandatory for serever and optional for client. Will be get from server if not specified.
 mtu = 1420
-name = "snake"
+name = "snake"      # interface name. "tun" if not specified
 [socks5]
 enabled = false
 port = 1080

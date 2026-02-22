@@ -28,46 +28,75 @@ import (
 )
 
 type cidrs []string
+type logType map[string]string
 
 var (
 	cfg        *configs.ConfigFile
 	configFile string
-	mode       string
+	isServer   bool
 	secret     string
 	name       string
 	mtu        int
 	tunAddr    cidrs
-	debug      bool
+	defaultLog string
 	clientId   string
 	proto      string
 	remote     string
 	local      string
+	logLevel   logType
 	cipher     string
 	cert       string
-	key        string
+	privKey    string
 	signEngine string
 	socks5Port int
 	socks5User string
 	socks5Pass string
+	attempts   int
+	retryDelay int
 )
 
 var flagAlias = map[string]string{
-	"mode":   "m",
-	"secret": "s",
-	"config": "c",
-	"tun":    "t",
-	"mtu":    "u",
-	"name":   "n",
-	"debug":  "d",
-	"id":     "i",
-	"proto":  "p",
-	"remote": "r",
-	"local":  "l",
-	"cipher": "e",
-	"socks5": "x",
+	"attempts": "a",
+	"config":   "c",
+	"debug":    "d",
+	"log":      "D",
+	"cipher":   "e",
+	"id":       "i",
+	"key":      "k",
+	"local":    "l",
+	"name":     "n",
+	"proto":    "p",
+	"server":   "s",
+	"tun":      "t",
+	"mtu":      "u",
+	"socks5":   "x",
 }
 
-// cidrs type for flag parsing
+func checkLogLevel(level string) bool {
+	switch strings.ToLower(level) {
+	case "trace", "debug", "info", "warn", "error":
+		return false
+	default:
+		return true
+	}
+}
+
+// New types for flag parsing
+func (i *logType) String() string {
+	return fmt.Sprint(*i)
+}
+
+func (i *logType) Set(value string) error {
+	for _, logStr := range strings.Split(value, ",") {
+		parts := strings.SplitN(logStr, "=", 2)
+		if len(parts) != 2 || checkLogLevel(parts[1]) {
+			return fmt.Errorf("invalid log level format: %s", logStr)
+		}
+		(*i)[parts[0]] = parts[1]
+	}
+	return nil
+}
+
 func (i *cidrs) String() string {
 	return fmt.Sprint(*i)
 }
@@ -84,24 +113,27 @@ func (i *cidrs) Set(value string) error {
 }
 
 func init() {
+	logLevel = make(map[string]string)
 	flag.StringVar(&configFile, "config", "", "Path to config file.")
-	flag.StringVar(&mode, "mode", "", "Mode: client or server.")
-	flag.StringVar(&name, "name", "", "Name of tun interface.")
-	flag.StringVar(&secret, "secret", "", "Secret key.")
+	flag.BoolVar(&isServer, "server", false, "Server mode (otherwise client mode).")
+	flag.StringVar(&secret, "key", "", "Secret key.")
 	flag.StringVar(&clientId, "id", "", "Client ID.")
 	flag.StringVar(&proto, "proto", "", "Protocol to use (tcp or udp). Overrides config file setting.")
+	flag.StringVar(&name, "name", "", "Name of tun interface.")
 	flag.IntVar(&mtu, "mtu", network.DefaultMTU, "MTU size.")
 	flag.Var(&tunAddr, "tun", "Comma separated IPv4 and IPv6 Addresses (CIDR) for Tun interface.")
-	flag.BoolVar(&debug, "debug", false, "Enable debug mode.")
-	flag.StringVar(&remote, "remote", "", "Remote address (overrides config file).")
+	flag.StringVar(&defaultLog, "debug", "Info", "Default logging level for all modules.")
+	flag.Var(&logLevel, "log", "Logging levels may be overridden by this.")
 	flag.StringVar(&local, "local", "", "Local address (overrides config file).")
 	flag.StringVar(&cipher, "cipher", "", "Cipher to use (overrides config file).")
-	flag.StringVar(&cert, "cert", "", "Path to TLS/DTLS certificate file (overrides config file).")
-	flag.StringVar(&key, "key", "", "Path to TLS/DTLS key file (overrides config file).")
 	flag.StringVar(&signEngine, "sign", "", "Signature engine to use (overrides config file).")
+	flag.StringVar(&cert, "cert", "", "Path to TLS/DTLS certificate file (overrides config file).")
+	flag.StringVar(&privKey, "privkey", "", "Path to TLS/DTLS private key file (overrides config file).")
 	flag.IntVar(&socks5Port, "socks5", 0, "Enable SOCKS5 proxy on specified port.")
 	flag.StringVar(&socks5User, "socks5user", "", "SOCKS5 proxy username.")
 	flag.StringVar(&socks5Pass, "socks5pass", "", "SOCKS5 proxy password.")
+	flag.IntVar(&attempts, "attempts", 1, "Number of connection attempts before giving up (0 means infinite).")
+	flag.IntVar(&retryDelay, "retry", 5, "Delay in seconds between connection attempts.")
 
 	// Setup flag aliases
 	for from, to := range flagAlias {
@@ -132,11 +164,11 @@ func main() {
 	var addr string
 	cfg = configs.GetConfigFile()
 	// Apply defaults
-	cfg.Main.Mode = "client"
+	cfg.Main.IsServer = isServer
 	cfg.Main.Protocol = "tcp"
-	cfg.Main.Debug = false
-	cfg.Main.RetryDelay = 5
-	cfg.Main.Attempts = 0
+	cfg.Main.DefaultLog = "Info"
+	cfg.Main.RetryDelay = retryDelay
+	cfg.Main.Attempts = attempts
 
 	// Client may have empty engine and sign engine to get from server
 	cfg.Crypt.Engine = ""
@@ -148,17 +180,20 @@ func main() {
 	cfg.Socks5.Enabled = false
 	cfg.Socks5.Port = 1080
 
-	cfg.Log.Main = "Info"
-	cfg.Log.Clients = "Info"
-	cfg.Log.Network = "Info"
-	cfg.Log.Tun = "Info"
-	cfg.Log.Crypt = "Info"
-	cfg.Log.Protocol = "Info"
-	cfg.Log.Route = "Info"
-	cfg.Log.Transport = "Info"
-	cfg.Log.Socks5 = "Info"
-	cfg.Log.ICMP = "Info"
-	cfg.Log.Firewall = "Info"
+	if defaultLog == "" {
+		defaultLog = "Info"
+	}
+	cfg.Log.Main = defaultLog
+	cfg.Log.Clients = defaultLog
+	cfg.Log.Network = defaultLog
+	cfg.Log.Tun = defaultLog
+	cfg.Log.Crypt = defaultLog
+	cfg.Log.Protocol = defaultLog
+	cfg.Log.Route = defaultLog
+	cfg.Log.Transport = defaultLog
+	cfg.Log.Socks5 = defaultLog
+	cfg.Log.ICMP = defaultLog
+	cfg.Log.Firewall = defaultLog
 
 	if configFile != "" {
 		_, err := toml.DecodeFile(configFile, cfg)
@@ -166,7 +201,7 @@ func main() {
 			log.Fatalln("Failed to decode config file: ", err)
 		}
 		// Convert to command line style address: URI. For later parsing.
-		if cfg.Main.Mode == "server" {
+		if cfg.Main.IsServer {
 			addr = strings.ToLower(cfg.Main.Protocol+"://"+cfg.Main.LocalAddr) + ":" +
 				strconv.Itoa(int(cfg.Main.LocalPort))
 		} else {
@@ -179,35 +214,9 @@ func main() {
 	}
 
 	// Override with command line switches and sanity checks
-	if mode != "" {
-		cfg.Main.Mode = mode
-	} else {
-		mode = cfg.Main.Mode
-	}
-
-	if debug {
-		cfg.Log.File = ""
-		cfg.Log.Main = "Debug"
-		cfg.Log.Clients = "Debug"
-		cfg.Log.Network = "Debug"
-		cfg.Log.Tun = "Debug"
-		cfg.Log.Crypt = "Debug"
-		cfg.Log.Protocol = "Debug"
-		cfg.Log.Route = "Debug"
-		cfg.Log.Transport = "Debug"
-		cfg.Log.Socks5 = "Debug"
-		cfg.Log.ICMP = "Debug"
-		cfg.Log.Firewall = "Debug"
-	}
-
 	logger := configs.InitLogger("main")
 
-	cfg.Main.Mode = strings.ToLower(cfg.Main.Mode)
-	if cfg.Main.Mode != "server" && cfg.Main.Mode != "client" {
-		logger.Fatal("Invalid mode in config file. Use 'client' or 'server'.")
-	}
-
-	if cfg.Main.Mode == "server" {
+	if cfg.Main.IsServer {
 		if cfg.Tun == nil || len(cfg.Tun.TunAddrStr) == 0 && len(tunAddr) == 0 {
 			logger.Fatal("At least one TUN address (CIDR) is mandatory for server")
 		}
@@ -226,14 +235,16 @@ func main() {
 	if remote != "" {
 		p := strings.Split(remote, ":")
 		if len(p) < 2 {
-			logger.Fatal("Remote address must be in host:port format")
+			cfg.Main.RemoteAddr = remote
+			cfg.Main.RemotePort = 0
+		} else {
+			cfg.Main.RemoteAddr = p[0]
+			port, err := strconv.Atoi(p[1])
+			if err != nil {
+				logger.Fatal("Remote address parse error", "error", err)
+			}
+			cfg.Main.RemotePort = uint16(port)
 		}
-		cfg.Main.RemoteAddr = p[0]
-		port, err := strconv.Atoi(p[1])
-		if err != nil {
-			logger.Fatal("Remote address parse error", "error", err)
-		}
-		cfg.Main.RemotePort = uint16(port)
 	}
 	if local != "" {
 		p := strings.Split(local, ":")
@@ -254,7 +265,7 @@ func main() {
 		cfg.Crypt.SignEngine = signEngine
 	}
 	// Defaults for server
-	if mode == "server" {
+	if cfg.Main.IsServer {
 		if cfg.Crypt.Engine == "" {
 			cfg.Crypt.Engine = "aes-gcm"
 		}
@@ -265,8 +276,8 @@ func main() {
 	if cert != "" {
 		cfg.Tls.CertFile = cert
 	}
-	if key != "" {
-		cfg.Tls.KeyFile = key
+	if privKey != "" {
+		cfg.Tls.KeyFile = privKey
 	}
 	if socks5Port != 0 {
 		cfg.Socks5.Port = socks5Port
@@ -288,25 +299,62 @@ func main() {
 		cfg.Tun.TunAddrStr = tunAddr
 	}
 
-	logger.Debug("", "addr", addr)
+	// Override log levels with command line switches
+	for module, level := range logLevel {
+		switch module {
+		case "main":
+			cfg.Log.Main = level
+		case "network":
+			cfg.Log.Network = level
+		case "tun":
+			cfg.Log.Tun = level
+		case "route":
+			cfg.Log.Route = level
+		case "protocol":
+			cfg.Log.Protocol = level
+		case "clients":
+			cfg.Log.Clients = level
+		case "crypt":
+			cfg.Log.Crypt = level
+		case "transport":
+			cfg.Log.Transport = level
+		case "socks5":
+			cfg.Log.Socks5 = level
+		case "icmp":
+			cfg.Log.ICMP = level
+		case "firewall":
+			cfg.Log.Firewall = level
+		default:
+			logger.Warn("Unknown module for log level override", "module", module)
+		}
+	}
 
-	proto_regex := `(tcp|udp)://`
+	// Reinit logger with a new level
+	logger = configs.ReinitLogger("main")
+
+	proto_regex := `([A-Za-z]+)://`
 	ipv4_regex := `(?:[0-9]{1,3}[\.]){3}[0-9]{1,3}`
 	ipv6_regex := `\[(?:[0-9a-f]{0,4}:){1,7}[0-9a-f]{0,4}\]`
 	fqdn_regex := `(?:(?:(?:[a-z0-9][a-z0-9\-]*[a-z0-9])|[a-z0-9]+)\.)*(?:[a-z]+|xn\-\-[a-z0-9]+)\.?`
 	port_regex := `[0-9]{1,5}`
-	re := regexp.MustCompile(proto_regex + `((?:` + ipv4_regex + `)|(?:` + ipv6_regex + `)|(?:` + fqdn_regex + `))*:(` + port_regex + `)`)
+	re := regexp.MustCompile(proto_regex + `((?:` + ipv4_regex + `)|(?:` + ipv6_regex + `)|(?:` + fqdn_regex + `))*(?::(` + port_regex + `))?`)
 	if !re.MatchString(addr) {
-		logger.Fatal("Invalid Address: %s. proto://host:port format expected.\nWhere protocols supported are: tcp, udp", addr)
+		logger.Fatal("Invalid Address: " + addr + ". proto://host:port format expected.")
 	}
 
 	m := re.FindStringSubmatch(addr)
 	cfg.Main.Protocol = m[1]
 	host := m[2]
-	port, err := strconv.Atoi(m[3])
-	if err != nil {
-		logger.Fatal("Wrong port number", "port", m[3])
+	port := 0
+	var err error
+	if m[3] != "" {
+		port, err = strconv.Atoi(m[3])
+		if err != nil {
+			logger.Fatal("Wrong port number", "port", m[3])
+		}
 	}
+
+	logger.Debug("Parsed address", "protocol", cfg.Main.Protocol, "host", host, "port", port)
 
 	// Override config protocol if command line switch is used
 	if proto != "" {
@@ -322,7 +370,7 @@ func main() {
 			tunAddr = append(tunAddr, cidrStr)
 		}
 	} else {
-		if cfg.Main.Mode == "server" {
+		if cfg.Main.IsServer {
 			cfg.Main.LocalAddr = host
 			cfg.Main.LocalPort = uint16(port)
 		} else {
@@ -355,11 +403,11 @@ func main() {
 		logger.Fatal("Unsupported signature engine: " + cfg.Crypt.SignEngine)
 	}
 
-	if len(tunAddr) == 0 && cfg.Main.Mode == "server" {
+	if len(tunAddr) == 0 && cfg.Main.IsServer {
 		logger.Fatal("At least one TUN address (CIDR) is mandatory for server")
 	}
 
-	if cfg.Main.ClientId == "" && cfg.Main.Mode == "client" {
+	if cfg.Main.ClientId == "" && !cfg.Main.IsServer {
 		uuid := uuid.New()
 		cfg.Main.ClientId = uuid.String()
 		logger.Info("Generated Client ID", "id", cfg.Main.ClientId)
@@ -389,7 +437,7 @@ func main() {
 		logger.Fatal("Failed to create transport: " + err.Error())
 	}
 
-	if cfg.Main.Mode == "server" && !t.IsEncrypted() && (cfg.Crypt.Engine == "") {
+	if cfg.Main.IsServer && !t.IsEncrypted() && (cfg.Crypt.Engine == "") {
 		logger.Fatal("Transport is not encrypted and no cipher/signature engine is specified.")
 	}
 
@@ -420,7 +468,7 @@ func main() {
 		cancel() // Clean up context
 	}
 
-	if cfg.Main.Mode == "server" {
+	if cfg.Main.IsServer {
 		err = network.CloseFirewallPort(configs.GetConfig().LocalPort, t.GetType())
 		if err != nil {
 			logger.Error("Error closing firewall port", "error", err)

@@ -18,9 +18,9 @@ type ConfigFile struct {
 }
 
 type Main struct {
-	Mode       string `toml:"mode"`
-	Debug      bool   `toml:"debug"`
-	Secret     string
+	IsServer   bool   `toml:"server"`
+	DefaultLog string `toml:"default_log"`
+	Secret     string `toml:"secret"`
 	Protocol   string `toml:"protocol"`
 	RemoteAddr string `toml:"remote_addr"`
 	RemotePort uint16 `toml:"remote_port"`
@@ -38,8 +38,8 @@ type Crypt struct {
 
 type Tls struct {
 	CertFile string `toml:"cert_file"`
-	KeyFile  string `toml:"key_file"`
-	CAFile   string `toml:"ca_file"`
+	KeyFile  string `toml:"priv_key_file"`
+	CAFile   string `toml:"ca_file"` // not implemented yet
 }
 
 type Tun struct {
@@ -73,8 +73,8 @@ type Log struct {
 
 // RuntimeConfig holds the runtime configuration after parsing the config file, applying defaults, and command-line overrides
 type RuntimeConfig struct {
-	Mode           string
-	Debug          bool
+	IsServer       bool
+	DefaultLog     string
 	Protocol       string
 	RemoteAddr     string
 	RemotePort     uint16
@@ -119,8 +119,8 @@ func GetConfigFile() *ConfigFile {
 func GetConfig() *RuntimeConfig {
 	if config == nil {
 		config = &RuntimeConfig{
-			Mode:           configFile.Main.Mode,
-			Debug:          configFile.Main.Debug,
+			IsServer:       configFile.Main.IsServer,
+			DefaultLog:     configFile.Main.DefaultLog,
 			Protocol:       configFile.Main.Protocol,
 			RemoteAddr:     configFile.Main.RemoteAddr,
 			RemotePort:     configFile.Main.RemotePort,

@@ -61,10 +61,8 @@ func (c *Client) TransportReadLoop(address netip.AddrPort) {
 				// We got an error. Mostly it will EOF(XXX), so close and remove the client
 				c.SetClientState(NotFound)
 				RemoveClient(c.address)
-				if configs.GetConfig().Mode == "client" {
-					if tunIf != nil {
-						tunIf.Close()
-					}
+				if !configs.GetConfig().IsServer && tunIf != nil {
+					tunIf.Close()
 				}
 				break
 			}
