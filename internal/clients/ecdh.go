@@ -30,7 +30,7 @@ func (c *Client) ECDH() error {
 	}
 
 	c.logger.Trace("ECDH: Write public key", "len", len(buf), "buf", hex.EncodeToString(buf))
-	err = c.Write(&buf, NoEncryption|WithPadding)
+	err = c.Write(&buf, WithPadding)
 	if err != nil {
 		return err
 	}
