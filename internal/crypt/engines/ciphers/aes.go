@@ -60,3 +60,7 @@ func (e *AesEngine) Encrypt(data []byte) ([]byte, error) {
 func (e *AesEngine) Decrypt(data []byte) ([]byte, error) {
 	return e.modes.Decrypt(data)
 }
+
+func (e *AesEngine) GetOverhead() int {
+	return e.modes.GetOverhead()
+}

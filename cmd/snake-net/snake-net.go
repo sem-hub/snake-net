@@ -367,21 +367,26 @@ func main() {
 	}
 
 	if cfg.Crypt.Engine != "" {
-		engineMode := strings.Split(cfg.Crypt.Engine, "-")
-		if len(engineMode) != 2 {
-			logger.Fatal("Invalid cipher format. Use engine-mode format, e.g., aes-gcm")
+		cfg.Crypt.Engine = strings.ToLower(cfg.Crypt.Engine)
+		if err != nil || engines.GetEngineType(cfg.Crypt.Engine) == "block" {
+			engineMode := strings.Split(cfg.Crypt.Engine, "-")
+			if len(engineMode) != 2 {
+				logger.Fatal("Unsupported cryptographic engine or invalid engine-mode format, e.g., aes-gcm: " + cfg.Crypt.Engine)
+			}
+			if !engines.IsEngineSupported(engineMode[0]) {
+				logger.Fatal("Unsupported cryptographic engine: " + engineMode[0])
+			}
+			if !engines.IsModeSupported(engineMode[1]) {
+				logger.Fatal("Unsupported cryptographic mode: " + engineMode[1])
+			}
 		}
-		if !engines.IsEngineSupported(engineMode[0]) {
-			logger.Fatal("Unsupported cryptographic engine: " + engineMode[0])
-		}
-		if !engines.IsModeSupported(engineMode[1]) {
-			logger.Fatal("Unsupported cryptographic mode: " + engineMode[1])
-		}
-
 	}
 
-	if cfg.Crypt.SignEngine != "" && !signature.IsEngineSupported(cfg.Crypt.SignEngine) {
-		logger.Fatal("Unsupported signature engine: " + cfg.Crypt.SignEngine)
+	if cfg.Crypt.SignEngine != "" {
+		cfg.Crypt.SignEngine = strings.ToLower(cfg.Crypt.SignEngine)
+		if !signature.IsEngineSupported(cfg.Crypt.SignEngine) {
+			logger.Fatal("Unsupported signature engine: " + cfg.Crypt.SignEngine)
+		}
 	}
 
 	if len(tunAddr) == 0 && cfg.Main.IsServer {

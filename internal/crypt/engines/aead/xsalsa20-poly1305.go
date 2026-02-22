@@ -86,3 +86,7 @@ func (e *Xsalsa20Poly1305Engine) Encrypt(data []byte) ([]byte, error) {
 func (e *Xsalsa20Poly1305Engine) Decrypt(data []byte) ([]byte, error) {
 	return e.AeadEngine.Open(e.NewAEAD, data)
 }
+
+func (e *Xsalsa20Poly1305Engine) GetOverhead() int {
+	return 16 + 24 // tag size + nonce size
+}

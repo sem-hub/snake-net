@@ -53,3 +53,7 @@ func (e *RabbitEngine) Encrypt(data []byte) ([]byte, error) {
 func (e *RabbitEngine) Decrypt(data []byte) ([]byte, error) {
 	return e.StreamEngine.StreamDecrypt(e.ivSize, e.NewStream, data)
 }
+
+func (e *RabbitEngine) GetOverhead() int {
+	return e.ivSize
+}

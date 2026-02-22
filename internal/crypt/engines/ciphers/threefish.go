@@ -116,3 +116,7 @@ func (e *ThreefishEngine) Decrypt(data []byte) ([]byte, error) {
 	data = data[tweakSize:]
 	return e.modes.Decrypt(data)
 }
+
+func (e *ThreefishEngine) GetOverhead() int {
+	return tweakSize + e.modes.GetOverhead()
+}

@@ -51,3 +51,7 @@ func (e *AegisEngine) Encrypt(data []byte) ([]byte, error) {
 func (e *AegisEngine) Decrypt(data []byte) ([]byte, error) {
 	return e.AeadEngine.Open(e.NewAEAD, data)
 }
+
+func (e *AegisEngine) GetOverhead() int {
+	return 16 + aegis128l.NonceSize // tag size + nonce size
+}

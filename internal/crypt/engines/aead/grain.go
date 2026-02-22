@@ -51,3 +51,7 @@ func (e *GrainEngine) Encrypt(data []byte) ([]byte, error) {
 func (e *GrainEngine) Decrypt(data []byte) ([]byte, error) {
 	return e.AeadEngine.Open(e.NewAEAD, data)
 }
+
+func (e *GrainEngine) GetOverhead() int {
+	return 16 + grain.NonceSize // tag size + nonce size
+}

@@ -58,3 +58,7 @@ func (e *Hc256Engine) Encrypt(data []byte) ([]byte, error) {
 func (e *Hc256Engine) Decrypt(data []byte) ([]byte, error) {
 	return e.StreamEngine.StreamDecrypt(e.nonceSize, e.NewStream, data)
 }
+
+func (e *Hc256Engine) GetOverhead() int {
+	return e.nonceSize
+}

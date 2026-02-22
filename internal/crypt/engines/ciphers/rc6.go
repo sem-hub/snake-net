@@ -62,3 +62,7 @@ func (e *Rc6Engine) Encrypt(data []byte) ([]byte, error) {
 func (e *Rc6Engine) Decrypt(data []byte) ([]byte, error) {
 	return e.modes.Decrypt(data)
 }
+
+func (e *Rc6Engine) GetOverhead() int {
+	return e.modes.GetOverhead()
+}

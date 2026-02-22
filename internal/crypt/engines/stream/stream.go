@@ -52,3 +52,11 @@ func (e *StreamEngine) StreamDecrypt(addBlockSize int, newStream func([]byte) (c
 	e.Logger.Trace("Decrypt stream", "decryptedlen", len(bufOut))
 	return bufOut, nil
 }
+
+func (e *StreamEngine) GetOverhead(newCipher func() (cipher.Block, error)) int {
+	block, err := newCipher()
+	if err != nil {
+		return 0
+	}
+	return block.BlockSize() // IV size
+}

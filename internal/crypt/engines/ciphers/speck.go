@@ -62,3 +62,7 @@ func (e *SpeckEngine) Encrypt(data []byte) ([]byte, error) {
 func (e *SpeckEngine) Decrypt(data []byte) ([]byte, error) {
 	return e.modes.Decrypt(data)
 }
+
+func (e *SpeckEngine) GetOverhead() int {
+	return e.modes.GetOverhead()
+}

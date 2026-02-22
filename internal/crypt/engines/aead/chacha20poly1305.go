@@ -48,3 +48,7 @@ func (e *Chacha20Poly1305Engine) Encrypt(data []byte) ([]byte, error) {
 func (e *Chacha20Poly1305Engine) Decrypt(data []byte) ([]byte, error) {
 	return e.AeadEngine.Open(e.NewAEAD, data)
 }
+
+func (e *Chacha20Poly1305Engine) GetOverhead() int {
+	return 16 + chacha20poly1305.NonceSize // tag size + nonce size
+}

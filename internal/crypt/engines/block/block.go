@@ -76,3 +76,11 @@ func (e *BlockEngine) BlockDecrypt(NewCipher func() (cipher.Block, error), data 
 	}
 	return bufOut[:len(bufOut)-padding], nil
 }
+
+func (e *BlockEngine) GetOverhead(NewCipher func() (cipher.Block, error)) int {
+	block, err := NewCipher()
+	if err != nil {
+		return 0
+	}
+	return block.BlockSize() * 2 // IV size + padding overhead (worst case)
+}

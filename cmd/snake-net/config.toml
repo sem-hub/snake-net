@@ -30,7 +30,6 @@ file = ""      # log file path, empty means stdout
 nocolor = false  # disable color output on stdout
 main = "Error"
 protocol = "Debug"
-network = "Warnings"
 route = "Info"
 crypt = "Info"
 clients = "Info"

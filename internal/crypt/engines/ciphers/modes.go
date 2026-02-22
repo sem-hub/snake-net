@@ -150,3 +150,16 @@ func (e *Modes) Decrypt(data []byte) ([]byte, error) {
 	}
 	return nil, errors.New("unsupported mode")
 }
+
+func (e *Modes) GetOverhead() int {
+	if engines.ModesList[e.Mode] == "block" {
+		return e.BlockEngine.GetOverhead(e.NewCipher)
+	}
+	if engines.ModesList[e.Mode] == "aead" {
+		return e.AeadEngine.GetOverhead(e.NewAEAD)
+	}
+	if engines.ModesList[e.Mode] == "stream" {
+		return e.StreamEngine.GetOverhead(e.NewCipher)
+	}
+	return 0
+}

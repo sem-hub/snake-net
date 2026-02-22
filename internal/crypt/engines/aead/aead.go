@@ -52,3 +52,11 @@ func (e *AeadEngine) Open(NewAEAD func() (cipher.AEAD, error), data []byte) ([]b
 	e.Logger.Trace("Decrypt AEAD", "decryptedlen", len(bufOut))
 	return bufOut, err
 }
+
+func (e *AeadEngine) GetOverhead(NewAEAD func() (cipher.AEAD, error)) int {
+	aead, err := NewAEAD()
+	if err != nil {
+		return 0
+	}
+	return aead.NonceSize() + aead.Overhead()
+}

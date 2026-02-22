@@ -2,28 +2,27 @@ package engines
 
 import (
 	"errors"
-	"slices"
 	"sync"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
 
-var EnginesList = []string{
+var EnginesList = map[string]string{
 	// Universal (block)
-	"aes",
-	"speck",
-	"rc6",
-	"threefish",
+	"aes":       "block",
+	"speck":     "block",
+	"rc6":       "block",
+	"threefish": "block",
 	// Stream only
-	"salsa20",
-	"chacha20",
-	"rabbit",
-	"hc",
+	"salsa20":  "stream",
+	"chacha20": "stream",
+	"rabbit":   "stream",
+	"hc":       "stream",
 	// AEAD
-	"chacha20poly1305",
-	"xsalsa20poly1305",
-	"grain",
-	"aegis",
+	"chacha20poly1305": "aead",
+	"xsalsa20poly1305": "aead",
+	"grain":            "aead",
+	"aegis":            "aead",
 }
 
 var ModesList = map[string]string{
@@ -41,6 +40,7 @@ type CryptoEngine interface {
 	GetName() string
 	GetType() string
 	GetKeySizes() []int
+	GetOverhead() int
 }
 type EngineData struct {
 	Name   string
@@ -56,7 +56,16 @@ func NewEngineData(Name, Type string) *EngineData {
 }
 
 func IsEngineSupported(engine string) bool {
-	return slices.Contains(EnginesList, engine)
+	_, exists := EnginesList[engine]
+	return exists
+}
+
+func GetEngineType(engine string) string {
+	engineType, exists := EnginesList[engine]
+	if !exists {
+		return ""
+	}
+	return engineType
 }
 
 func IsModeSupported(mode string) bool {
@@ -68,7 +77,7 @@ func IsModeSupported(mode string) bool {
 type EngineConstructor func(sharedSecret []byte, keySize int, mode string) (CryptoEngine, error)
 
 var (
-	engineRegistry = make(map[string]EngineConstructor)
+	engineRegistry      = make(map[string]EngineConstructor)
 	engineRegistryMutex sync.RWMutex
 )
 

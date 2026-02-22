@@ -51,3 +51,7 @@ func (e *Chacha20Engine) Decrypt(data []byte) ([]byte, error) {
 	return e.StreamEngine.StreamDecrypt(chacha20.NonceSize, e.NewCipher, data)
 
 }
+
+func (e *Chacha20Engine) GetOverhead() int {
+	return chacha20.NonceSize
+}

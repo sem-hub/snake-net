@@ -81,7 +81,8 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 			mode = parts[1]
 		}
 	}
-	if mode == "" {
+	// Default mode for block ciphers is CBC, for stream and AEAD it's not needed.
+	if mode == "" && engines.GetEngineType(cipher) == "block" {
 		mode = "cbc"
 	}
 	logger.Debug("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
@@ -91,6 +92,7 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		return nil, err
 	}
 	logger.Info("Using", "cipher", cipher+"-"+mode)
+	logger.Debug("GetOverhead", "overhead", s.Engine.GetOverhead())
 
 	if s.Engine.GetType() == "aead" {
 		s.SignatureEngine.Deactivate()
