@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"hash/crc32"
@@ -17,7 +16,6 @@ import (
 )
 
 func (c *Client) getHeaderInfo(buf []byte) (Header, error) {
-	headerWithCRC := HeaderWithCRC{}
 	var dataHeader []byte
 	if c.t.IsEncrypted() {
 		dataHeader = buf
@@ -30,18 +28,23 @@ func (c *Client) getHeaderInfo(buf []byte) (Header, error) {
 		}
 	}
 
-	err := binary.Read(bytes.NewReader(dataHeader), binary.BigEndian, &headerWithCRC)
-	if err != nil {
-		c.logger.Error("getHeaderInfo binary.Read error", "address", c.address.String(), "error", err)
-		return Header{}, err
+	if len(dataHeader) < HEADER {
+		c.logger.Error("getHeaderInfo short header", "address", c.address.String(), "len", len(dataHeader))
+		return Header{}, errors.New("short header")
 	}
 
-	if headerWithCRC.CRC != crc32.ChecksumIEEE(dataHeader[:5]) {
-		c.logger.Error("getHeaderInfo CRC32 error", "address", c.address.String(), "crc", headerWithCRC.CRC, "calculated", crc32.ChecksumIEEE(dataHeader[:5]))
+	calculatedCRC := crc32.ChecksumIEEE(dataHeader[:5])
+	receivedCRC := binary.BigEndian.Uint32(dataHeader[5:9])
+	if receivedCRC != calculatedCRC {
+		c.logger.Error("getHeaderInfo CRC32 error", "address", c.address.String(), "crc", receivedCRC, "calculated", calculatedCRC)
 		return Header{}, errors.New("CRC32 mismatch")
 	}
 
-	return headerWithCRC.Header, nil
+	return Header{
+		Size:  binary.BigEndian.Uint16(dataHeader[0:2]),
+		Seq:   binary.BigEndian.Uint16(dataHeader[2:4]),
+		Flags: Cmd(dataHeader[4]),
+	}, nil
 }
 
 // ReadLoop reads data from network into client's buffer
@@ -73,9 +76,21 @@ func (c *Client) TransportReadLoop(address netip.AddrPort) {
 			}
 
 			c.bufLock.Lock()
+			if c.bufOffset > 0 && c.bufSize+n > len(c.buf) {
+				copy(c.buf, c.buf[c.bufOffset:c.bufSize])
+				c.bufSize -= c.bufOffset
+				c.bufOffset = 0
+			}
+			if c.bufSize+n > len(c.buf) {
+				c.logger.Error("client ReadLoop buffer overflow", "len", n, "bufSize", c.bufSize, "capacity", len(c.buf), "address", address.String())
+				c.bufSize = 0
+				c.bufOffset = 0
+				c.bufLock.Unlock()
+				continue
+			}
 			// Write to the end of the buffer
 			c.logger.Debug("client ReadLoop put in buf", "len", n, "bufSize", c.bufSize, "address", address.String())
-			copy(c.buf[c.bufSize:], msg[:n])
+			copy(c.buf[c.bufSize:c.bufSize+n], msg[:n])
 			c.bufSize += n
 			if n > 0 {
 				c.bufSignal.Signal()
@@ -206,7 +221,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// Finished working with buf, unlock
 	c.bufLock.Unlock()
 
-	if !c.t.IsEncrypted() || (header.Flags&NoEncryption) == 0 {
+	if !c.t.IsEncrypted() && (header.Flags&NoEncryption) == 0 {
 		msg, err = c.secrets.DecryptAndVerify(msg, header.Size, header.Flags)
 		if err != nil {
 			c.logger.Error("ReadBuf: DecryptAndVerify error", "address", c.address.String())
