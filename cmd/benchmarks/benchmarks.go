@@ -110,7 +110,8 @@ func main() {
 	_ = configs.GetConfigFile()
 	_ = configs.GetConfig()
 	enginesMap := map[string]engines.CryptoEngine{}
-	for _, engineName := range engines.EnginesList {
+	for engineName := range engines.EnginesList {
+		//fmt.Println("Creating engine:", engineName)
 		size := 256
 		engine, err := crypt.CreateEngine(engineName, "cbc", size, password)
 		if err != nil {
@@ -223,9 +224,19 @@ func main() {
 			continue
 		}
 	}
-	signatureEngines["ed25519"] = signature.NewSignatureEd25519(password)
-	signatureEngines["hmac-sha256"] = signature.NewSignatureHMACSHA256(password)
-	signatureEngines["hmac-blake2b"] = signature.NewSignatureHMACBlake(password)
+	var err error
+	signatureEngines["ed25519"], err = signature.NewSignatureEngineByName("ed25519", password)
+	if err != nil {
+		fmt.Println("Error creating signature engine: ed25519 :", err)
+	}
+	signatureEngines["hmac-sha256"], err = signature.NewSignatureEngineByName("hmac-sha256", password)
+	if err != nil {
+		fmt.Println("Error creating signature engine: hmac-sha256 :", err)
+	}
+	signatureEngines["hmac-blake2b"], err = signature.NewSignatureEngineByName("hmac-blake2b", password)
+	if err != nil {
+		fmt.Println("Error creating signature engine: hmac-blake2b :", err)
+	}
 
 	fmt.Println("Signature Benchmarking:")
 	for name, engine := range signatureEngines {
