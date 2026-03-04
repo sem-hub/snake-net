@@ -50,7 +50,7 @@ func (dtls *DtlsTransport) WireProtocol() string {
 }
 
 func (dtls *DtlsTransport) IsEncrypted() bool {
-	return false
+	return true
 }
 
 func (dtls *DtlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
