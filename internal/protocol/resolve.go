@@ -176,7 +176,8 @@ func ResolveAndProcess(ctx context.Context) {
 					cfg.Protocol = protocol
 					t = CreateTransport(cfg.Protocol, cfg.Secret)
 				}
-			} else {
+			}
+			if port == 0 && !cfg.Discovery {
 				logger.Fatal("Port is not specified and discovery mode is not enabled, cannot connect to server")
 			}
 
