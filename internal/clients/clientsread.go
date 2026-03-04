@@ -175,8 +175,13 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 
 		// Out of order or lost packets processing
 		if header.Seq != c.seqIn {
-			c.logger.Warn("client ReadBuf: invalid sequence number", "seq", header.Seq,
-				"expected", c.seqIn, "address", c.address, "oooPackets", c.oooPackets)
+			if c.oooPackets == 0 {
+				c.logger.Debug("client ReadBuf: invalid sequence number", "seq", header.Seq,
+					"expected", c.seqIn, "address", c.address, "oooPackets", c.oooPackets)
+			} else {
+				c.logger.Warn("client ReadBuf: still invalid sequence number", "seq", header.Seq,
+					"expected", c.seqIn, "address", c.address, "oooPackets", c.oooPackets)
+			}
 			// We still hold lock here. Unlock inside the function.
 			_, err = c.processOOOP(header.Size, header.Seq)
 			if errors.Is(err, errReadBufContinue) {

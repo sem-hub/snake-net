@@ -28,7 +28,7 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 	if seq > c.seqIn {
 		if c.lookInBufferForSeq(c.seqIn) {
 			// Found in buffer, process it
-			c.logger.Warn("client OOOP: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
+			c.logger.Debug("client OOOP: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
 			c.bufLock.Unlock()
 			return nil, errReadBufContinue
 		}
