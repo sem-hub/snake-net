@@ -30,7 +30,7 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 			// Found in buffer, process it
 			c.logger.Warn("client OOOP: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
 			c.bufLock.Unlock()
-			return c.ReadBuf(HEADER)
+			return nil, errReadBufContinue
 		}
 		// Did not find any packet in buffer. We lost it. Ask for resend.
 		// Ask for resend only three times. XXX We don't process massive lost.
@@ -48,7 +48,7 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 				c.logger.Error("OOOP processing: Error when ask a packet for retransmittion", "error", err)
 			}
 			c.oooPackets++
-			return c.ReadBuf(HEADER)
+			return nil, errReadBufContinue
 		}
 
 		// OutOfOrder leave packet in buffer and restart reading
@@ -71,7 +71,7 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 		c.removeThePacketFromBuffer(HEADER + int(n))
 	}
 	c.bufLock.Unlock()
-	return c.ReadBuf(HEADER)
+	return nil, errReadBufContinue
 }
 
 // Executed under bufLock

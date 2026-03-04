@@ -48,13 +48,13 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 			c.logger.Error("failed to send pong command", "address", c.address.String(), "error", err)
 		}
 
-		return c.ReadBuf(HEADER)
+		return nil, errReadBufContinue
 	case Pong:
 		c.logger.Debug("received pong command", "address", c.address.String())
 
 		c.pinger.StopPongTimeoutTimer()
 		// timer already reseted when data is received in ReadBuf()
-		return c.ReadBuf(HEADER)
+		return nil, errReadBufContinue
 	case ShutdownRequest:
 		c.logger.Info("got shutdown request command, closing connection", "address", c.address.String())
 
@@ -122,7 +122,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 		// Remove the packet from buffer
 		c.removeThePacketFromBuffer(HEADER + int(n))
 		c.bufLock.Unlock()
-		return c.ReadBuf(HEADER)
+		return nil, errReadBufContinue
 	default:
 		return nil, errors.New("unknown command: " + hex.EncodeToString([]byte{byte(command)}))
 	}
