@@ -163,7 +163,14 @@ func (s *Secrets) SignAndEncrypt(msg []byte, flags Cmd) ([]byte, error) {
 		flags |= NoSignature
 	}
 
-	buf := make([]byte, 0)
+	bufCap := len(msg)
+	if (flags&NoEncryption) == 0 && s.Engine != nil {
+		bufCap += s.Engine.GetOverhead()
+	}
+	if (flags&NoSignature) == 0 && s.SignatureEngine != nil {
+		bufCap += int(s.SignatureEngine.SignLen())
+	}
+	buf := make([]byte, 0, bufCap)
 	if (flags & NoEncryption) == 0 {
 		logger.Trace("client Write encrypting", "len", len(msg))
 		data, err := s.Engine.Encrypt(msg)
