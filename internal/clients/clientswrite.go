@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"hash/crc32"
@@ -17,10 +16,6 @@ import (
 // If encryption is AEAD, we do not need to sign (integrity is provided by AEAD)
 // cmd contains flags for encryption/signing and commands
 func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
-	// Do not break packet build. Unless this lock, out of order packets are very likely to happen, which is worse than a bit of delay.
-	c.orderSendLock.Lock()
-	defer c.orderSendLock.Unlock()
-
 	if c.t.IsEncrypted() {
 		// Transport does low-level encryption, so we can skip it
 		cmd |= NoEncryption
@@ -47,15 +42,18 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 			return errors.New("invalid message size")
 		}
 	}
-	// Copy message
+	// Copy message only when padding is needed to avoid mutating caller buffer.
 	c.logger.Debug("client Write", "address", c.address, "seq", c.seqOut.Load())
 
-	msgBuf := make([]byte, 0)
+	var msgBuf []byte
 	if msg != nil {
-		msgBuf = append(msgBuf, *msg...)
+		msgBuf = *msg
 	}
 	// Need padding
 	if (cmd & WithPadding) != 0 {
+		if msgBuf != nil {
+			msgBuf = append([]byte(nil), msgBuf...)
+		}
 		msgBuf = crypt.Pad(msgBuf)
 	}
 
@@ -72,48 +70,65 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	buf = append(buf, msgBuf...)
 
 	n = len(buf) - HEADER
-	seq := c.seqOut.Load()
-	c.seqOut.Add(1)
 
-	headerBuf := new(bytes.Buffer)
-	err = binary.Write(headerBuf, binary.BigEndian, uint16(n))
-	if err != nil {
-		c.logger.Error("client Write binary.Write error", "error", err, "address", c.address, "seq", seq)
-		return err
+	req := sendRequest{
+		buf:    buf,
+		seq:    0,
+		result: make(chan error, 1),
 	}
-	err = binary.Write(headerBuf, binary.BigEndian, uint16(seq))
-	if err != nil {
-		c.logger.Error("client Write binary.Write error", "error", err, "address", c.address, "seq", seq)
-		return err
-	}
-	headerBuf.WriteByte(byte(cmd)) // flags or/and command
 
-	crc := crc32.ChecksumIEEE(headerBuf.Bytes()[:5])
+	c.sendQueueLock.Lock()
+	seq := uint16(c.seqOut.Add(1) - 1)
+	req.seq = seq
+
+	var headerBuf [HEADER]byte
+	binary.BigEndian.PutUint16(headerBuf[0:2], uint16(n))
+	binary.BigEndian.PutUint16(headerBuf[2:4], seq)
+	headerBuf[4] = byte(cmd)
+
+	crc := crc32.ChecksumIEEE(headerBuf[:5])
 	c.logger.Debug("client Write", "crc", crc)
-	err = binary.Write(headerBuf, binary.BigEndian, crc)
-	if err != nil {
-		c.logger.Error("client Write binary.Write error", "error", err, "address", c.address, "seq", seq)
-		return err
-	}
+	binary.BigEndian.PutUint32(headerBuf[5:9], crc)
 
 	// Encrypt header if transport is not Encrypted. Must not change message size!
 	if !c.t.IsEncrypted() {
-		encryptData, err := c.secrets.EncryptDecryptNoIV(headerBuf.Bytes())
+		encryptData, err := c.secrets.EncryptDecryptNoIV(headerBuf[:])
 		if err != nil {
+			c.sendQueueLock.Unlock()
 			return err
 		}
-		copy(buf[:HEADER], encryptData)
+		copy(req.buf[:HEADER], encryptData)
 	} else {
-		copy(buf[:HEADER], headerBuf.Bytes())
+		copy(req.buf[:HEADER], headerBuf[:])
 	}
 
-	c.logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(buf))
-	err = c.t.Send(c.address, &buf)
-	if err != nil {
-		c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", seq)
-		return err
+	c.logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(req.buf))
+
+	select {
+	case c.sendQueue <- req:
+		c.sendQueueLock.Unlock()
+		return <-req.result
+	case <-c.sendLoopDone:
+		c.sendQueueLock.Unlock()
+		return errors.New("client is closed")
 	}
-	c.logger.Debug("client Write sent", "len", len(buf), "address", c.address.String(), "seq", seq)
-	c.sentBuffer.Push(buf)
-	return nil
+}
+
+func (c *Client) runSendLoop() {
+	for {
+		select {
+		case req := <-c.sendQueue:
+			err := c.t.Send(c.address, &req.buf)
+			if err != nil {
+				c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", req.seq)
+				req.result <- err
+				continue
+			}
+			c.logger.Debug("client Write sent", "len", len(req.buf), "address", c.address.String(), "seq", req.seq)
+			c.sentBuffer.Push(req.buf)
+			req.result <- nil
+		case <-c.sendLoopDone:
+			return
+		}
+	}
 }

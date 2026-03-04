@@ -20,7 +20,8 @@ type State int
 
 const (
 	BUFSIZE        = 524288 // 512 KB
-	SENTBUFFERSIZE = 200    // keep 200 packets after sending
+	SENTBUFFERSIZE = 512    // keep 512 packets after sending
+	SENDQUEUESIZE  = 256
 )
 
 const (
@@ -49,10 +50,19 @@ type Client struct {
 	ooopTimer      *time.Timer
 	reaskedPackets int
 	sentBuffer     *utils.CircularBuffer
-	orderSendLock  *sync.Mutex
+	sendQueueLock  sync.Mutex
+	sendQueue      chan sendRequest
+	sendLoopDone   chan struct{}
+	sendLoopOnce   sync.Once
 	closed         bool
 	id             string
 	pinger         *PingerClient
+}
+
+type sendRequest struct {
+	buf    transport.Message
+	seq    uint16
+	result chan error
 }
 
 var (
@@ -107,7 +117,8 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		oooPackets:     0,
 		reaskedPackets: 0,
 		sentBuffer:     utils.NewCircularBuffer(SENTBUFFERSIZE),
-		orderSendLock:  &sync.Mutex{},
+		sendQueue:      make(chan sendRequest, SENDQUEUESIZE),
+		sendLoopDone:   make(chan struct{}),
 		closed:         false,
 		id:             "",
 		pinger:         nil,
@@ -115,6 +126,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
 	client.seqOut.Store(1)
+	go client.runSendLoop()
 
 	if len(clients) != 0 && FindClient(address) != nil {
 		logger.Info("Client already exists", "address", address)
@@ -253,7 +265,12 @@ func (c *Client) Close() error {
 			c.pinger.pongTimeoutTimer.Stop()
 		}
 	}
+	c.sendQueueLock.Lock()
 	c.closed = true
+	c.sendLoopOnce.Do(func() {
+		close(c.sendLoopDone)
+	})
+	c.sendQueueLock.Unlock()
 	err := c.t.CloseClient(c.address)
 	if err != nil {
 		return err
