@@ -206,7 +206,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 	// Finished working with buf, unlock
 	c.bufLock.Unlock()
 
-	if c.secrets.Engine != nil || (header.Flags&NoEncryption) == 0 {
+	if !c.t.IsEncrypted() || (header.Flags&NoEncryption) == 0 {
 		msg, err = c.secrets.DecryptAndVerify(msg, header.Size, header.Flags)
 		if err != nil {
 			c.logger.Error("ReadBuf: DecryptAndVerify error", "address", c.address.String())

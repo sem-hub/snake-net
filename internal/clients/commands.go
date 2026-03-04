@@ -75,11 +75,18 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 		return nil, errors.New("connection closed by client")
 
 	case AskForResend:
-		// we did not decrypt the data yet
-		dataDecrypted, err := c.secrets.DecryptAndVerify(data, n, command)
-		if err != nil {
-			c.logger.Error("process command AskForResend: decrypt&verify error", "address", c.address.String(), "error", err)
-			return nil, err
+		var dataDecrypted []byte
+		var err error
+
+		if !c.t.IsEncrypted() {
+			// we did not decrypt the data yet
+			dataDecrypted, err = c.secrets.DecryptAndVerify(data, n, command)
+			if err != nil {
+				c.logger.Error("process command AskForResend: decrypt&verify error", "address", c.address.String(), "error", err)
+				return nil, err
+			}
+		} else {
+			dataDecrypted = data[:n]
 		}
 
 		// Find in sentBuffer and resend
