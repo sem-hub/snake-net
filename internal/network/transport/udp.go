@@ -17,6 +17,10 @@ type UdpTransport struct {
 	hasError         bool
 }
 
+const (
+	udpSocketBufferSize = 4 * 1024 * 1024
+)
+
 func init() {
 	RegisterTransport("udp", func(args ...interface{}) (Transport, error) {
 		return NewUdpTransport(), nil
@@ -62,6 +66,15 @@ func (udp *UdpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	udp.mainConn, err = net.ListenUDP("udp", net.UDPAddrFromAddrPort(lAddrPort))
 	if err != nil {
 		return err
+	}
+
+	err = udp.mainConn.SetReadBuffer(udpSocketBufferSize)
+	if err != nil {
+		udp.logger.Warn("UDP SetReadBuffer failed", "error", err, "size", udpSocketBufferSize)
+	}
+	err = udp.mainConn.SetWriteBuffer(udpSocketBufferSize)
+	if err != nil {
+		udp.logger.Warn("UDP SetWriteBuffer failed", "error", err, "size", udpSocketBufferSize)
 	}
 
 	go udp.runReadLoop(callback)
@@ -123,7 +136,6 @@ func (udp *UdpTransport) Send(addrPort netip.AddrPort, msg *Message) error {
 	}
 	return nil
 }
-
 func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) {
 	// If we have buffered packets for this addr
 	var bufArray [][]byte
