@@ -161,7 +161,7 @@ func ResolveAndProcess(ctx context.Context) {
 					continue
 				}
 			}
-			if port == 0 && cfg.Discovery {
+			if cfg.Discovery {
 				logger.Info("Asking port from server via ICMP", "peer", ips[tryNo].String())
 				var portNo uint16
 				var protocol string
