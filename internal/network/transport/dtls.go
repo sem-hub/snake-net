@@ -96,7 +96,7 @@ func (dtls *DtlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 		dtls.connLock.Lock()
 		dtls.conn[addrPort] = dtlsConn
 		dtls.connLock.Unlock()
-		dtls.logger.Info("Connected to", "server", rAddrPort, "from", dtlsConn.LocalAddr().String())
+		dtls.logger.Info("Connected to", "server", rAddrPort, "from", dtlsConn.LocalAddr().(*net.UDPAddr).AddrPort())
 	}
 
 	return nil
@@ -115,14 +115,14 @@ func (dtls *DtlsTransport) listen(addrPort *net.UDPAddr, mdtlsConfig *mdtls.Conf
 			dtls.logger.Error("listen", "error", err)
 			break
 		}
-		dtls.logger.Info("New UDP connection from", "addr", addrPort.String())
+		dtls.logger.Info("New UDP connection from", "addr", addrPort)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		dtlsConn, ok := conn.(*mdtls.Conn)
 		if ok {
 			err = dtlsConn.HandshakeContext(ctx)
 			if err != nil {
-				dtls.logger.Error("DTLS Handshake error", "from", dtlsConn.RemoteAddr().String(), "error", err)
+				dtls.logger.Error("DTLS Handshake error", "from", dtlsConn.RemoteAddr().(*net.UDPAddr).AddrPort(), "error", err)
 				cancel()
 				continue
 			}
@@ -133,7 +133,7 @@ func (dtls *DtlsTransport) listen(addrPort *net.UDPAddr, mdtlsConfig *mdtls.Conf
 		// unmap this AddrPort
 		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
 
-		dtls.logger.Info("Handshake completed for connection from", "addr", addrPort.String())
+		dtls.logger.Info("Handshake completed for connection from", "addr", addrPort)
 
 		dtls.connLock.Lock()
 		dtls.conn[addrPort] = dtlsConn
@@ -181,13 +181,13 @@ func (dtls *DtlsTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 		return nil, 0, err
 	}
 
-	dtls.logger.Debug("Got data", "len", l, "from", addr.String())
+	dtls.logger.Debug("Got data", "len", l, "from", addr)
 	msg := Message(b)[:l]
 	return msg, l, nil
 }
 
 func (dtls *DtlsTransport) CloseClient(addr netip.AddrPort) error {
-	dtls.logger.Debug("DTLS CloseClient", "addr", addr.String())
+	dtls.logger.Debug("DTLS CloseClient", "addr", addr)
 	dtls.connLock.RLock()
 	dtlsconn, ok := dtls.conn[addr]
 	dtls.connLock.RUnlock()

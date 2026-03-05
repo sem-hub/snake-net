@@ -97,7 +97,7 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) {
 		// We must use unmaped address for consistency
 		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
 
-		udp.logger.Debug("UDP read from connection", "len", l, "from", addrPort.String())
+		udp.logger.Debug("UDP read from connection", "len", l, "from", addrPort)
 
 		udp.packetBufLock.Lock()
 		if _, ok := udp.connectedClients[addrPort]; !ok {
@@ -111,7 +111,7 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) {
 		udp.packetBufLock.Unlock()
 		// Ready to process
 		udp.packetBufCond.Broadcast()
-		udp.logger.Debug("UDP put into buffer", "len", l, "from", addrPort.String(), "len(packetBuf)", packetBufLen)
+		udp.logger.Debug("UDP put into buffer", "len", l, "from", addrPort, "len(packetBuf)", packetBufLen)
 		if newConnection {
 			if callback == nil {
 				udp.logger.Debug("UDP Listen: No callback for client connection")
@@ -126,7 +126,7 @@ func (udp *UdpTransport) runReadLoop(callback func(Transport, netip.AddrPort)) {
 func (udp *UdpTransport) Send(addrPort netip.AddrPort, msg *Message) error {
 	n := len(*msg)
 
-	udp.logger.Debug("UDP Send data", "len", n, "to", addrPort.String())
+	udp.logger.Debug("UDP Send data", "len", n, "to", addrPort)
 	l, err := udp.mainConn.WriteToUDPAddrPort(*msg, addrPort)
 	if err != nil {
 		return err
@@ -140,7 +140,7 @@ func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) 
 	// If we have buffered packets for this addr
 	var bufArray [][]byte
 
-	udp.logger.Debug("UDP Receive waiting for data", "fromAddr", addrPort.String())
+	udp.logger.Debug("UDP Receive waiting for data", "fromAddr", addrPort)
 	udp.packetBufLock.Lock()
 	for {
 		var ok bool
@@ -163,7 +163,7 @@ func (udp *UdpTransport) Receive(addrPort netip.AddrPort) (Message, int, error) 
 	// Refresh bufArray in case it changed
 	bufArray = udp.packetBuf[addrPort]
 	buf := bufArray[0] // get first buffer
-	udp.logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addrPort.String())
+	udp.logger.Debug("UDP ReadFrom (from buf)", "len", len(buf), "fromAddr", addrPort)
 
 	// Move bufArray forward or delete if it is empty
 	if len(bufArray) > 1 {

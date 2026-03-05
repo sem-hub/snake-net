@@ -74,10 +74,10 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		tcp.connLock.Lock()
 		netipRemote := conn.RemoteAddr().(*net.TCPAddr).AddrPort()
 		netipRemote = netip.AddrPortFrom(netipRemote.Addr().Unmap(), netipRemote.Port())
-		tcp.logger.Debug("TCP connected", "netipRemote", netipRemote.String())
+		tcp.logger.Debug("TCP connected", "netipRemote", netipRemote)
 		tcp.conn[netipRemote] = conn
 		tcp.connLock.Unlock()
-		tcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
+		tcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().(*net.TCPAddr).AddrPort())
 	}
 
 	return nil
@@ -109,7 +109,7 @@ func (tcp *TcpTransport) listen(addrPort netip.AddrPort, callback func(Transport
 		// unmap this AddrPort
 		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
 
-		tcp.logger.Info("New TCP connection from", "addr", addrPort.String())
+		tcp.logger.Info("New TCP connection from", "addr", addrPort)
 		tcp.connLock.Lock()
 		tcp.conn[addrPort] = tcpconn
 		tcp.connLock.Unlock()
@@ -156,13 +156,13 @@ func (tcp *TcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 		return nil, 0, err
 	}
 
-	tcp.logger.Debug("Got data", "len", l, "from", addr.String())
+	tcp.logger.Debug("Got data", "len", l, "from", addr)
 	msg := Message(b)[:l]
 	return msg, l, nil
 }
 
 func (tcp *TcpTransport) CloseClient(addr netip.AddrPort) error {
-	tcp.logger.Debug("TCP CloseClient", "addr", addr.String())
+	tcp.logger.Debug("TCP CloseClient", "addr", addr)
 	tcp.connLock.RLock()
 	tcpconn, ok := tcp.conn[addr]
 	tcp.connLock.RUnlock()

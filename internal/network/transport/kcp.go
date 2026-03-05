@@ -67,7 +67,7 @@ func (kcp *KcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 			kcp.listen(lAddrPort.String(), callback)
 		}()
 	} else {
-		kcp.logger.Info("Connect", "to", rAddrPort.String())
+		kcp.logger.Info("Connect", "to", rAddrPort)
 		block, _ := mkcp.NewAESBlockCrypt(kcp.key)
 		conn, err := mkcp.DialWithOptions(rAddrPort.String(), block, 10, 3)
 		if err != nil {
@@ -76,7 +76,7 @@ func (kcp *KcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		kcp.connLock.Lock()
 		kcp.conn[rAddrPort] = conn
 		kcp.connLock.Unlock()
-		kcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
+		kcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().(*net.UDPAddr).AddrPort())
 	}
 
 	return nil
@@ -102,7 +102,7 @@ func (kcp *KcpTransport) listen(addrPort string, callback func(Transport, netip.
 		remoteAddr := conn.RemoteAddr().(*net.UDPAddr).AddrPort()
 		remoteAddr = netip.AddrPortFrom(remoteAddr.Addr().Unmap(), remoteAddr.Port())
 
-		kcp.logger.Info("New KCP connection from", "addr", remoteAddr.String())
+		kcp.logger.Info("New KCP connection from", "addr", remoteAddr)
 		kcp.connLock.Lock()
 		kcp.conn[remoteAddr] = conn
 		kcp.connLock.Unlock()
@@ -149,13 +149,13 @@ func (kcp *KcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 		return nil, 0, err
 	}
 
-	kcp.logger.Debug("Got data", "len", l, "from", addr.String())
+	kcp.logger.Debug("Got data", "len", l, "from", addr)
 	msg := Message(b)[:l]
 	return msg, l, nil
 }
 
 func (kcp *KcpTransport) CloseClient(addr netip.AddrPort) error {
-	kcp.logger.Debug("KCP CloseClient", "addr", addr.String())
+	kcp.logger.Debug("KCP CloseClient", "addr", addr)
 	/*
 		kcp.connLock.RLock()
 		conn, ok := kcp.conn[addr]

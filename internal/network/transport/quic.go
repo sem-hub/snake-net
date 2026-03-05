@@ -71,7 +71,7 @@ func (quic *QuicTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 			quic.listen(lAddrPort.String(), tlsCfg, callback)
 		}()
 	} else {
-		quic.logger.Info("Connect", "to", rAddrPort.String())
+		quic.logger.Info("Connect", "to", rAddrPort)
 		conn, err := mquic.DialAddr(context.Background(), rAddrPort.String(), tlsCfg, nil)
 		if err != nil {
 			return errors.New("DialAddr error: " + err.Error())
@@ -85,7 +85,7 @@ func (quic *QuicTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 		quic.conn[rAddrPort] = conn
 		quic.stream[rAddrPort] = stream
 		quic.connLock.Unlock()
-		quic.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
+		quic.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().(*net.UDPAddr).AddrPort())
 	}
 
 	return nil
@@ -115,7 +115,7 @@ func (quic *QuicTransport) listen(addrPort string, cfg *tls.Config, callback fun
 		remoteAddr := conn.RemoteAddr().(*net.UDPAddr).AddrPort()
 		remoteAddr = netip.AddrPortFrom(remoteAddr.Addr().Unmap(), remoteAddr.Port())
 
-		quic.logger.Info("New QUIC connection from", "addr", remoteAddr.String())
+		quic.logger.Info("New QUIC connection from", "addr", remoteAddr)
 		quic.connLock.Lock()
 		quic.conn[remoteAddr] = conn
 		quic.stream[remoteAddr] = stream
@@ -163,13 +163,13 @@ func (quic *QuicTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 		return nil, 0, err
 	}
 
-	quic.logger.Debug("Got data", "len", l, "from", addr.String())
+	quic.logger.Debug("Got data", "len", l, "from", addr)
 	msg := Message(b)[:l]
 	return msg, l, nil
 }
 
 func (quic *QuicTransport) CloseClient(addr netip.AddrPort) error {
-	quic.logger.Debug("QUIC CloseClient", "addr", addr.String())
+	quic.logger.Debug("QUIC CloseClient", "addr", addr)
 	quic.connLock.RLock()
 	stream, ok := quic.stream[addr]
 	quic.connLock.RUnlock()
