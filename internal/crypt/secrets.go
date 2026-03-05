@@ -2,7 +2,7 @@ package crypt
 
 import (
 	"bytes"
-	maes "crypto/aes"
+	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ed25519"
 	"crypto/sha256"
@@ -27,6 +27,9 @@ type Secrets struct {
 	sharedSecret    []byte
 	Engine          engines.CryptoEngine
 	SignatureEngine signature.SignatureInterface
+	// For EncryptDecryptNoIV
+	iv    [aes.BlockSize]byte
+	block cipher.Block
 }
 
 func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
@@ -57,11 +60,11 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		return &s, nil
 	}
 	size := 0
-	cipher := engine
+	cipherStr := engine
 	mode := ""
 	parts := strings.Split(engine, "-")
 	if len(parts) > 0 {
-		cipher = parts[0]
+		cipherStr = parts[0]
 	}
 	if len(parts) > 1 {
 		if strconvVal, err := strconv.Atoi(parts[1]); err == nil {
@@ -74,22 +77,27 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		}
 	}
 	// Default mode for block ciphers is CBC, for stream and AEAD it's not needed.
-	if mode == "" && engines.GetEngineType(cipher) == "block" {
+	if mode == "" && engines.GetEngineType(cipherStr) == "block" {
 		mode = "cbc"
 	}
-	logger.Debug("Cipher parameters", "cipher", cipher, "size", size, "mode", mode)
-	s.Engine, err = CreateEngine(cipher, mode, size, s.sharedSecret)
+	logger.Debug("Cipher parameters", "cipher", cipherStr, "size", size, "mode", mode)
+	s.Engine, err = CreateEngine(cipherStr, mode, size, s.sharedSecret)
 	if err != nil {
 		logger.Error("Failed to create crypto engine", "error", err)
 		return nil, err
 	}
-	logger.Info("Using", "cipher", cipher+"-"+mode)
+	logger.Info("Using", "cipher", cipherStr+"-"+mode)
 	logger.Debug("GetOverhead", "overhead", s.Engine.GetOverhead())
 
 	if s.Engine.GetType() == "aead" {
 		s.SignatureEngine.Deactivate()
 		logger.Info("AEAD cipher selected, signature engine will not be used")
-		return &s, nil
+	}
+
+	// For EncryptDecryptNoIV
+	s.block, err = aes.NewCipher(s.sharedSecret)
+	if err != nil {
+		return nil, err
 	}
 
 	return &s, nil
@@ -108,13 +116,8 @@ func (s *Secrets) EncryptDecryptNoIV(data []byte) ([]byte, error) {
 	logger := configs.GetLogger("crypt")
 	logger.Trace("EncryptNoIV", "datalen", len(data))
 
-	block, err := maes.NewCipher(s.sharedSecret)
-	if err != nil {
-		return nil, err
-	}
-
-	iv := make([]byte, maes.BlockSize)
-	stream := cipher.NewCTR(block, iv)
+	// empty IV
+	stream := cipher.NewCTR(s.block, s.iv[:])
 
 	bufOut := make([]byte, len(data))
 	stream.XORKeyStream(bufOut, data)
