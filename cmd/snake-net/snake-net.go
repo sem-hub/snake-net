@@ -35,10 +35,11 @@ var (
 	name       string
 	mtu        int
 	tunAddr    cidrs
-	defaultLog string
+	verbose    string
 	clientId   string
 	proto      string
 	local      string
+	debug      bool
 	logLevel   logType
 	cipher     string
 	cert       string
@@ -58,6 +59,7 @@ var flagAlias = map[string]string{
 	"attempts":    "a",
 	"config":      "c",
 	"debug":       "d",
+	"verbose":     "v",
 	"log":         "D",
 	"cipher":      "e",
 	"id":          "i",
@@ -87,9 +89,9 @@ func isFlagPresent(name string) bool {
 func checkLogLevel(level string) bool {
 	switch strings.ToLower(level) {
 	case "trace", "debug", "info", "warn", "error":
-		return false
-	default:
 		return true
+	default:
+		return false
 	}
 }
 
@@ -101,7 +103,7 @@ func (i *logType) String() string {
 func (i *logType) Set(value string) error {
 	for _, logStr := range strings.Split(value, ",") {
 		parts := strings.SplitN(logStr, "=", 2)
-		if len(parts) != 2 || checkLogLevel(parts[1]) {
+		if len(parts) != 2 || !checkLogLevel(parts[1]) {
 			return fmt.Errorf("invalid log level format: %s", logStr)
 		}
 		(*i)[parts[0]] = parts[1]
@@ -134,7 +136,8 @@ func init() {
 	flag.StringVar(&name, "name", "", "Name of tun interface.")
 	flag.IntVar(&mtu, "mtu", network.DefaultMTU, "MTU size.")
 	flag.Var(&tunAddr, "tun", "Comma separated IPv4 and IPv6 Addresses (CIDR) for Tun interface.")
-	flag.StringVar(&defaultLog, "debug", "Info", "Default logging level for all modules.")
+	flag.BoolVar(&debug, "debug", false, "Enable debug mode (alias to -log=main=Debug,network=Debug,tun=Debug,route=Debug,protocol=Debug,clients=Debug,crypt=Debug,transport=Debug).")
+	flag.StringVar(&verbose, "verbose", "", "Default logging level for all modules.")
 	flag.Var(&logLevel, "log", "Logging levels may be overridden by this.")
 	flag.StringVar(&local, "local", "", "Local address (overrides config file).")
 	flag.StringVar(&cipher, "cipher", "", "Cipher to use (overrides config file).")
@@ -204,20 +207,9 @@ func main() {
 	cfg.Socks5.Enabled = false
 	cfg.Socks5.Port = 1080
 
-	if defaultLog == "" {
-		defaultLog = "Info"
+	if verbose != "" && !checkLogLevel(verbose) {
+		log.Fatalln("Invalid log level: " + verbose)
 	}
-	cfg.Log.Main = defaultLog
-	cfg.Log.Clients = defaultLog
-	cfg.Log.Network = defaultLog
-	cfg.Log.Tun = defaultLog
-	cfg.Log.Crypt = defaultLog
-	cfg.Log.Protocol = defaultLog
-	cfg.Log.Route = defaultLog
-	cfg.Log.Transport = defaultLog
-	cfg.Log.Socks5 = defaultLog
-	cfg.Log.ICMP = defaultLog
-	cfg.Log.Firewall = defaultLog
 
 	if configFile != "" {
 		_, err := toml.DecodeFile(configFile, cfg)
@@ -235,6 +227,30 @@ func main() {
 	}
 	if flag.NArg() > 0 {
 		addr = strings.ToLower(flag.Arg(0))
+	}
+
+	if verbose == "" {
+		verbose = "Info"
+	}
+	if debug {
+		verbose = "Debug"
+	}
+
+	if verbose != "" || debug {
+		if debug {
+			verbose = "Debug"
+		}
+		cfg.Log.Main = verbose
+		cfg.Log.Clients = verbose
+		cfg.Log.Network = verbose
+		cfg.Log.Tun = verbose
+		cfg.Log.Crypt = verbose
+		cfg.Log.Protocol = verbose
+		cfg.Log.Route = verbose
+		cfg.Log.Transport = verbose
+		cfg.Log.Socks5 = verbose
+		cfg.Log.ICMP = verbose
+		cfg.Log.Firewall = verbose
 	}
 
 	// Override with command line switches and sanity checks
