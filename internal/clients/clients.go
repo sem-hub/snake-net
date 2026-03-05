@@ -52,6 +52,7 @@ type Client struct {
 	sentBuffer     *utils.CircularBuffer
 	sendQueueLock  sync.Mutex
 	sendQueue      chan sendRequest
+	prioSendQueue  chan sendRequest
 	sendLoopDone   chan struct{}
 	sendLoopOnce   sync.Once
 	closed         bool
@@ -60,9 +61,10 @@ type Client struct {
 }
 
 type sendRequest struct {
-	buf    transport.Message
-	seq    uint16
-	result chan error
+	buf        transport.Message
+	seq        uint16
+	result     chan error
+	isPriority bool
 }
 
 var (
@@ -118,6 +120,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		reaskedPackets: 0,
 		sentBuffer:     utils.NewCircularBuffer(SENTBUFFERSIZE),
 		sendQueue:      make(chan sendRequest, SENDQUEUESIZE),
+		prioSendQueue:  make(chan sendRequest, SENDQUEUESIZE),
 		sendLoopDone:   make(chan struct{}),
 		closed:         false,
 		id:             "",
@@ -125,7 +128,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		ooopTimer:      nil,
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
-	client.seqOut.Store(1)
+	client.seqOut.Store(0)
 	go client.runSendLoop()
 
 	if len(clients) != 0 && FindClient(address) != nil {

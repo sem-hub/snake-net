@@ -6,8 +6,9 @@ import (
 	"hash/crc32"
 
 	"github.com/sem-hub/snake-net/internal/crypt"
-	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	"github.com/sem-hub/snake-net/internal/network/transport"
+
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/protocol/header"
 )
 
@@ -28,11 +29,11 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	// It's possible we have msg == nil. It means we only want to send a command without data. Padding will be added to these packets.
 	n := 0
 	if msg == nil {
-		c.logger.Debug("client Write: no data. Send a command only", "address", c.address.String())
+		c.logger.Debug("client Write: no data. Send a command only", "address", c.address)
 		cmd |= WithPadding
 	} else {
 		n = len(*msg)
-		c.logger.Debug("client Write data", "len", n, "address", c.address.String())
+		c.logger.Debug("client Write data", "len", n, "address", c.address)
 
 		addLen := 0
 		if c.secrets.SignatureEngine != nil && (cmd&NoSignature) == 0 {
@@ -72,18 +73,24 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	n = len(buf) - HEADER
 
 	req := sendRequest{
-		buf:    buf,
-		seq:    0,
-		result: make(chan error, 1),
+		buf:        buf,
+		seq:        0,
+		result:     make(chan error, 1),
+		isPriority: (cmd & CmdMask) != NoneCmd,
 	}
 
 	c.sendQueueLock.Lock()
-	seq := uint16(c.seqOut.Add(1) - 1)
-	req.seq = seq
+	seq := c.seqOut.Add(1) % 65536
+	if seq == 0 {
+		c.seqOut.Store(1)
+		seq = 1
+		c.logger.Warn("client Write sequence number wrapped around, resetting to", "seq", seq, "address", c.address)
+	}
+	req.seq = uint16(seq)
 
 	var headerBuf [HEADER]byte
 	binary.BigEndian.PutUint16(headerBuf[0:2], uint16(n))
-	binary.BigEndian.PutUint16(headerBuf[2:4], seq)
+	binary.BigEndian.PutUint16(headerBuf[2:4], uint16(seq))
 	headerBuf[4] = byte(cmd)
 
 	crc := crc32.ChecksumIEEE(headerBuf[:5])
@@ -104,6 +111,17 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 
 	c.logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(req.buf))
 
+	if req.isPriority {
+		select {
+		case c.prioSendQueue <- req:
+			c.sendQueueLock.Unlock()
+			return <-req.result
+		case <-c.sendLoopDone:
+			c.sendQueueLock.Unlock()
+			return errors.New("client is closed")
+		}
+	}
+
 	select {
 	case c.sendQueue <- req:
 		c.sendQueueLock.Unlock()
@@ -116,19 +134,34 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 
 func (c *Client) runSendLoop() {
 	for {
+		var req sendRequest
+		//var hasPriority bool
+
 		select {
-		case req := <-c.sendQueue:
-			err := c.t.Send(c.address, &req.buf)
-			if err != nil {
-				c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", req.seq)
-				req.result <- err
-				continue
-			}
-			c.logger.Debug("client Write sent", "len", len(req.buf), "address", c.address.String(), "seq", req.seq)
-			c.sentBuffer.Push(req.buf)
-			req.result <- nil
+		// Signal to stop the loop and exit the goroutine
+		case <-c.sendLoopDone:
+			return
+		default:
+		}
+
+		select {
+		case req = <-c.prioSendQueue:
+			//hasPriority = true
+		case req = <-c.sendQueue:
+			//hasPriority = false
 		case <-c.sendLoopDone:
 			return
 		}
+
+		err := c.t.Send(c.address, &req.buf)
+		if err != nil {
+			c.logger.Error("client Write send error", "error", err, "address", c.address, "seq", req.seq)
+			req.result <- err
+			continue
+		}
+		c.logger.Debug("client Write sent", "len", len(req.buf), "address", c.address, "seq", req.seq)
+		// Save to sent circular buffer
+		c.sentBuffer.Push(req.buf)
+		req.result <- nil
 	}
 }

@@ -51,3 +51,20 @@ func (c *CircularBuffer) Find(comp func(index interface{}) bool) (interface{}, b
 	}
 	return nil, false
 }
+
+func (c *CircularBuffer) Snapshot() []interface{} {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if c.count == 0 {
+		return nil
+	}
+
+	result := make([]interface{}, 0, c.count)
+	for i := 0; i < c.count; i++ {
+		index := (c.readPointer + i) % c.size
+		result = append(result, c.buffer[index])
+	}
+
+	return result
+}

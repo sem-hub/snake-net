@@ -2,24 +2,36 @@ package clients
 
 import (
 	"errors"
-	"strconv"
 	"time"
 
-	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	"github.com/sem-hub/snake-net/internal/network/transport"
+	//lint:ignore ST1001 reason: it's safer to use . import here to avoid name conflicts
 	. "github.com/sem-hub/snake-net/internal/protocol/header"
 )
 
-func (c *Client) reaskTimer() {
-	// We will reask the lost packet for 3 times and give up
-	if c.reaskedPackets < 3 {
-		err := c.AskForResend(c.seqIn)
-		if err != nil {
-			c.logger.Error("reaskTimer: Error when ask a packet for retransmittion", "error", err)
-		}
-
-		c.ooopTimer = time.AfterFunc(500*time.Millisecond, func() { c.reaskTimer() })
+func (c *Client) reaskTimer(missingSeq uint16) {
+	// We will reask the lost packet for 3 times and give up.
+	// Keep retrying only while we still wait for the same missing sequence.
+	c.bufLock.Lock()
+	shouldReask := c.reaskedPackets < 3 && c.seqIn == missingSeq
+	c.bufLock.Unlock()
+	if !shouldReask {
+		return
 	}
+
+	err := c.AskForResend(missingSeq, 0)
+	if err != nil {
+		c.logger.Error("reaskTimer: Error when ask a packet for retransmittion", "error", err, "seq", missingSeq)
+	}
+
+	c.bufLock.Lock()
+	shouldScheduleNext := c.reaskedPackets < 3 && c.seqIn == missingSeq
+	if shouldScheduleNext {
+		c.ooopTimer = time.AfterFunc(500*time.Millisecond, func() { c.reaskTimer(missingSeq) })
+	} else {
+		c.ooopTimer = nil
+	}
+	c.bufLock.Unlock()
 }
 
 // Process special out-of-order packets received from the client
@@ -28,22 +40,23 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 	if seq > c.seqIn {
 		if c.lookInBufferForSeq(c.seqIn) {
 			// Found in buffer, process it
-			c.logger.Debug("client OOOP: found out of order packet in buffer", "address", c.address.String(), "seq", c.seqIn)
+			c.logger.Debug("client OOOP: found out of order packet in buffer", "address", c.address, "seq", c.seqIn)
 			c.bufLock.Unlock()
 			return nil, errReadBufContinue
 		}
 		// Did not find any packet in buffer. We lost it. Ask for resend.
 		// Ask for resend only three times. XXX We don't process massive lost.
 		if c.oooPackets == 0 {
+			missingSeq := c.seqIn
 			// timer for 0.5 second
-			c.ooopTimer = time.AfterFunc(500*time.Millisecond, func() { c.reaskTimer() })
+			c.ooopTimer = time.AfterFunc(500*time.Millisecond, func() { c.reaskTimer(missingSeq) })
 		}
 
 		// Did not find any packet in buffer. We lost it. Ask for resend.
 		// Ask for resend only three times. XXX We don't process massive lost. May be we need more aggressive reasking.
 		if c.oooPackets == 3 || c.oooPackets == 6 || c.oooPackets == 10 {
 			c.bufLock.Unlock()
-			err := c.AskForResend(c.seqIn)
+			err := c.AskForResend(c.seqIn, seq)
 			if err != nil {
 				c.logger.Error("OOOP processing: Error when ask a packet for retransmittion", "error", err)
 			}
@@ -56,8 +69,16 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 		if c.reaskedPackets >= 3 || c.oooPackets > 30 {
 			// Too many out of order packets, ignore the lost packet
 			c.logger.Warn("client ReadBuf: too many out of order packets, ignore the sequence number", "seq", c.seqIn,
-				"oooPackets", c.oooPackets, "address", c.address.String())
+				"oooPackets", c.oooPackets, "address", c.address)
+			if c.ooopTimer != nil {
+				c.ooopTimer.Stop()
+				c.ooopTimer = nil
+			}
 			c.seqIn++
+			if c.seqIn == 0 {
+				c.seqIn = 1
+				c.logger.Info("client ReadBuf: sequence number wrapped around", "address", c.address)
+			}
 			c.oooPackets = 0
 			c.reaskedPackets = 0
 			c.bufLock.Unlock()
@@ -66,8 +87,7 @@ func (c *Client) processOOOP(n uint16, seq uint16) (transport.Message, error) {
 		// Go to next packet. Leave the packet in buffer.
 		c.bufOffset += HEADER + int(n)
 	} else {
-		c.logger.Warn("client ReadBuf: duplicate. Drop. seq=" + strconv.Itoa(int(seq)) + " expected=" +
-			strconv.Itoa(int(c.seqIn)) + " address=" + c.address.String())
+		c.logger.Warn("client ReadBuf: duplicate. Drop.", "seq", seq, "expected", c.seqIn, "address", c.address)
 		c.removeThePacketFromBuffer(HEADER + int(n))
 	}
 	c.bufLock.Unlock()
@@ -95,12 +115,19 @@ func (c *Client) lookInBufferForSeq(reqSeq uint16) bool {
 	return false
 }
 
-func (c *Client) AskForResend(seq uint16) error {
-	c.logger.Warn("client AskForResend", "address", c.address.String(), "seq", seq, "oooPackets", c.oooPackets)
-
+func (c *Client) AskForResend(seq uint16, observedSeq uint16) error {
+	c.bufLock.Lock()
 	c.reaskedPackets++
-	buf := make([]byte, 2)
+	oooPackets := c.oooPackets
+	c.bufLock.Unlock()
+
+	c.logger.Warn("client AskForResend", "address", c.address, "seq", seq,
+		"observedSeq", observedSeq, "oooPackets", oooPackets)
+
+	buf := make([]byte, 4)
 	buf[0] = byte(seq >> 8)
 	buf[1] = byte(seq & 0xff)
+	buf[2] = byte(observedSeq >> 8)
+	buf[3] = byte(observedSeq & 0xff)
 	return c.Write(&buf, AskForResend|WithPadding)
 }
