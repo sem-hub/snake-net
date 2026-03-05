@@ -126,29 +126,39 @@ func (s *Secrets) EncryptDecryptNoIV(data []byte) ([]byte, error) {
 
 func (s *Secrets) DecryptAndVerify(msg []byte, n uint16, flags Cmd) ([]byte, error) {
 	logger := configs.GetLogger("crypt")
-	if s.Engine.GetType() == "aead" {
+	if s.Engine != nil && s.Engine.GetType() == "aead" {
 		flags |= NoSignature
 	}
-	buf := make([]byte, 0)
-	signLen := uint16(0)
+	length := int(n)
+	if length > len(msg) {
+		return nil, errors.New("DecryptAndVerify: invalid packet length")
+	}
+
+	signLen := 0
 	var signature []byte
 	// Save signature
 	if (flags & NoSignature) == 0 {
-		signLen = s.SignatureEngine.SignLen()
-		signature = msg[n-signLen : n]
+		signLen = int(s.SignatureEngine.SignLen())
+		if signLen > length {
+			return nil, errors.New("DecryptAndVerify: invalid signature length")
+		}
+		signature = msg[length-signLen : length]
 	}
+
+	payloadEnd := length - signLen
+	var buf []byte
 	// decrypt and verify the packet or just verify if NoEncryptionCmd flag set
 	if (flags & NoEncryption) == 0 {
 		logger.Trace("Decrypting")
-		data, err := s.Engine.Decrypt(msg[:n-signLen])
+		data, err := s.Engine.Decrypt(msg[:payloadEnd])
 		if err != nil {
 			logger.Error("DecryptAndVerify error", "error", err)
 			return nil, err
 		}
 		logger.Trace("After decryption", "datalen", len(data), "msglen", len(msg))
-		buf = append(buf, data...)
+		buf = data
 	} else {
-		buf = append(buf, msg[:n-signLen]...)
+		buf = msg[:payloadEnd]
 	}
 	if (flags & NoSignature) == 0 {
 		if !s.SignatureEngine.Verify(buf, signature) {
@@ -162,27 +172,25 @@ func (s *Secrets) DecryptAndVerify(msg []byte, n uint16, flags Cmd) ([]byte, err
 
 func (s *Secrets) SignAndEncrypt(msg []byte, flags Cmd) ([]byte, error) {
 	logger := configs.GetLogger("crypt")
-	if s.Engine.GetType() == "aead" {
+	if s.Engine != nil && s.Engine.GetType() == "aead" {
 		flags |= NoSignature
 	}
 
-	bufCap := len(msg)
-	if (flags&NoEncryption) == 0 && s.Engine != nil {
-		bufCap += s.Engine.GetOverhead()
-	}
-	if (flags&NoSignature) == 0 && s.SignatureEngine != nil {
-		bufCap += int(s.SignatureEngine.SignLen())
-	}
-	buf := make([]byte, 0, bufCap)
+	var buf []byte
 	if (flags & NoEncryption) == 0 {
 		logger.Trace("client Write encrypting", "len", len(msg))
 		data, err := s.Engine.Encrypt(msg)
 		if err != nil {
 			return nil, err
 		}
-		buf = append(buf, data...)
+		buf = data
 	} else {
-		buf = append(buf, msg...)
+		if (flags&NoSignature) == 0 && s.SignatureEngine != nil {
+			buf = make([]byte, len(msg), len(msg)+int(s.SignatureEngine.SignLen()))
+			copy(buf, msg)
+		} else {
+			buf = msg
+		}
 	}
 
 	// Sign BEFORE encryption
