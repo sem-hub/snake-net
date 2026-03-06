@@ -36,7 +36,7 @@ func (e *AeadEngine) Seal(data []byte) ([]byte, error) {
 func (e *AeadEngine) Open(data []byte) ([]byte, error) {
 	e.Logger.Trace("Decrypt AEAD", "datalen", len(data))
 	nonceSize := e.aead.NonceSize()
-	e.Logger.Trace("Decrypt AEAD", "noncesize", nonceSize)
+	e.Logger.Trace("Decrypt AEAD", "noncesize", nonceSize, "overhead", e.aead.Overhead())
 	if len(data) < nonceSize {
 		return nil, errors.New("data is too short")
 	}
