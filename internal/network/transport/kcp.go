@@ -68,7 +68,10 @@ func (kcp *KcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		}()
 	} else {
 		kcp.logger.Info("Connect", "to", rAddrPort)
-		block, _ := mkcp.NewAESBlockCrypt(kcp.key)
+		block, err := mkcp.NewAESBlockCrypt(kcp.key)
+		if err != nil {
+			return errors.New("NewAESBlockCrypt() error: " + err.Error())
+		}
 		conn, err := mkcp.DialWithOptions(rAddrPort.String(), block, 10, 3)
 		if err != nil {
 			return errors.New("DialWithOptions() error: " + err.Error())
@@ -76,7 +79,7 @@ func (kcp *KcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		kcp.connLock.Lock()
 		kcp.conn[rAddrPort] = conn
 		kcp.connLock.Unlock()
-		kcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().(*net.UDPAddr).AddrPort())
+		kcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
 
 	return nil
@@ -84,8 +87,11 @@ func (kcp *KcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 
 func (kcp *KcpTransport) listen(addrPort string, callback func(Transport, netip.AddrPort)) error {
 	kcp.logger.Info("Listen for connection", "on", addrPort)
-	block, _ := mkcp.NewAESBlockCrypt(kcp.key)
-	var err error
+	block, err := mkcp.NewAESBlockCrypt(kcp.key)
+	if err != nil {
+		kcp.logger.Error("NewAESBlockCrypt() error:", "err", err)
+		return err
+	}
 	kcp.listenConn, err = mkcp.ListenWithOptions(addrPort, block, 10, 3)
 	if err != nil {
 		kcp.logger.Error("ListenWithOptions()", "err", err)
@@ -102,7 +108,7 @@ func (kcp *KcpTransport) listen(addrPort string, callback func(Transport, netip.
 		remoteAddr := conn.RemoteAddr().(*net.UDPAddr).AddrPort()
 		remoteAddr = netip.AddrPortFrom(remoteAddr.Addr().Unmap(), remoteAddr.Port())
 
-		kcp.logger.Info("New KCP connection from", "addr", remoteAddr)
+		kcp.logger.Info("New KCP connection from", "addr", remoteAddr.String())
 		kcp.connLock.Lock()
 		kcp.conn[remoteAddr] = conn
 		kcp.connLock.Unlock()

@@ -79,7 +79,7 @@ func (tls *TlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		netipRemote = netip.AddrPortFrom(netipRemote.Addr().Unmap(), netipRemote.Port())
 		tls.conn[netipRemote] = conn
 		tls.connLock.Unlock()
-		tls.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().(*net.TCPAddr).AddrPort())
+		tls.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
 
 	return nil

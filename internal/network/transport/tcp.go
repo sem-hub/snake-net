@@ -77,14 +77,14 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		tcp.logger.Debug("TCP connected", "netipRemote", netipRemote)
 		tcp.conn[netipRemote] = conn
 		tcp.connLock.Unlock()
-		tcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().(*net.TCPAddr).AddrPort())
+		tcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
 
 	return nil
 }
 
 func (tcp *TcpTransport) listen(addrPort netip.AddrPort, callback func(Transport, netip.AddrPort)) error {
-	tcp.logger.Info("Listen for connection", "on", addrPort)
+	tcp.logger.Info("Listen for connection", "on", addrPort.String())
 	listen, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(addrPort))
 	if err != nil {
 		return err

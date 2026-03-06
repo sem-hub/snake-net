@@ -96,7 +96,7 @@ func (dtls *DtlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 		dtls.connLock.Lock()
 		dtls.conn[addrPort] = dtlsConn
 		dtls.connLock.Unlock()
-		dtls.logger.Info("Connected to", "server", rAddrPort, "from", dtlsConn.LocalAddr().(*net.UDPAddr).AddrPort())
+		dtls.logger.Info("Connected to", "server", rAddrPort, "from", dtlsConn.LocalAddr().String())
 	}
 
 	return nil
@@ -115,7 +115,7 @@ func (dtls *DtlsTransport) listen(addrPort *net.UDPAddr, mdtlsConfig *mdtls.Conf
 			dtls.logger.Error("listen", "error", err)
 			break
 		}
-		dtls.logger.Info("New UDP connection from", "addr", addrPort)
+		dtls.logger.Info("New UDP connection from", "addr", addrPort.String())
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		dtlsConn, ok := conn.(*mdtls.Conn)

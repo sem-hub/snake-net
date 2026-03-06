@@ -60,7 +60,7 @@ func (udp *UdpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	callback func(Transport, netip.AddrPort)) error {
 
 	if mode == "server" {
-		udp.logger.Info("Listen for connection", "on", lAddrPort)
+		udp.logger.Info("Listen for connection", "on", lAddrPort.String())
 	}
 	var err error
 	udp.mainConn, err = net.ListenUDP("udp", net.UDPAddrFromAddrPort(lAddrPort))

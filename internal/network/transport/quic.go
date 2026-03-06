@@ -85,7 +85,7 @@ func (quic *QuicTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 		quic.conn[rAddrPort] = conn
 		quic.stream[rAddrPort] = stream
 		quic.connLock.Unlock()
-		quic.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().(*net.UDPAddr).AddrPort())
+		quic.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
 
 	return nil
@@ -115,7 +115,7 @@ func (quic *QuicTransport) listen(addrPort string, cfg *tls.Config, callback fun
 		remoteAddr := conn.RemoteAddr().(*net.UDPAddr).AddrPort()
 		remoteAddr = netip.AddrPortFrom(remoteAddr.Addr().Unmap(), remoteAddr.Port())
 
-		quic.logger.Info("New QUIC connection from", "addr", remoteAddr)
+		quic.logger.Info("New QUIC connection from", "addr", remoteAddr.String())
 		quic.connLock.Lock()
 		quic.conn[remoteAddr] = conn
 		quic.stream[remoteAddr] = stream
