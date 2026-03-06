@@ -18,11 +18,13 @@ func init() {
 type Salsa20Engine struct {
 	StreamEngine
 	SharedSecret []byte
+	nonceSize    int
 }
 
 func NewSalsa20Engine(sharedSecret []byte) (*Salsa20Engine, error) {
 	engine := Salsa20Engine{}
-	engine.StreamEngine = *NewStreamEngine("salsa20")
+	engine.nonceSize = 8
+	engine.StreamEngine = *NewStreamEngine("salsa20", engine.nonceSize)
 	engine.SharedSecret = sharedSecret
 	return &engine, nil
 }
@@ -42,17 +44,17 @@ func (e *Salsa20Engine) GetType() string {
 func (e *Salsa20Engine) Encrypt(data []byte) ([]byte, error) {
 	//e.Logger.Debug("Encrypt", "datalen", len(data))
 
-	nonce := make([]byte, 8)
+	nonce := make([]byte, e.nonceSize)
 	_, _ = rand.Read(nonce)
 
 	bufOut := make([]byte, len(nonce)+len(data))
 	// copy nonce to output buf
-	copy(bufOut[:8], nonce)
+	copy(bufOut[:e.nonceSize], nonce)
 
 	// secret must be array not slice
 	var secret [32]byte
 	copy(secret[:], e.SharedSecret)
-	salsa20.XORKeyStream(bufOut[8:], data, nonce, &secret)
+	salsa20.XORKeyStream(bufOut[e.nonceSize:], data, nonce, &secret)
 
 	//e.Logger.Debug("Encrypt", "encryptedlen", len(bufOut))
 	return bufOut, nil
@@ -61,8 +63,8 @@ func (e *Salsa20Engine) Encrypt(data []byte) ([]byte, error) {
 func (e *Salsa20Engine) Decrypt(data []byte) ([]byte, error) {
 	//e.Logger.Debug("Decrypt", "datalen", len(data))
 
-	nonce := data[:8]
-	data = data[8:]
+	nonce := data[:e.nonceSize]
+	data = data[e.nonceSize:]
 
 	//e.Logger.Debug("Decrypt", "decryptedlen", len(data))
 	bufOut := make([]byte, len(data))
@@ -74,5 +76,5 @@ func (e *Salsa20Engine) Decrypt(data []byte) ([]byte, error) {
 }
 
 func (e *Salsa20Engine) GetOverhead() int {
-	return 8
+	return e.nonceSize
 }

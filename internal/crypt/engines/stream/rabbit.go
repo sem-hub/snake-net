@@ -24,8 +24,8 @@ type RabbitEngine struct {
 // Only 128 bits key size
 func NewRabbitEngine(sharedSecret []byte) (*RabbitEngine, error) {
 	engine := RabbitEngine{}
-	engine.StreamEngine = *NewStreamEngine("rabbit")
 	engine.ivSize = 8
+	engine.StreamEngine = *NewStreamEngine("rabbit", engine.ivSize)
 	engine.SharedSecret = sharedSecret[:16]
 	return &engine, nil
 }
@@ -47,11 +47,11 @@ func (e *RabbitEngine) NewStream(iv []byte) (cipher.Stream, error) {
 }
 
 func (e *RabbitEngine) Encrypt(data []byte) ([]byte, error) {
-	return e.StreamEngine.StreamEncrypt(e.ivSize, e.NewStream, data)
+	return e.StreamEngine.StreamEncrypt(e.NewStream, data)
 }
 
 func (e *RabbitEngine) Decrypt(data []byte) ([]byte, error) {
-	return e.StreamEngine.StreamDecrypt(e.ivSize, e.NewStream, data)
+	return e.StreamEngine.StreamDecrypt(e.NewStream, data)
 }
 
 func (e *RabbitEngine) GetOverhead() int {

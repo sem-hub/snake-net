@@ -86,7 +86,10 @@ func NewSecrets(engine, secret, signEngine string) (*Secrets, error) {
 		logger.Error("Failed to create crypto engine", "error", err)
 		return nil, err
 	}
-	logger.Info("Using", "cipher", cipherStr+"-"+mode)
+	if mode != "" {
+		cipherStr += "-" + mode
+	}
+	logger.Info("Using", "cipher", cipherStr)
 	logger.Debug("GetOverhead", "overhead", s.Engine.GetOverhead())
 
 	if s.Engine.GetType() == "aead" {

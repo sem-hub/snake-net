@@ -17,41 +17,55 @@ func init() {
 
 type GrainEngine struct {
 	AeadEngine
-	SharedSecret []byte
+	sharedSecret []byte
 }
 
 // Light waight AEAD cipher Grain. Only 128 bits key size
+// IMPORTANT:
+// Grain has a state in cipher.AEAD, so we need to create a new instance for each encryption/decryption operation for thread safety.
 func NewGrainEngine(sharedSecret []byte) (*GrainEngine, error) {
 	engine := GrainEngine{}
-	engine.AeadEngine = *NewAeadEngine("grain")
-	engine.SharedSecret = sharedSecret[:16]
+	engine.sharedSecret = sharedSecret[:grain.KeySize]
+	aead, err := engine.NewAEAD()
+	if err != nil {
+		return nil, err
+	}
+	engine.AeadEngine = *NewAeadEngine("grain", aead)
 	return &engine, nil
 }
 
 func (e *GrainEngine) GetKeySizes() []int {
-	return []int{128}
+	return []int{grain.KeySize * 8}
 }
 
 func (e *GrainEngine) GetName() string {
-	return e.EngineData.Name
+	return e.AeadEngine.Name
 }
 
 func (e *GrainEngine) GetType() string {
-	return e.EngineData.Type
+	return e.AeadEngine.Type
 }
 
 func (e *GrainEngine) NewAEAD() (cipher.AEAD, error) {
-	return grain.New(e.SharedSecret)
+	return grain.New(e.sharedSecret)
 }
 
 func (e *GrainEngine) Encrypt(data []byte) ([]byte, error) {
-	return e.AeadEngine.Seal(e.NewAEAD, data)
+	aead, err := e.NewAEAD()
+	if err != nil {
+		return nil, err
+	}
+	return NewAeadEngine("grain", aead).Seal(data)
 }
 
 func (e *GrainEngine) Decrypt(data []byte) ([]byte, error) {
-	return e.AeadEngine.Open(e.NewAEAD, data)
+	aead, err := e.NewAEAD()
+	if err != nil {
+		return nil, err
+	}
+	return NewAeadEngine("grain", aead).Open(data)
 }
 
 func (e *GrainEngine) GetOverhead() int {
-	return 16 + grain.NonceSize // tag size + nonce size
+	return grain.TagSize + grain.NonceSize // tag size + nonce size
 }

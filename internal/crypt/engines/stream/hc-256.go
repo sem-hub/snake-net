@@ -24,8 +24,8 @@ type Hc256Engine struct {
 // Only 128 bits key size
 func NewHc256Engine(sharedSecret []byte) (*Hc256Engine, error) {
 	engine := Hc256Engine{}
-	engine.StreamEngine = *NewStreamEngine("hc-256")
 	engine.nonceSize = 32
+	engine.StreamEngine = *NewStreamEngine("hc-256", engine.nonceSize)
 	engine.SharedSecret = sharedSecret[:16]
 	return &engine, nil
 }
@@ -52,11 +52,11 @@ func (e *Hc256Engine) NewStream(nonce []byte) (cipher.Stream, error) {
 }
 
 func (e *Hc256Engine) Encrypt(data []byte) ([]byte, error) {
-	return e.StreamEngine.StreamEncrypt(e.nonceSize, e.NewStream, data)
+	return e.StreamEngine.StreamEncrypt(e.NewStream, data)
 }
 
 func (e *Hc256Engine) Decrypt(data []byte) ([]byte, error) {
-	return e.StreamEngine.StreamDecrypt(e.nonceSize, e.NewStream, data)
+	return e.StreamEngine.StreamDecrypt(e.NewStream, data)
 }
 
 func (e *Hc256Engine) GetOverhead() int {

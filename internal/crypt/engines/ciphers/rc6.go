@@ -4,6 +4,7 @@ package ciphers
 
 import (
 	"crypto/cipher"
+	"errors"
 
 	rc6 "github.com/CampNowhere/golang-rc6"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
@@ -16,7 +17,8 @@ func init() {
 }
 
 type Rc6Engine struct {
-	modes *Modes
+	modes        *Modes
+	sharedSecret []byte
 }
 
 func NewRc6Engine(sharedSecret []byte, size int, mode string) (*Rc6Engine, error) {
@@ -26,6 +28,13 @@ func NewRc6Engine(sharedSecret []byte, size int, mode string) (*Rc6Engine, error
 	if size == 0 {
 		size = 256
 	}
+	keySize := size / 8
+	if len(sharedSecret) < keySize {
+		return nil, errors.New("shared secret is too short")
+	}
+	engine.sharedSecret = make([]byte, keySize)
+	copy(engine.sharedSecret, sharedSecret[:keySize])
+
 	var err error
 	engine.modes, err = NewModes("RC6", mode, size, allowedKeySizes, sharedSecret,
 		engine.NewCipher, engine.BlockSize)
@@ -52,7 +61,7 @@ func (e *Rc6Engine) BlockSize() int {
 }
 
 func (e *Rc6Engine) NewCipher() (cipher.Block, error) {
-	return rc6.NewCipher(e.modes.SharedSecret), nil
+	return rc6.NewCipher(e.sharedSecret), nil
 }
 
 func (e *Rc6Engine) Encrypt(data []byte) ([]byte, error) {

@@ -18,7 +18,7 @@ func init() {
 
 type Xsalsa20Poly1305Engine struct {
 	AeadEngine
-	SharedSecret []byte
+	sharedSecret []byte
 }
 
 type Xsalsa20Poly1305 struct {
@@ -58,8 +58,12 @@ func (x *Xsalsa20Poly1305) Open(dst, nonce, ciphertext, additionalData []byte) (
 
 func NewXsalsa20Poly1305Engine(sharedSecret []byte) (*Xsalsa20Poly1305Engine, error) {
 	engine := Xsalsa20Poly1305Engine{}
-	engine.AeadEngine = *NewAeadEngine("xsalsa20poly1305")
-	engine.SharedSecret = sharedSecret
+	engine.sharedSecret = sharedSecret
+	aead, err := engine.NewAEAD()
+	if err != nil {
+		return nil, err
+	}
+	engine.AeadEngine = *NewAeadEngine("xsalsa20poly1305", aead)
 	return &engine, nil
 }
 
@@ -76,15 +80,15 @@ func (e *Xsalsa20Poly1305Engine) GetType() string {
 }
 
 func (e *Xsalsa20Poly1305Engine) NewAEAD() (cipher.AEAD, error) {
-	return NewXsalsa20Poly1305(e.SharedSecret), nil
+	return NewXsalsa20Poly1305(e.sharedSecret), nil
 }
 
 func (e *Xsalsa20Poly1305Engine) Encrypt(data []byte) ([]byte, error) {
-	return e.AeadEngine.Seal(e.NewAEAD, data)
+	return e.AeadEngine.Seal(data)
 }
 
 func (e *Xsalsa20Poly1305Engine) Decrypt(data []byte) ([]byte, error) {
-	return e.AeadEngine.Open(e.NewAEAD, data)
+	return e.AeadEngine.Open(data)
 }
 
 func (e *Xsalsa20Poly1305Engine) GetOverhead() int {

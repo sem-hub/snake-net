@@ -4,6 +4,7 @@ package ciphers
 
 import (
 	"crypto/cipher"
+	"errors"
 
 	"github.com/deatil/go-cryptobin/cipher/speck"
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
@@ -16,7 +17,8 @@ func init() {
 }
 
 type SpeckEngine struct {
-	modes *Modes
+	modes        *Modes
+	sharedSecret []byte
 }
 
 func NewSpeckEngine(sharedSecret []byte, size int, mode string) (*SpeckEngine, error) {
@@ -26,6 +28,13 @@ func NewSpeckEngine(sharedSecret []byte, size int, mode string) (*SpeckEngine, e
 	if size == 0 {
 		size = 256
 	}
+	keySize := size / 8
+	if len(sharedSecret) < keySize {
+		return nil, errors.New("shared secret is too short")
+	}
+	engine.sharedSecret = make([]byte, keySize)
+	copy(engine.sharedSecret, sharedSecret[:keySize])
+
 	var err error
 	engine.modes, err = NewModes("speck", mode, size, allowedKeySizes, sharedSecret,
 		engine.NewCipher, engine.BlockSize)
@@ -52,7 +61,7 @@ func (e *SpeckEngine) BlockSize() int {
 }
 
 func (e *SpeckEngine) NewCipher() (cipher.Block, error) {
-	return speck.NewCipher(e.modes.SharedSecret)
+	return speck.NewCipher(e.sharedSecret)
 }
 
 func (e *SpeckEngine) Encrypt(data []byte) ([]byte, error) {

@@ -415,17 +415,23 @@ func main() {
 
 	if cfg.Crypt.Engine != "" {
 		cfg.Crypt.Engine = strings.ToLower(cfg.Crypt.Engine)
-		if err != nil || engines.GetEngineType(cfg.Crypt.Engine) == "block" {
-			engineMode := strings.Split(cfg.Crypt.Engine, "-")
-			if len(engineMode) != 2 {
-				logger.Fatal("Unsupported cryptographic engine or invalid engine-mode format, e.g., aes-gcm: " + cfg.Crypt.Engine)
+		engineMode := strings.Split(cfg.Crypt.Engine, "-")
+		if len(engineMode) == 1 {
+			if engines.GetEngineType(cfg.Crypt.Engine) == "block" {
+				logger.Fatal("Cipher mode must be specified for block cipher. Expected format: engine-mode, e.g. aes-cbc.")
 			}
+			if !engines.IsEngineSupported(cfg.Crypt.Engine) {
+				logger.Fatal("Unsupported cryptographic engine: " + cfg.Crypt.Engine)
+			}
+		} else if len(engineMode) == 2 {
 			if !engines.IsEngineSupported(engineMode[0]) {
 				logger.Fatal("Unsupported cryptographic engine: " + engineMode[0])
 			}
 			if !engines.IsModeSupported(engineMode[1]) {
 				logger.Fatal("Unsupported cryptographic mode: " + engineMode[1])
 			}
+		} else {
+			logger.Fatal("Invalid cipher format. Expected engine-mode, e.g. aes-gcm or chacha20poly1305.")
 		}
 	}
 

@@ -3,6 +3,7 @@ package ciphers
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 
 	"github.com/sem-hub/snake-net/internal/crypt/engines"
 )
@@ -14,7 +15,8 @@ func init() {
 }
 
 type AesEngine struct {
-	modes *Modes
+	modes        *Modes
+	sharedSecret []byte
 }
 
 func NewAesEngine(sharedSecret []byte, size int, mode string) (*AesEngine, error) {
@@ -24,6 +26,12 @@ func NewAesEngine(sharedSecret []byte, size int, mode string) (*AesEngine, error
 	if size == 0 {
 		size = 256
 	}
+	keySize := size / 8
+	if len(sharedSecret) < keySize {
+		return nil, errors.New("shared secret is too short")
+	}
+	engine.sharedSecret = make([]byte, keySize)
+	copy(engine.sharedSecret, sharedSecret[:keySize])
 	var err error
 	engine.modes, err = NewModes("aes", mode, size, allowedKeySizes, sharedSecret,
 		engine.NewCipher, engine.BlockSize)
@@ -50,7 +58,7 @@ func (e *AesEngine) BlockSize() int {
 }
 
 func (e *AesEngine) NewCipher() (cipher.Block, error) {
-	return aes.NewCipher(e.modes.SharedSecret)
+	return aes.NewCipher(e.sharedSecret)
 }
 
 func (e *AesEngine) Encrypt(data []byte) ([]byte, error) {

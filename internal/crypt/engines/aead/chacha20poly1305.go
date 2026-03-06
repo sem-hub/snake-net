@@ -15,13 +15,17 @@ func init() {
 
 type Chacha20Poly1305Engine struct {
 	AeadEngine
-	SharedSecret []byte
+	sharedSecret []byte
 }
 
 func NewChacha20Poly1305Engine(sharedSecret []byte) (*Chacha20Poly1305Engine, error) {
 	engine := Chacha20Poly1305Engine{}
-	engine.AeadEngine = *NewAeadEngine("chacha20poly1305")
-	engine.SharedSecret = sharedSecret
+	engine.sharedSecret = sharedSecret
+	aead, err := engine.NewAEAD()
+	if err != nil {
+		return nil, err
+	}
+	engine.AeadEngine = *NewAeadEngine("chacha20poly1305", aead)
 	return &engine, nil
 }
 
@@ -30,23 +34,23 @@ func (e *Chacha20Poly1305Engine) GetKeySizes() []int {
 }
 
 func (e *Chacha20Poly1305Engine) GetName() string {
-	return e.EngineData.Name
+	return e.AeadEngine.Name
 }
 
 func (e *Chacha20Poly1305Engine) GetType() string {
-	return e.EngineData.Type
+	return e.AeadEngine.Type
 }
 
 func (e *Chacha20Poly1305Engine) NewAEAD() (cipher.AEAD, error) {
-	return chacha20poly1305.New(e.SharedSecret)
+	return chacha20poly1305.New(e.sharedSecret)
 }
 
 func (e *Chacha20Poly1305Engine) Encrypt(data []byte) ([]byte, error) {
-	return e.AeadEngine.Seal(e.NewAEAD, data)
+	return e.AeadEngine.Seal(data)
 }
 
 func (e *Chacha20Poly1305Engine) Decrypt(data []byte) ([]byte, error) {
-	return e.AeadEngine.Open(e.NewAEAD, data)
+	return e.AeadEngine.Open(data)
 }
 
 func (e *Chacha20Poly1305Engine) GetOverhead() int {

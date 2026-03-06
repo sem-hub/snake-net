@@ -21,10 +21,8 @@ type Modes struct {
 	block.BlockEngine
 	stream.StreamEngine
 	aead.AeadEngine
-	SharedSecret    []byte
+	block           cipher.Block
 	Mode            string
-	NewCipher       func() (cipher.Block, error)
-	BlockSize       func() int
 	allowedKeySizes []int
 	KeySize         int
 	logger          *configs.ColorLogger
@@ -44,31 +42,41 @@ func NewModes(name, mode string, size int, allowedKeySizes []int, sharedSecret [
 		return nil, errors.New("invalid key size")
 	}
 	keySize := size / 8
+	if len(sharedSecret) < keySize {
+		return nil, errors.New("shared secret is too short")
+	}
 
 	if !engines.IsModeSupported(mode) {
-		return nil, errors.New("unsupported mode")
+		return nil, errors.New("unsupported mode: " + mode)
 	}
 
 	engine := Modes{}
+	engine.Mode = mode
 	engine.allowedKeySizes = allowedKeySizes
 	engine.KeySize = size
 	engine.logger = configs.GetLogger("crypt")
+	var err error
+	engine.block, err = newCipherFunc()
+	if err != nil {
+		return nil, err
+	}
 	if engines.ModesList[mode] == "aead" {
-		engine.AeadEngine = *aead.NewAeadEngine(name + "-" + mode)
+		aeadEngine, err := engine.NewAEAD(engine.block)
+		if err != nil {
+			return nil, err
+		}
+		engine.AeadEngine = *aead.NewAeadEngine(name+"-"+mode, aeadEngine)
 		engine.EngineData = engine.AeadEngine.EngineData
 	}
 	if engines.ModesList[mode] == "block" {
-		engine.BlockEngine = *block.NewBlockEngine(name + "-" + mode)
+		engine.BlockEngine = *block.NewBlockEngine(name+"-"+mode, engine.block)
 		engine.EngineData = engine.BlockEngine.EngineData
 	}
 	if engines.ModesList[mode] == "stream" {
-		engine.StreamEngine = *stream.NewStreamEngine(name + "-" + mode)
+		engine.StreamEngine = *stream.NewStreamEngine(name+"-"+mode, engine.block.BlockSize())
 		engine.EngineData = engine.StreamEngine.EngineData
 	}
 	engine.Mode = mode
-	engine.SharedSecret = sharedSecret[:keySize]
-	engine.NewCipher = newCipherFunc
-	engine.BlockSize = blockSizeFunc
 	return &engine, nil
 }
 
@@ -88,22 +96,13 @@ func (e *Modes) GetType() string {
 }
 
 func (e *Modes) NewStream(iv []byte) (cipher.Stream, error) {
-	block, err := e.NewCipher()
-	if err != nil {
-		return nil, err
-	}
-
 	if e.Mode == "ctr" {
-		return cipher.NewCTR(block, iv), nil
+		return cipher.NewCTR(e.block, iv), nil
 	}
-	return nil, errors.New("unsupported mode")
+	return nil, errors.New("unsupported mode: " + e.Mode)
 }
 
-func (e *Modes) NewAEAD() (cipher.AEAD, error) {
-	block, err := e.NewCipher()
-	if err != nil {
-		return nil, err
-	}
+func (e *Modes) NewAEAD(block cipher.Block) (cipher.AEAD, error) {
 	if e.Mode == "ccm" {
 		return ccm.NewCCM(block)
 	}
@@ -120,46 +119,46 @@ func (e *Modes) NewAEAD() (cipher.AEAD, error) {
 		}
 		return eax.NewEAX(block)
 	}
-	return nil, errors.New("unsupported mode")
+	return nil, errors.New("unsupported mode: " + e.Mode)
 }
 
 func (e *Modes) Encrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Encrypt", "datalen", len(data))
 	if engines.ModesList[e.Mode] == "block" {
-		return e.BlockEngine.BlockEncrypt(e.NewCipher, data)
+		return e.BlockEngine.BlockEncrypt(data)
 	}
 	if engines.ModesList[e.Mode] == "aead" {
-		return e.AeadEngine.Seal(e.NewAEAD, data)
+		return e.AeadEngine.Seal(data)
 	}
 	if engines.ModesList[e.Mode] == "stream" {
-		return e.StreamEngine.StreamEncrypt(e.BlockSize(), e.NewStream, data)
+		return e.StreamEngine.StreamEncrypt(e.NewStream, data)
 	}
-	return nil, errors.New("unsupported mode")
+	return nil, errors.New("unsupported mode: " + e.Mode)
 }
 
 func (e *Modes) Decrypt(data []byte) ([]byte, error) {
 	e.logger.Debug("Decrypt", "datalen", len(data))
 	if engines.ModesList[e.Mode] == "block" {
-		return e.BlockEngine.BlockDecrypt(e.NewCipher, data)
+		return e.BlockEngine.BlockDecrypt(data)
 	}
 	if engines.ModesList[e.Mode] == "aead" {
-		return e.AeadEngine.Open(e.NewAEAD, data)
+		return e.AeadEngine.Open(data)
 	}
 	if engines.ModesList[e.Mode] == "stream" {
-		return e.StreamEngine.StreamDecrypt(e.BlockSize(), e.NewStream, data)
+		return e.StreamEngine.StreamDecrypt(e.NewStream, data)
 	}
-	return nil, errors.New("unsupported mode")
+	return nil, errors.New("unsupported mode: " + e.Mode)
 }
 
 func (e *Modes) GetOverhead() int {
 	if engines.ModesList[e.Mode] == "block" {
-		return e.BlockEngine.GetOverhead(e.NewCipher)
+		return e.BlockEngine.GetOverhead()
 	}
 	if engines.ModesList[e.Mode] == "aead" {
-		return e.AeadEngine.GetOverhead(e.NewAEAD)
+		return e.AeadEngine.GetOverhead()
 	}
 	if engines.ModesList[e.Mode] == "stream" {
-		return e.StreamEngine.GetOverhead(e.NewCipher)
+		return e.StreamEngine.GetOverhead()
 	}
 	return 0
 }
