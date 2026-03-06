@@ -13,7 +13,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const DefaultMTU = 1420
+const DefaultMTU = 1500
 
 type TunInterface struct {
 	interfaces.TunInterface
