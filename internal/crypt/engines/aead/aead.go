@@ -48,5 +48,5 @@ func (e *AeadEngine) Open(data []byte) ([]byte, error) {
 }
 
 func (e *AeadEngine) GetOverhead() int {
-	return e.aead.NonceSize() + e.aead.Overhead()
+	return e.aead.Overhead()
 }
