@@ -31,7 +31,7 @@ Features:
     * AEAD ciphers:
       * Chacha20-Poly1305
       * XSalsa20-Poly1305 (Nonce size=24 in comparing with Salsa20-Poly1305 where Nonce=8)
-      * Aegis (очень быстрый)
+      * Aegis (very fast)
       * Grain
     * Cipher modes (makes block cipher in stream or AEAD):
       * CBC (block)
