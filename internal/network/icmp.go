@@ -45,8 +45,29 @@ func isOurPacket(data []byte) bool {
 		logger.Debug("Error decrypting data", "error", err)
 		return false
 	}
+	if len(buf) < len(IDSTRING) {
+		logger.Debug("Decrypted ICMP data is too short", "len", len(buf))
+		return false
+	}
 	logger.Trace("Decrypted ICMP data", "data", string(buf), "len", len(buf))
 	return string(buf[:len(IDSTRING)]) == IDSTRING
+}
+
+func buildIPv6PseudoHeader(dstIP net.IP) []byte {
+	if dstIP == nil || dstIP.To4() != nil {
+		return nil
+	}
+	dialConn, err := net.DialUDP("udp6", nil, &net.UDPAddr{IP: dstIP, Port: 9})
+	if err != nil {
+		return nil
+	}
+	defer dialConn.Close()
+
+	localAddr, ok := dialConn.LocalAddr().(*net.UDPAddr)
+	if !ok || localAddr.IP == nil {
+		return nil
+	}
+	return icmp.IPv6PseudoHeader(localAddr.IP, dstIP)
 }
 
 func fillData(data []byte) []byte {
@@ -77,6 +98,12 @@ func decodeData(data []byte) (uint16, string) {
 		logger.Error("Error decrypting data", "error", err)
 		return 0, ""
 	}
+	if len(decBuf) < len(IDSTRING) {
+		logger.Error("Decrypted ICMP payload is too short", "len", len(decBuf))
+		return 0, ""
+	}
+	// If decrypted data is IDSTRING, it's OS reply (it's copied from our request packet), ignore it.
+	// Reply form server contains port number and protocol name.
 	if string(decBuf[:len(IDSTRING)]) == IDSTRING {
 		logger.Debug("Received OS reply, ignoring")
 		return 0, ""
@@ -164,6 +191,13 @@ func StartICMPCommonListen(isIPv4 bool) {
 				},
 			}
 			replyBytes, err := reply.Marshal(nil)
+			// For IPv6, we need to include the pseudo-header for checksum calculation
+			if !isIPv4 {
+				peerIP, ok := peer.(*net.IPAddr)
+				if ok {
+					replyBytes, err = reply.Marshal(buildIPv6PseudoHeader(peerIP.IP))
+				}
+			}
 			if err != nil {
 				logger.Error("Error marshaling ICMP message", "error", err)
 				continue
@@ -220,6 +254,10 @@ func GetICMPPort(addr net.IPAddr, secret string) (uint16, string) {
 		},
 	}
 	icmpBytes, err := icmpMessage.Marshal(nil)
+	// For IPv6, we need to include the pseudo-header for checksum calculation
+	if addr.IP.To4() == nil {
+		icmpBytes, err = icmpMessage.Marshal(buildIPv6PseudoHeader(addr.IP))
+	}
 	if err != nil {
 		logger.Fatal("Marshaling error", "error", err)
 	}
