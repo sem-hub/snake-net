@@ -59,6 +59,7 @@ func (c *Client) TransportReadLoop(address netip.AddrPort) {
 	go func() {
 		for {
 			c.logger.Debug("client ReadLoop waiting for data", "address", address)
+			// Contract: only this goroutine calls Receive() for a given client connection. (One reader contract)
 			msg, n, err := c.t.Receive(address)
 			if err != nil {
 				c.logger.Error("client ReadLoop Receive error", "err", err)

@@ -16,6 +16,7 @@ type KcpTransport struct {
 	TransportData
 	listenConn *mkcp.Listener
 	conn       map[netip.AddrPort]*mkcp.UDPSession
+	readBuf    map[netip.AddrPort][]byte
 	connLock   *sync.RWMutex
 	key        []byte
 }
@@ -38,6 +39,7 @@ func NewKcpTransport(key []byte) *KcpTransport {
 		TransportData: *NewTransport(),
 		listenConn:    nil,
 		conn:          make(map[netip.AddrPort]*mkcp.UDPSession),
+		readBuf:       make(map[netip.AddrPort][]byte),
 		connLock:      &sync.RWMutex{},
 		key:           key, // 32 bytes key for AES-256
 	}
@@ -78,6 +80,7 @@ func (kcp *KcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		}
 		kcp.connLock.Lock()
 		kcp.conn[rAddrPort] = conn
+		kcp.readBuf[rAddrPort] = make([]byte, NETBUFSIZE)
 		kcp.connLock.Unlock()
 		kcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
@@ -111,6 +114,7 @@ func (kcp *KcpTransport) listen(addrPort string, callback func(Transport, netip.
 		kcp.logger.Info("New KCP connection from", "addr", remoteAddr.String())
 		kcp.connLock.Lock()
 		kcp.conn[remoteAddr] = conn
+		kcp.readBuf[remoteAddr] = make([]byte, NETBUFSIZE)
 		kcp.connLock.Unlock()
 		go callback(kcp, remoteAddr)
 	}
@@ -144,12 +148,15 @@ func (kcp *KcpTransport) Send(addr netip.AddrPort, buf *Message) error {
 func (kcp *KcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 	kcp.connLock.RLock()
 	kstream, ok := kcp.conn[addr]
+	b, okBuf := kcp.readBuf[addr]
 	kcp.connLock.RUnlock()
 	if !ok {
 		return nil, 0, errors.New("No such client connection: " + addr.String())
 	}
+	if !okBuf || len(b) == 0 {
+		return nil, 0, errors.New("No receive buffer for client connection: " + addr.String())
+	}
 
-	b := make([]byte, NETBUFSIZE)
 	l, err := kstream.Read(b)
 	if err != nil {
 		return nil, 0, err
@@ -176,6 +183,7 @@ func (kcp *KcpTransport) CloseClient(addr netip.AddrPort) error {
 		}*/
 	kcp.connLock.Lock()
 	delete(kcp.conn, addr)
+	delete(kcp.readBuf, addr)
 	kcp.connLock.Unlock()
 	return nil
 }

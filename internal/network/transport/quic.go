@@ -19,6 +19,7 @@ type QuicTransport struct {
 	listenConn *mquic.Listener
 	conn       map[netip.AddrPort]*mquic.Conn
 	stream     map[netip.AddrPort]*mquic.Stream
+	readBuf    map[netip.AddrPort][]byte
 	connLock   *sync.RWMutex
 }
 
@@ -34,6 +35,7 @@ func NewQuicTransport() *QuicTransport {
 		listenConn:    nil,
 		conn:          make(map[netip.AddrPort]*mquic.Conn),
 		stream:        make(map[netip.AddrPort]*mquic.Stream),
+		readBuf:       make(map[netip.AddrPort][]byte),
 		connLock:      &sync.RWMutex{},
 	}
 }
@@ -84,6 +86,7 @@ func (quic *QuicTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort
 		quic.connLock.Lock()
 		quic.conn[rAddrPort] = conn
 		quic.stream[rAddrPort] = stream
+		quic.readBuf[rAddrPort] = make([]byte, NETBUFSIZE)
 		quic.connLock.Unlock()
 		quic.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
@@ -119,6 +122,7 @@ func (quic *QuicTransport) listen(addrPort string, cfg *tls.Config, callback fun
 		quic.connLock.Lock()
 		quic.conn[remoteAddr] = conn
 		quic.stream[remoteAddr] = stream
+		quic.readBuf[remoteAddr] = make([]byte, NETBUFSIZE)
 		quic.connLock.Unlock()
 		go callback(quic, remoteAddr)
 	}
@@ -152,12 +156,15 @@ func (quic *QuicTransport) Send(addr netip.AddrPort, buf *Message) error {
 func (quic *QuicTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 	quic.connLock.RLock()
 	qstream, ok := quic.stream[addr]
+	b, okBuf := quic.readBuf[addr]
 	quic.connLock.RUnlock()
 	if !ok {
 		return nil, 0, errors.New("No such client connection: " + addr.String())
 	}
+	if !okBuf || len(b) == 0 {
+		return nil, 0, errors.New("No receive buffer for client connection: " + addr.String())
+	}
 
-	b := make([]byte, NETBUFSIZE)
 	l, err := qstream.Read(b)
 	if err != nil {
 		return nil, 0, err
@@ -184,6 +191,7 @@ func (quic *QuicTransport) CloseClient(addr netip.AddrPort) error {
 	quic.connLock.Lock()
 	delete(quic.conn, addr)
 	delete(quic.stream, addr)
+	delete(quic.readBuf, addr)
 	quic.connLock.Unlock()
 	return nil
 }

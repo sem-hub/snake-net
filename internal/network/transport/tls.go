@@ -16,6 +16,7 @@ type TlsTransport struct {
 	TransportData
 	mainConn *mtls.Conn
 	conn     map[netip.AddrPort]*mtls.Conn
+	readBuf  map[netip.AddrPort][]byte
 	connLock *sync.RWMutex
 }
 
@@ -30,6 +31,7 @@ func NewTlsTransport() *TlsTransport {
 		TransportData: *NewTransport(),
 		mainConn:      nil,
 		conn:          make(map[netip.AddrPort]*mtls.Conn),
+		readBuf:       make(map[netip.AddrPort][]byte),
 		connLock:      &sync.RWMutex{},
 	}
 }
@@ -78,6 +80,7 @@ func (tls *TlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		netipRemote := conn.RemoteAddr().(*net.TCPAddr).AddrPort()
 		netipRemote = netip.AddrPortFrom(netipRemote.Addr().Unmap(), netipRemote.Port())
 		tls.conn[netipRemote] = conn
+		tls.readBuf[netipRemote] = make([]byte, NETBUFSIZE)
 		tls.connLock.Unlock()
 		tls.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
@@ -107,6 +110,7 @@ func (tls *TlsTransport) listen(addrPort string, cfg *mtls.Config, callback func
 		tls.logger.Info("New TLS connection from", "addr", addrPort)
 		tls.connLock.Lock()
 		tls.conn[addrPort] = tlsconn
+		tls.readBuf[addrPort] = make([]byte, NETBUFSIZE)
 		tls.connLock.Unlock()
 		go callback(tls, addrPort)
 	}
@@ -140,12 +144,15 @@ func (tls *TlsTransport) Send(addr netip.AddrPort, buf *Message) error {
 func (tls *TlsTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 	tls.connLock.RLock()
 	tlsconn, ok := tls.conn[addr]
+	b, okBuf := tls.readBuf[addr]
 	tls.connLock.RUnlock()
 	if !ok {
 		return nil, 0, errors.New("No such client connection: " + addr.String())
 	}
+	if !okBuf || len(b) == 0 {
+		return nil, 0, errors.New("No receive buffer for client connection: " + addr.String())
+	}
 
-	b := make([]byte, NETBUFSIZE)
 	l, err := tlsconn.Read(b)
 	if err != nil {
 		return nil, 0, err
@@ -171,6 +178,7 @@ func (tls *TlsTransport) CloseClient(addr netip.AddrPort) error {
 	}
 	tls.connLock.Lock()
 	delete(tls.conn, addr)
+	delete(tls.readBuf, addr)
 	tls.connLock.Unlock()
 
 	return nil

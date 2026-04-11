@@ -14,6 +14,7 @@ type TcpTransport struct {
 	TransportData
 	mainConn *net.TCPConn
 	conn     map[netip.AddrPort]*net.TCPConn
+	readBuf  map[netip.AddrPort][]byte
 	connLock *sync.RWMutex
 }
 
@@ -28,6 +29,7 @@ func NewTcpTransport() *TcpTransport {
 		TransportData: *NewTransport(),
 		mainConn:      nil,
 		conn:          make(map[netip.AddrPort]*net.TCPConn),
+		readBuf:       make(map[netip.AddrPort][]byte),
 		connLock:      &sync.RWMutex{},
 	}
 }
@@ -76,6 +78,7 @@ func (tcp *TcpTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		netipRemote = netip.AddrPortFrom(netipRemote.Addr().Unmap(), netipRemote.Port())
 		tcp.logger.Debug("TCP connected", "netipRemote", netipRemote)
 		tcp.conn[netipRemote] = conn
+		tcp.readBuf[netipRemote] = make([]byte, NETBUFSIZE)
 		tcp.connLock.Unlock()
 		tcp.logger.Info("Connected to", "server", rAddrPort, "from", conn.LocalAddr().String())
 	}
@@ -112,6 +115,7 @@ func (tcp *TcpTransport) listen(addrPort netip.AddrPort, callback func(Transport
 		tcp.logger.Info("New TCP connection from", "addr", addrPort)
 		tcp.connLock.Lock()
 		tcp.conn[addrPort] = tcpconn
+		tcp.readBuf[addrPort] = make([]byte, NETBUFSIZE)
 		tcp.connLock.Unlock()
 		go callback(tcp, addrPort)
 	}
@@ -145,12 +149,15 @@ func (tcp *TcpTransport) Send(addr netip.AddrPort, buf *Message) error {
 func (tcp *TcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 	tcp.connLock.RLock()
 	tcpconn, ok := tcp.conn[addr]
+	b, okBuf := tcp.readBuf[addr]
 	tcp.connLock.RUnlock()
 	if !ok {
 		return nil, 0, errors.New("No such client connection: " + addr.String())
 	}
+	if !okBuf || len(b) == 0 {
+		return nil, 0, errors.New("No receive buffer for client connection: " + addr.String())
+	}
 
-	b := make([]byte, NETBUFSIZE)
 	l, err := tcpconn.Read(b)
 	if err != nil {
 		return nil, 0, err
@@ -176,6 +183,7 @@ func (tcp *TcpTransport) CloseClient(addr netip.AddrPort) error {
 	}
 	tcp.connLock.Lock()
 	delete(tcp.conn, addr)
+	delete(tcp.readBuf, addr)
 	tcp.connLock.Unlock()
 	return nil
 }
