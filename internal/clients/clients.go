@@ -19,8 +19,8 @@ import (
 type State int
 
 const (
-	BUFSIZE        = 524288 // 512 KB
-	SENTBUFFERSIZE = 512    // keep 512 packets after sending
+	BUFSIZE        = 4 * 1024 * 1024 // 4 MB, should be enough for any transport protocol
+	SENTBUFFERSIZE = 512             // keep 512 packets after sending
 	SENDQUEUESIZE  = 256
 )
 

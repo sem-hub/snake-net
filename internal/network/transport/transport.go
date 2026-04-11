@@ -33,7 +33,7 @@ type TransportData struct {
 	logger *configs.ColorLogger
 }
 
-const NETBUFSIZE = 9000
+const NETBUFSIZE = 65535
 
 func NewTransport() *TransportData {
 	t := &TransportData{}
