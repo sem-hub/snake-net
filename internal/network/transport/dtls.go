@@ -18,6 +18,7 @@ import (
 type DtlsTransport struct {
 	TransportData
 	mainConn *mdtls.Conn
+	listener net.Listener
 	conn     map[netip.AddrPort]*mdtls.Conn
 	connLock *sync.RWMutex
 }
@@ -108,6 +109,9 @@ func (dtls *DtlsTransport) listen(addrPort *net.UDPAddr, mdtlsConfig *mdtls.Conf
 	if err != nil {
 		return err
 	}
+	dtls.connLock.Lock()
+	dtls.listener = listen
+	dtls.connLock.Unlock()
 
 	for {
 		conn, err := listen.Accept()
@@ -117,28 +121,33 @@ func (dtls *DtlsTransport) listen(addrPort *net.UDPAddr, mdtlsConfig *mdtls.Conf
 		}
 		dtls.logger.Info("New UDP connection from", "addr", addrPort.String())
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		dtlsConn, ok := conn.(*mdtls.Conn)
-		if ok {
-			err = dtlsConn.HandshakeContext(ctx)
+		if !ok {
+			dtls.logger.Error("listen: unexpected connection type")
+			continue
+		}
+
+		// Run handshake in a separate goroutine so the accept loop is not blocked
+		go func(dtlsConn *mdtls.Conn) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			err := dtlsConn.HandshakeContext(ctx)
 			if err != nil {
 				dtls.logger.Error("DTLS Handshake error", "from", dtlsConn.RemoteAddr().(*net.UDPAddr).AddrPort(), "error", err)
-				cancel()
-				continue
+				return
 			}
-		}
-		cancel()
 
-		addrPort := dtlsConn.RemoteAddr().(*net.UDPAddr).AddrPort()
-		// unmap this AddrPort
-		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
+			addrPort := dtlsConn.RemoteAddr().(*net.UDPAddr).AddrPort()
+			// unmap this AddrPort
+			addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
 
-		dtls.logger.Info("Handshake completed for connection from", "addr", addrPort)
+			dtls.logger.Info("Handshake completed for connection from", "addr", addrPort)
 
-		dtls.connLock.Lock()
-		dtls.conn[addrPort] = dtlsConn
-		dtls.connLock.Unlock()
-		go callback(dtls, addrPort)
+			dtls.connLock.Lock()
+			dtls.conn[addrPort] = dtlsConn
+			dtls.connLock.Unlock()
+			go callback(dtls, addrPort)
+		}(dtlsConn)
 	}
 	err = listen.Close()
 	if err != nil {
@@ -207,9 +216,28 @@ func (dtls *DtlsTransport) CloseClient(addr netip.AddrPort) error {
 
 func (dtls *DtlsTransport) Close() error {
 	dtls.logger.Info("DTLS Transport Close")
+
+	// Close all active client connections so pion/dtls internal goroutines
+	// (FSM + read loop per connection) are properly terminated.
+	dtls.connLock.Lock()
+	for addr, dtlsconn := range dtls.conn {
+		if err := dtlsconn.Close(); err != nil {
+			dtls.logger.Error("DTLS Close client conn", "addr", addr, "error", err)
+		}
+		delete(dtls.conn, addr)
+	}
+	listener := dtls.listener
+	dtls.connLock.Unlock()
+
+	// Close the listener: unblocks Accept() in the listen goroutine via doneCh.
+	if listener != nil {
+		if err := listener.Close(); err != nil {
+			dtls.logger.Error("DTLS listener Close", "error", err)
+		}
+	}
+
 	if dtls.mainConn != nil {
-		err := dtls.mainConn.Close()
-		if err != nil {
+		if err := dtls.mainConn.Close(); err != nil {
 			return err
 		}
 	}
