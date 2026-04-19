@@ -142,7 +142,7 @@ func (tls *TlsTransport) dialUTLS(network, addr string, cfg *mtls.Config) (net.C
 
 func parseUTLSClientHelloID(v string) (utls.ClientHelloID, bool) {
 	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "chrome":
+	case "", "chrome":
 		return utls.HelloChrome_Auto, true
 	case "firefox":
 		return utls.HelloFirefox_Auto, true
