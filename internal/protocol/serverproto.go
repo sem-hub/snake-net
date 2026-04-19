@@ -199,6 +199,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	c.AddSecretsToClient(s)
 	c.TransportReadLoop(addr)
 
+	logger.Info("Identify client", "address", addr.String())
 	clientTunIPs, engineName, signatureName, err := IdentifyClient(c)
 	if err != nil {
 		logger.Error("Identification failed", "error", err)
@@ -206,7 +207,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 		if err := c.Write(&buf, WithPadding); err != nil {
 			logger.Error("Failed to write Error message", "error", err)
 		}
-		clients.RemoveClient(addr)
+		c.Close()
 		return
 	}
 	logger.Info("Identification passed", "clientTunIPs", clientTunIPs)
@@ -217,7 +218,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 		sNew, err := crypt.NewSecrets(engineName, cfg.Secret, signatureName)
 		if err != nil {
 			logger.Error("Failed to create secrets engine", "err", err)
-			clients.RemoveClient(addr)
+			c.Close()
 			return
 		}
 		logger.Info("Secrets engine changed", "old", s.Engine.GetName(), "new", sNew.Engine.GetName())
@@ -234,7 +235,7 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 		buf, err := c.ReadBuf(HEADER)
 		if err != nil {
 			logger.Error("Failed to read response message", "error", err)
-			clients.RemoveClient(addr)
+			c.Close()
 			return
 		}
 
@@ -244,13 +245,13 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 			if err != nil {
 				logger.Error("Failed to write Error message", "error", err)
 			}
-			clients.RemoveClient(addr)
+			c.Close()
 			return
 		} else {
 			logger.Debug("Client sent correct secret")
 			err = clients.SendOKMessage(c)
 			if err != nil {
-				clients.RemoveClient(addr)
+				c.Close()
 				return
 			}
 		}
@@ -258,14 +259,14 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 		logger.Debug("Performing ECDH key exchange with the client")
 		if err := c.ECDH(); err != nil {
 			logger.Error("ECDH", "error", err)
-			clients.RemoveClient(addr)
+			c.Close()
 			return
 		}
 
 		err = clients.WaitForOKMessage(c)
 		if err != nil {
 			logger.Error("Got not OK message", "error", err)
-			clients.RemoveClient(addr)
+			c.Close()
 			return
 		}
 	}

@@ -32,10 +32,10 @@ func getCommandName(command Cmd) string {
 
 func (c *Client) enqueueResendToMainLoop(buf transport.Message, askSeq uint16, observedSeq uint16) error {
 	req := sendRequest{
-		buf:              buf,
-		seq:              askSeq,
-		result:           make(chan error, 1),
-		isPriority:       true,
+		buf:        buf,
+		seq:        askSeq,
+		result:     make(chan error, 1),
+		isPriority: true,
 	}
 
 	c.sendQueueLock.Lock()
@@ -89,9 +89,9 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 	case ShutdownNotify:
 		c.logger.Info("client sent shutdown notify command, closing connection", "address", c.address)
 
+		// Close client
 		c.SetClientState(NotFound)
-		// RemoveClient() calls c.Close()
-		RemoveClient(c.address)
+		c.Close()
 
 		return nil, errors.New("connection closed by client")
 

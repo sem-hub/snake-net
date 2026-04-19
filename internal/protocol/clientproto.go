@@ -132,7 +132,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 	serverIPs, clientIPs, chipherName, signatureName, err := Identification(c)
 	if err != nil {
 		logger.Error("Identification Fails", "error", err)
-		clients.RemoveClient(addr)
+		c.Close()
 		return errors.New("Identification failed: " + err.Error())
 	}
 	logger.Info("Server accepted connection", "cipher", chipherName, "signature", signatureName)
@@ -146,7 +146,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 		sNew, err := crypt.NewSecrets(chipherName, cfg.Secret, signatureName)
 		if err != nil {
 			logger.Error("Failed to create secrets engine", "err", err)
-			clients.RemoveClient(addr)
+			c.Close()
 			return errors.New("Failed to create secrets engine: " + err.Error())
 		}
 		logger.Info("Secrets engine changed", "old", s.Engine.GetName(), "new", sNew.Engine.GetName())
@@ -160,13 +160,13 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 		buf := s.SignatureEngine.Sign(s.GetSharedSecret())
 		if err := c.Write(&buf, WithPadding); err != nil {
 			logger.Error("Failed to write shared secret", "error", err)
-			clients.RemoveClient(addr)
+			c.Close()
 			return errors.New("Failed to write shared secret: " + err.Error())
 		}
 		// Wait for OK from server
 		err = clients.WaitForOKMessage(c)
 		if err != nil {
-			clients.RemoveClient(addr)
+			c.Close()
 			return err
 		}
 		logger.Debug("GOT OK from server, secrets match")
@@ -174,13 +174,13 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 		logger.Debug("Performing ECDH key exchange with the server")
 		if err := c.ECDH(); err != nil {
 			logger.Error("ECDH", "error", err)
-			clients.RemoveClient(addr)
+			c.Close()
 			return errors.New("ECDH failed: " + err.Error())
 		}
 
 		err = clients.SendOKMessage(c)
 		if err != nil {
-			clients.RemoveClient(addr)
+			c.Close()
 			return err
 		}
 	}

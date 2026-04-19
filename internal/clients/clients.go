@@ -157,17 +157,9 @@ func (c *Client) AddSecretsToClient(s *crypt.Secrets) {
 }
 
 // Closes the client connection and removes it from the clients map
-func RemoveClient(address netip.AddrPort) {
+func removeClient(address netip.AddrPort) {
 	client := FindClient(address)
 	if client != nil {
-		// Stop ping timers
-		if client.pinger != nil {
-			client.pinger.pingTimer.Stop()
-			if client.pinger.pongTimeoutTimer != nil {
-				client.pinger.pongTimeoutTimer.Stop()
-			}
-		}
-		client.Close() // Close connection here
 		// Remvove all tun addresses
 		for _, cidr := range client.tunAddrs {
 			tunAddrsLock.Lock()
@@ -179,15 +171,6 @@ func RemoveClient(address netip.AddrPort) {
 		delete(clients, address)
 		clientsLock.Unlock()
 		client.logger.Info("RemoveClient", "address", address.String())
-	}
-	if GetClientsCount() == 0 {
-		if !configs.GetConfig().IsServer && tunIf != nil {
-			tunIf.Close()
-		}
-		/* Close transport
-		if client != nil {
-			client.t.Close()
-		}*/
 	}
 }
 
@@ -262,10 +245,14 @@ func (c *Client) removeThePacketFromBuffer(n int) {
 }
 
 func (c *Client) Close() error {
+	// Stop ping timers
 	if c.pinger != nil {
 		c.pinger.pingTimer.Stop()
 		if c.pinger.pongTimeoutTimer != nil {
 			c.pinger.pongTimeoutTimer.Stop()
+			if c.pinger.pongTimeoutTimer != nil {
+				c.pinger.pongTimeoutTimer.Stop()
+			}
 		}
 	}
 	c.sendQueueLock.Lock()
@@ -278,5 +265,6 @@ func (c *Client) Close() error {
 	if err != nil {
 		return err
 	}
+	removeClient(c.address)
 	return nil
 }

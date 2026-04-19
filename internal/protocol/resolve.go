@@ -140,12 +140,15 @@ func ResolveAndProcess(ctx context.Context) {
 		// Wait for context cancellation (Ctrl-C)
 		<-ctx.Done()
 
-		if cfg.IsServer {
-			err = network.CloseFirewallPort(lAddrPort.Port(), t.WireProtocol())
-			if err != nil {
-				logger.Error("Error closing firewall port", "error", err)
-			}
+		err = network.CloseFirewallPort(lAddrPort.Port(), t.WireProtocol())
+		if err != nil {
+			logger.Error("Error closing firewall port", "error", err)
 		}
+		// Clean up transport
+		if t != nil {
+			t.Close()
+		}
+
 	} else {
 		// For client, we will traverse to each resolved server IP until we succeed.
 		attempts := 0
@@ -196,8 +199,7 @@ func ResolveAndProcess(ctx context.Context) {
 				logger.Error("Transport init error", "error", err)
 				attempts++
 				// MaxAttempts == 0 means infinite attempts.
-				if configs.GetConfig().Attempts > 0 &&
-					attempts >= configs.GetConfig().Attempts {
+				if configs.GetConfig().Attempts > 0 && attempts >= configs.GetConfig().Attempts {
 					logger.Info("Max attempts reached, give up")
 					return
 				}
@@ -243,8 +245,7 @@ func ResolveAndProcess(ctx context.Context) {
 					// Try again after delay
 					attempts++
 					// MaxAttempts == 0 means infinite attempts
-					if configs.GetConfig().Attempts > 0 &&
-						attempts >= configs.GetConfig().Attempts {
+					if configs.GetConfig().Attempts > 0 && attempts >= configs.GetConfig().Attempts {
 						logger.Info("Max attempts reached, give up")
 						return
 					}
@@ -259,12 +260,11 @@ func ResolveAndProcess(ctx context.Context) {
 					logger.Info("ProcessServer exited normally")
 				}
 			}
-			logger.Info("ProcessServer exited")
+			// If we are here, it means ProcessServer exited without error, we can exit the client.
+			if t != nil {
+				t.Close()
+			}
+			return
 		}
-	}
-
-	// Clean up transport
-	if t != nil {
-		t.Close()
 	}
 }
