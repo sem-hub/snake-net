@@ -10,12 +10,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	utls "github.com/refraction-networking/utls"
 )
 
 type TlsTransport struct {
 	TransportData
-	mainConn *mtls.Conn
-	conn     map[netip.AddrPort]*mtls.Conn
+	mainConn net.Conn
+	conn     map[netip.AddrPort]net.Conn
 	readBuf  map[netip.AddrPort][]byte
 	connLock *sync.RWMutex
 }
@@ -30,7 +32,7 @@ func NewTlsTransport() *TlsTransport {
 	return &TlsTransport{
 		TransportData: *NewTransport(),
 		mainConn:      nil,
-		conn:          make(map[netip.AddrPort]*mtls.Conn),
+		conn:          make(map[netip.AddrPort]net.Conn),
 		readBuf:       make(map[netip.AddrPort][]byte),
 		connLock:      &sync.RWMutex{},
 	}
@@ -71,7 +73,7 @@ func (tls *TlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 		if strings.Contains(rAddrPort.String(), "[") {
 			family = "tcp6"
 		}
-		conn, err := mtls.Dial(family, rAddrPort.String(), tlsCfg)
+		conn, err := tls.dialUTLS(family, rAddrPort.String(), tlsCfg)
 		if err != nil {
 			return errors.New("DialTLS error: " + err.Error())
 		}
@@ -86,6 +88,47 @@ func (tls *TlsTransport) Init(mode string, rAddrPort, lAddrPort netip.AddrPort,
 	}
 
 	return nil
+}
+
+func (tls *TlsTransport) dialUTLS(network, addr string, cfg *mtls.Config) (net.Conn, error) {
+	rawConn, err := net.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	utlsCerts := make([]utls.Certificate, 0, len(cfg.Certificates))
+	for _, cert := range cfg.Certificates {
+		sigs := make([]utls.SignatureScheme, 0, len(cert.SupportedSignatureAlgorithms))
+		for _, sig := range cert.SupportedSignatureAlgorithms {
+			sigs = append(sigs, utls.SignatureScheme(sig))
+		}
+		utlsCerts = append(utlsCerts, utls.Certificate{
+			Certificate:                  cert.Certificate,
+			PrivateKey:                   cert.PrivateKey,
+			SupportedSignatureAlgorithms: sigs,
+			OCSPStaple:                   cert.OCSPStaple,
+			SignedCertificateTimestamps:  cert.SignedCertificateTimestamps,
+			Leaf:                         cert.Leaf,
+		})
+	}
+
+	utlsCfg := &utls.Config{
+		ServerName:         cfg.ServerName,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		RootCAs:            cfg.RootCAs,
+		Certificates:       utlsCerts,
+		MinVersion:         cfg.MinVersion,
+		MaxVersion:         cfg.MaxVersion,
+		NextProtos:         cfg.NextProtos,
+	}
+
+	uconn := utls.UClient(rawConn, utlsCfg, utls.HelloChrome_Auto)
+	if err := uconn.Handshake(); err != nil {
+		_ = rawConn.Close()
+		return nil, err
+	}
+
+	return uconn, nil
 }
 
 func (tls *TlsTransport) listen(addrPort string, cfg *mtls.Config, callback func(Transport, netip.AddrPort)) error {

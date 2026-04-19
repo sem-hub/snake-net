@@ -18,6 +18,7 @@ require (
 	github.com/pedroalbanese/crypto v0.0.0-20230125215802-8b7e99ecbad3
 	github.com/pion/dtls/v3 v3.0.7
 	github.com/quic-go/quic-go v0.56.0
+	github.com/refraction-networking/utls v1.8.2
 	github.com/schultz-is/go-threefish v1.0.2
 	github.com/sem-hub/eax-mode v0.0.0-20251211001343-03d13a41fd58
 	github.com/things-go/go-socks5 v0.1.0
@@ -36,9 +37,11 @@ require (
 	codeberg.org/go-pdf/fpdf v0.10.0 // indirect
 	git.sr.ht/~sbinet/gg v0.6.0 // indirect
 	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b // indirect
+	github.com/andybalholm/brotli v1.0.6 // indirect
 	github.com/campoy/embedmd v1.0.0 // indirect
 	github.com/ericlagergren/subtle v0.0.0-20220507045147-890d697da010 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
+	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
 	github.com/klauspost/reedsolomon v1.12.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
