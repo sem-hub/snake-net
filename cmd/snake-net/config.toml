@@ -19,6 +19,7 @@ sign_engine = "ed25519"     # optional. will be get from server if not specified
 [tls]
 cert_file = ""              # will generated if not specified
 priv_key_file = ""
+fingerprint = "chrome" # uTLS client fingerprint: chrome, firefox, ios, edge, safari, 360, qq, randomized
 [tun]
 tun_addr = ["10.0.0.10/24","fd11::10/64"] # mandatory for serever and optional for client. Will be get from server if not specified.
 mtu = 1420

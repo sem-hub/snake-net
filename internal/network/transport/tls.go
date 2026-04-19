@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	utls "github.com/refraction-networking/utls"
+	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 type TlsTransport struct {
@@ -122,13 +123,48 @@ func (tls *TlsTransport) dialUTLS(network, addr string, cfg *mtls.Config) (net.C
 		NextProtos:         cfg.NextProtos,
 	}
 
-	uconn := utls.UClient(rawConn, utlsCfg, utls.HelloChrome_Auto)
+	fingerprint := configs.GetConfig().TlsFingerprint
+	clientHelloID, ok := parseUTLSClientHelloID(fingerprint)
+	if !ok {
+		tls.logger.Warn("Unknown uTLS fingerprint, fallback to chrome",
+			"fingerprint", fingerprint,
+			"fallback", "chrome")
+	}
+
+	uconn := utls.UClient(rawConn, utlsCfg, clientHelloID)
 	if err := uconn.Handshake(); err != nil {
 		_ = rawConn.Close()
 		return nil, err
 	}
 
 	return uconn, nil
+}
+
+func parseUTLSClientHelloID(v string) (utls.ClientHelloID, bool) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "chrome":
+		return utls.HelloChrome_Auto, true
+	case "firefox":
+		return utls.HelloFirefox_Auto, true
+	case "ios":
+		return utls.HelloIOS_Auto, true
+	case "edge":
+		return utls.HelloEdge_Auto, true
+	case "safari":
+		return utls.HelloSafari_Auto, true
+	case "360":
+		return utls.Hello360_Auto, true
+	case "qq":
+		return utls.HelloQQ_Auto, true
+	case "randomized":
+		return utls.HelloRandomized, true
+	/*case "randomizedalpn", "randomized_alpn":
+		return utls.HelloRandomizedALPN, true
+	case "randomizednoalpn", "randomized_noalpn":
+		return utls.HelloRandomizedNoALPN, true*/
+	default:
+		return utls.HelloChrome_Auto, false
+	}
 }
 
 func (tls *TlsTransport) listen(addrPort string, cfg *mtls.Config, callback func(Transport, netip.AddrPort)) error {

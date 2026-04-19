@@ -28,50 +28,56 @@ type cidrs []string
 type logType map[string]string
 
 var (
-	cfg        *configs.ConfigFile
-	configFile string
-	isServer   bool
-	secret     string
-	name       string
-	mtu        int
-	tunAddr    cidrs
-	verbose    string
-	clientId   string
-	proto      string
-	local      string
-	debug      bool
-	logLevel   logType
-	cipher     string
-	cert       string
-	privKey    string
-	signEngine string
-	socks5Port int
-	socks5User string
-	socks5Pass string
-	attempts   int
-	retryDelay int
-	preferIPv6 bool
-	preferIPv4 bool
-	discovery  bool
+	cfg         *configs.ConfigFile
+	configFile  string
+	isServer    bool
+	secret      string
+	name        string
+	mtu         int
+	tunAddr     cidrs
+	verbose     string
+	clientId    string
+	proto       string
+	local       string
+	debug       bool
+	logLevel    logType
+	cipher      string
+	cert        string
+	privKey     string
+	signEngine  string
+	socks5Port  int
+	socks5User  string
+	socks5Pass  string
+	attempts    int
+	retryDelay  int
+	preferIPv6  bool
+	preferIPv4  bool
+	discovery   bool
+	fingerprint string
 )
 
 var flagAlias = map[string]string{
+	"prefer_ipv4": "4",
+	"prefer_ipv6": "6",
 	"attempts":    "a",
 	"config":      "c",
 	"debug":       "d",
-	"verbose":     "v",
 	"log":         "D",
 	"cipher":      "e",
+	"fingerprint": "f",
+	"sign":        "g",
 	"id":          "i",
 	"key":         "k",
 	"local":       "l",
 	"name":        "n",
-	"prefer_ipv4": "4",
-	"prefer_ipv6": "6",
 	"proto":       "p",
+	"retry":       "r",
 	"server":      "s",
 	"tun":         "t",
 	"mtu":         "u",
+	"verbose":     "v",
+	"cert":        "C",
+	"privkey":     "K",
 	"socks5":      "x",
 	"discovery":   "y",
 }
@@ -152,6 +158,7 @@ func init() {
 	flag.BoolVar(&preferIPv6, "prefer_ipv6", false, "Prefer IPv6 for remote address resolution.")
 	flag.BoolVar(&preferIPv4, "prefer_ipv4", false, "Prefer IPv4 for remote address resolution.")
 	flag.BoolVar(&discovery, "discovery", false, "Enable discovery mode.")
+	flag.StringVar(&fingerprint, "fingerprint", "", "TLS fingerprint to use.")
 	// Setup flag aliases
 	for from, to := range flagAlias {
 		flagSet := flag.Lookup(from)
@@ -304,6 +311,9 @@ func main() {
 	}
 	if privKey != "" {
 		cfg.Tls.KeyFile = privKey
+	}
+	if fingerprint != "" {
+		cfg.Tls.Fingerprint = fingerprint
 	}
 	if socks5Port != 0 {
 		cfg.Socks5.Port = socks5Port

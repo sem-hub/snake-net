@@ -40,9 +40,10 @@ type Crypt struct {
 }
 
 type Tls struct {
-	CertFile string `toml:"cert_file"`
-	KeyFile  string `toml:"priv_key_file"`
-	CAFile   string `toml:"ca_file"` // not implemented yet
+	CertFile    string `toml:"cert_file"`
+	KeyFile     string `toml:"priv_key_file"`
+	CAFile      string `toml:"ca_file"` // not implemented yet
+	Fingerprint string `toml:"fingerprint"`
 }
 
 type Tun struct {
@@ -91,6 +92,7 @@ type RuntimeConfig struct {
 	CertFile       string
 	KeyFile        string
 	CAFile         string
+	TlsFingerprint string
 	Engine         string
 	Attempts       int
 	RetryDelay     int
@@ -148,6 +150,7 @@ func GetConfig() *RuntimeConfig {
 			CertFile:       configFile.Tls.CertFile,
 			KeyFile:        configFile.Tls.KeyFile,
 			CAFile:         configFile.Tls.CAFile,
+			TlsFingerprint: configFile.Tls.Fingerprint,
 			PreferIPv6:     configFile.Main.PreferIPv6,
 			PreferIPv4:     configFile.Main.PreferIPv4,
 			Discovery:      configFile.Main.Discovery,
