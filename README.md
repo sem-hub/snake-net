@@ -5,10 +5,10 @@ This is my project to improve skills in networking, tunneling, cryptography, etc
 
 Features:
  * Both TOML config and command line seting up. (Command line overrides config).
- * Separate logging for every module
- * TUN interface
- * Own packet format (with very little overhead: only 9 bytes header)
- * Random padding for fixed-size packets
+ * Separate logging for every module.
+ * TUN interface.
+ * Own packet format (with very little overhead: only 9 bytes header).
+ * Random padding for fixed-size packets.
  * Transport agnostic. Supports:
    * TCP
    * UDP
@@ -16,7 +16,7 @@ Features:
    * DTLS
    * QUIC
    * KCP
- * Encrypt and verify packets for TCP and UDP
+ * Encrypt and verify packets for TCP and UDP.
    * Supported block, stram and AEAD ciphers:
      * Block ciphers (universal with modes):
        * AES
@@ -46,7 +46,9 @@ Features:
       * HMAC-SHA256 - SHA256 based MAC
       * HMAC-Blake2b
       * Poly1305
- * For TLS protocols (TLS, DTLS and QUIC): dynamic certificate creating or load them from files
- * Dynamic address assigments (both IPv4&IPv6)
- * Works on Linux and Windows
- * SOCKS5 server on remote node (don't use it on local node. It's useless)
+ * For TLS protocols (TLS, DTLS and QUIC): dynamic certificate creating or load them from files.
+ * For TLS protocol use uTLS ClientHello comuflage.
+ * Dynamic address assigments (both IPv4&IPv6).
+ * Works on Linux and Windows.
+ * SOCKS5 server on remote node (don't use it on local node. It's useless).
+ * Auto protocol and port number discovery with ICMP request. You need only server address (and secret) for connect.
