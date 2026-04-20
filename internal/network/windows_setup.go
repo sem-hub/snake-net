@@ -11,7 +11,7 @@ import (
 )
 
 func (iface *TunInterface) setUpInterface() error {
-	logger := configs.InitLogger("tun")
+	logger := configs.GetLogger("tun")
 	// Set MTU
 	cmd := exec.Command("netsh", "interface", "ipv6", "set", "interface", "interface=\""+iface.name+"\"",
 		"mtu="+strconv.Itoa(iface.mtu))
