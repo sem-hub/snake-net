@@ -1,14 +1,19 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
+	"runtime"
 
 	"github.com/sem-hub/snake-net/internal/configs"
 )
 
 func OpenFirewallPort(port uint16, protocol string) error {
 	logger := configs.GetLogger("firewall")
+	if runtime.GOOS != "linux" {
+		return errors.New("firewall is not supported in this OS yet")
+	}
 	logger.Info("Opening firewall port", "protocol", protocol, "port", port)
 	cmd := exec.Command("iptables", "-I", "INPUT", "-p", protocol, "--dport", fmt.Sprintf("%d", port), "-j", "ACCEPT")
 	if err := cmd.Run(); err != nil {
@@ -27,6 +32,9 @@ func OpenFirewallPort(port uint16, protocol string) error {
 
 func CloseFirewallPort(port uint16, protocol string) error {
 	logger := configs.GetLogger("firewall")
+	if runtime.GOOS != "linux" {
+		return errors.New("firewall is not supported in this OS yet")
+	}
 	logger.Info("Closing firewall port", "protocol", protocol, "port", port)
 	cmd := exec.Command("iptables", "-D", "INPUT", "-p", protocol, "--dport", fmt.Sprintf("%d", port), "-j", "ACCEPT")
 	if err := cmd.Run(); err != nil {
