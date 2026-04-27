@@ -110,6 +110,7 @@ func (c *Client) Write(msg *transport.Message, cmd Cmd) error {
 	}
 
 	c.logger.Debug("client Write final", "address", c.address, "n", n, "bufsize", len(req.buf))
+	c.saveMetrics(len(req.buf), true)
 
 	if req.isPriority {
 		select {

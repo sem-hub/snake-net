@@ -58,6 +58,16 @@ type Client struct {
 	closed         bool
 	id             string
 	pinger         *PingerClient
+	Metrics
+}
+
+type Metrics struct {
+	inPkt     int
+	outPkt    int
+	inBytes   int
+	outBytes  int
+	oooPkts   int
+	errorPkts int
 }
 
 type sendRequest struct {
@@ -126,6 +136,14 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		id:             "",
 		pinger:         nil,
 		ooopTimer:      nil,
+		Metrics: Metrics{
+			inPkt:     0,
+			outPkt:    0,
+			inBytes:   0,
+			outBytes:  0,
+			oooPkts:   0,
+			errorPkts: 0,
+		},
 	}
 	client.bufSignal = sync.NewCond(client.bufLock)
 	client.seqOut.Store(0)
@@ -204,6 +222,24 @@ func (c *Client) SetClientState(state State) {
 func (c *Client) SetClientId(id string) {
 	c.id = id
 	c.logger.Info("SetClientId", "address", c.address.String(), "id", id)
+}
+
+func (c *Client) saveMetrics(length int, isOutgoing bool) {
+	if isOutgoing {
+		c.Metrics.outPkt++
+		c.Metrics.outBytes += length
+	} else {
+		c.Metrics.inPkt++
+		c.Metrics.inBytes += length
+	}
+}
+
+func (c *Client) saveErrorMetrics(isOOO bool) {
+	if isOOO {
+		c.Metrics.oooPkts++
+	} else {
+		c.Metrics.errorPkts++
+	}
 }
 
 func GetClientsCount() int {

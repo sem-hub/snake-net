@@ -129,6 +129,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 			// Safe remove the packet from buffer when we don't believe to n
 			c.removeThePacketFromBuffer(c.bufSize - lastSize)
 			c.bufSize = lastSize
+			c.saveErrorMetrics(false)
 
 			c.bufLock.Unlock()
 			return nil, err
@@ -146,6 +147,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 			// Safe remove the packet from buffer when we don't believe to n
 			c.removeThePacketFromBuffer(c.bufSize - lastSize)
 			c.bufSize = lastSize
+			c.saveErrorMetrics(false)
 
 			c.bufLock.Unlock()
 			return nil, errors.New("invalid message size. addsize: " + strconv.Itoa(int(addSize)))
@@ -153,6 +155,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 
 		c.logger.Debug("client ReadBuf size", "address", c.address, "size", header.Size)
 		if HEADER+int(header.Size) > c.bufSize-c.bufOffset {
+			c.saveErrorMetrics(false)
 			neededSize = HEADER + int(header.Size)
 			c.bufLock.Unlock()
 			c.logger.Debug("client Readbuf: incomplete message", "address", c.address, "needed", HEADER+int(header.Size)+addSize, "have", c.bufSize-c.bufOffset)
@@ -165,9 +168,11 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		}
 
 		c.logger.Debug("client ReadBuf seq", "address", c.address, "seq", header.Seq, "expected", c.seqIn)
-		// Sanity check of "n"
+		c.saveMetrics(HEADER+int(header.Size), false)
+		// Sanity check of header.Size
 		if header.Size <= 0 || HEADER+int(header.Size) > BUFSIZE {
 			c.removeThePacketFromBuffer(HEADER + int(header.Size))
+			c.saveErrorMetrics(false)
 
 			c.bufLock.Unlock()
 			return nil, errors.New("invalid message size. header size: " + strconv.Itoa(int(header.Size)))
@@ -183,6 +188,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 				c.logger.Warn("client ReadBuf: still invalid sequence number", "seq", header.Seq,
 					"expected", c.seqIn, "address", c.address, "oooPackets", c.oooPackets)
 			}
+			c.saveErrorMetrics(true)
 			// We still hold lock here. Unlock inside the function.
 			_, err = c.processOOOP(header.Size, header.Seq)
 			if errors.Is(err, errReadBufContinue) {
@@ -228,6 +234,9 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		if header.Size == 0 {
 			c.logger.Error("Only header in packet and it's not command. Ignore it", "address", c.address)
 			c.removeThePacketFromBuffer(HEADER)
+			c.saveErrorMetrics(false)
+
+			c.bufLock.Unlock()
 			return nil, errors.New("plain header and not command. Ignore")
 		}
 
@@ -240,6 +249,8 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		if c.bufSize < 0 {
 			c.logger.Error("client ReadBuf: ", "address", c.address, "bufSize", c.bufSize)
 			c.bufSize = 0
+			c.saveErrorMetrics(false)
+			c.bufLock.Unlock()
 			return nil, errors.New("bad buffer size (<0)")
 		}
 		// Finished working with buf, unlock

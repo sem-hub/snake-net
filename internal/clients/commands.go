@@ -58,7 +58,6 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 	if command&CmdMask != AskForResend {
 		c.removeThePacketFromBuffer(HEADER + int(n))
 		c.bufLock.Unlock()
-
 	}
 	switch command & CmdMask {
 	case Ping:
@@ -104,6 +103,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 			dataDecrypted, err = c.secrets.DecryptAndVerify(data, n, command)
 			if err != nil {
 				c.logger.Error("process command AskForResend: decrypt&verify error", "address", c.address, "error", err)
+				c.saveErrorMetrics(false)
 				return nil, err
 			}
 		} else {
@@ -114,6 +114,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 			dataDecrypted, err = crypt.UnPad(dataDecrypted)
 			if err != nil {
 				c.logger.Error("process command AskForResend: unpadding error", "address", c.address, "error", err)
+				c.saveErrorMetrics(false)
 				return nil, err
 			}
 		}
@@ -123,6 +124,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 		if len(dataDecrypted) != 4 {
 			err = errors.New("AskForResend payload must be 4 bytes")
 			c.logger.Error("process command AskForResend: invalid payload", "address", c.address, "len", len(dataDecrypted), "error", err)
+			c.saveErrorMetrics(false)
 			return nil, err
 		}
 
@@ -139,6 +141,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 			header, err := c.getHeaderInfo(buf)
 			if err != nil {
 				c.logger.Error("process command resend: cannot get header info from sentBuffer", "address", c.address, "error", err)
+				c.saveErrorMetrics(false)
 				return false
 			}
 			return header.Seq == askSeq
@@ -149,6 +152,8 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 			shouldResend = true
 			c.logger.Debug("client resend prepared", "address", c.address, "seq", askSeq, "observedSeq", observedSeq)
 		} else {
+			// We could not find the packet in sentBuffer. This all bellow for debug purpose to understand why.
+			c.saveErrorMetrics(false)
 			snapshot := c.sentBuffer.Snapshot()
 			minSeq := uint16(0)
 			maxSeq := uint16(0)
@@ -213,6 +218,7 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 		}
 		return nil, errReadBufContinue
 	default:
+		c.saveErrorMetrics(false)
 		return nil, errors.New("unknown command: " + hex.EncodeToString([]byte{byte(command)}))
 	}
 }
