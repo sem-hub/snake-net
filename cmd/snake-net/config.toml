@@ -13,6 +13,7 @@ discovery = true        # server discovery protocol and port number
 #local_port = 12345 # listen on the port (for server mode) 0 means to listen on a random port
 attempts = 1                    # 0 means infinity
 retry_delay = 5               # seconds
+api_port = 0                   # API server port, 0 means to disable API server
 [crypt]
 engine = "aes-cbc"          # optional. will be get from server if not specified
 sign_engine = "ed25519"     # optional. will be get from server if not specified

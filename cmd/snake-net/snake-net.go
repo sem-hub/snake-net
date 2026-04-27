@@ -46,6 +46,7 @@ var (
 	privKey     string
 	signEngine  string
 	socks5Port  int
+	apiPort     int
 	socks5User  string
 	socks5Pass  string
 	attempts    int
@@ -60,6 +61,7 @@ var flagAlias = map[string]string{
 	"prefer_ipv4": "4",
 	"prefer_ipv6": "6",
 	"attempts":    "a",
+	"api":         "A",
 	"config":      "c",
 	"debug":       "d",
 	"log":         "D",
@@ -153,6 +155,7 @@ func init() {
 	flag.IntVar(&socks5Port, "socks5", 0, "Enable SOCKS5 proxy on specified port.")
 	flag.StringVar(&socks5User, "socks5user", "", "SOCKS5 proxy username.")
 	flag.StringVar(&socks5Pass, "socks5pass", "", "SOCKS5 proxy password.")
+	flag.IntVar(&apiPort, "api", 0, "Enable REST API on specified port.")
 	flag.IntVar(&attempts, "attempts", 1, "Number of connection attempts before giving up (0 means infinite).")
 	flag.IntVar(&retryDelay, "retry", 5, "Delay in seconds between connection attempts.")
 	flag.BoolVar(&preferIPv6, "prefer_ipv6", false, "Prefer IPv6 for remote address resolution.")
@@ -191,6 +194,7 @@ func main() {
 	cfg.Main.IsServer = isServer
 	cfg.Main.Protocol = "tcp"
 	cfg.Main.DefaultLog = "Info"
+	cfg.Main.APIPort = 0
 	cfg.Main.RetryDelay = retryDelay
 	cfg.Main.Attempts = attempts
 
@@ -324,6 +328,9 @@ func main() {
 	}
 	if socks5Pass != "" {
 		cfg.Socks5.Password = socks5Pass
+	}
+	if apiPort != 0 {
+		cfg.Main.APIPort = apiPort
 	}
 	if mtu != 0 {
 		cfg.Tun.MTU = mtu
@@ -469,6 +476,9 @@ func main() {
 
 	// Create a context that will be cancelled on signal
 	ctx, cancel := context.WithCancel(context.Background())
+	if cfg.Main.IsServer {
+		startRESTAPIServer(ctx, cfg.Main.APIPort)
+	}
 
 	// Start processing in a goroutine
 	done := make(chan struct{})

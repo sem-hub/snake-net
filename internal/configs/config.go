@@ -22,6 +22,7 @@ type Main struct {
 	DefaultLog string `toml:"default_log"`
 	Secret     string `toml:"secret"`
 	Protocol   string `toml:"protocol"`
+	APIPort    int    `toml:"api_port"`
 	RemoteAddr string `toml:"remote_addr"`
 	RemotePort uint16 `toml:"remote_port"`
 	LocalAddr  string `toml:"local_addr"`
@@ -80,6 +81,7 @@ type RuntimeConfig struct {
 	IsServer       bool
 	DefaultLog     string
 	Protocol       string
+	APIPort        int
 	RemoteAddr     string
 	RemotePort     uint16
 	LocalAddr      string
@@ -130,6 +132,7 @@ func GetConfig() *RuntimeConfig {
 			IsServer:       configFile.Main.IsServer,
 			DefaultLog:     configFile.Main.DefaultLog,
 			Protocol:       configFile.Main.Protocol,
+			APIPort:        configFile.Main.APIPort,
 			RemoteAddr:     configFile.Main.RemoteAddr,
 			RemotePort:     configFile.Main.RemotePort,
 			LocalAddr:      configFile.Main.LocalAddr,

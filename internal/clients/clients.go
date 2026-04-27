@@ -58,6 +58,7 @@ type Client struct {
 	closed         bool
 	id             string
 	pinger         *PingerClient
+	metricsLock    *sync.RWMutex
 	Metrics
 }
 
@@ -136,6 +137,7 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		id:             "",
 		pinger:         nil,
 		ooopTimer:      nil,
+		metricsLock:    &sync.RWMutex{},
 		Metrics: Metrics{
 			inPkt:     0,
 			outPkt:    0,
@@ -225,6 +227,9 @@ func (c *Client) SetClientId(id string) {
 }
 
 func (c *Client) saveMetrics(length int, isOutgoing bool) {
+	c.metricsLock.Lock()
+	defer c.metricsLock.Unlock()
+
 	if isOutgoing {
 		c.Metrics.outPkt++
 		c.Metrics.outBytes += length
@@ -235,6 +240,9 @@ func (c *Client) saveMetrics(length int, isOutgoing bool) {
 }
 
 func (c *Client) saveErrorMetrics(isOOO bool) {
+	c.metricsLock.Lock()
+	defer c.metricsLock.Unlock()
+
 	if isOOO {
 		c.Metrics.oooPkts++
 	} else {
