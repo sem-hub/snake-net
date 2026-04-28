@@ -1,6 +1,6 @@
 FLAGS=-ldflags="-s -w"
 #BENCHMARKTAGS="-tags=hmac_sha256,hmac_blake2b,poly1305"
-#ALLTAGS="dtls,kcp,quic,tls,hc256,chacha20,rabbit,salsa20,rc6,speck,threefish,xsalsa20poly1305,aegis,grain,hmac_sha256,hmac_blake2b,poly1305"
+#ALLTAGS="-tags=dtls,kcp,quic,tls,hc256,chacha20,rabbit,salsa20,rc6,speck,threefish,xsalsa20poly1305,aegis,grain,hmac_sha256,hmac_blake2b,poly1305"
 ALLTAGS:=-tags="$(shell grep -r '//go:build'|grep -v 'setup'|grep -v '|' |awk '{print $$2}'| tr '\n' ','|sed 's/.$$//')"
 
 ifeq (,$(MAKECMDGOALS))
