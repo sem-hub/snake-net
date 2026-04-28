@@ -27,3 +27,7 @@ linux-arm64:
 clean:
 	rm -f cmd/snake-net/snake-net
 	rm -f cmd/benchmarks/benchmarks
+	rm -f cmd/snake-net/snake-net.exe
+	rm -f cmd/benchmarks/benchmarks.exe
+	rm -f cmd/snake-net/snake-net.arm64
+	rm -f cmd/benchmarks/benchmarks.arm64
