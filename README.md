@@ -52,3 +52,4 @@ Features:
  * Works on Linux and Windows.
  * SOCKS5 server on remote node (don't use it on local node. It's useless).
  * Auto protocol and port number discovery with ICMP request. You need only server address (and secret) for connect.
+ * REST API for client metrics.
