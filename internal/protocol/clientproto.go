@@ -128,6 +128,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 
 	c.TransportReadLoop(addr)
 	c.CreatePinger()
+	c.CreateRekey(false)
 
 	serverIPs, clientIPs, chipherName, signatureName, err := Identification(c)
 	if err != nil {

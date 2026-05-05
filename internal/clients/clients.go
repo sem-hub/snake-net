@@ -58,6 +58,7 @@ type Client struct {
 	closed         bool
 	id             string
 	pinger         *PingerClient
+	rekey          *RekeyClient
 	metricsLock    *sync.RWMutex
 	Metrics
 }
@@ -93,6 +94,10 @@ func SetTunInterface(tun TunInterface) {
 
 func (c *Client) CreatePinger() {
 	c.pinger = NewPingerForClient(c)
+}
+
+func (c *Client) CreateRekey(needTimer bool) {
+	c.rekey = NewRekeyForClient(c, needTimer)
 }
 
 func (c *Client) GetSecrets() *crypt.Secrets {
@@ -298,6 +303,10 @@ func (c *Client) Close() error {
 				c.pinger.pongTimeoutTimer.Stop()
 			}
 		}
+	}
+	// Stop rekey timer
+	if c.rekey != nil {
+		c.rekey.Stop()
 	}
 	c.sendQueueLock.Lock()
 	c.closed = true

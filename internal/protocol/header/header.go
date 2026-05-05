@@ -10,6 +10,8 @@ const (
 	AskForResend    = 3
 	Ping            = 4
 	Pong            = 5
+	RenegReq        = 6
+	RenegAck        = 7
 	// Flags
 	NoEncryption = 0x80
 	NoSignature  = 0x40

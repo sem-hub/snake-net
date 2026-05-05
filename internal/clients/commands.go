@@ -25,6 +25,10 @@ func getCommandName(command Cmd) string {
 		return "ShutdownNotify"
 	case AskForResend:
 		return "AskForResend"
+	case RenegReq:
+		return "RenegReq"
+	case RenegAck:
+		return "RenegAck"
 	default:
 		return "UnknownCommand(" + hex.EncodeToString([]byte{byte(command)}) + ")"
 	}
@@ -217,6 +221,36 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 			}
 		}
 		return nil, errReadBufContinue
+	case RenegReq:
+		c.logger.Debug("received RenegReq command", "address", c.address)
+
+		if c.rekey != nil {
+			err := c.rekey.handleRenegReq()
+			if err != nil {
+				c.logger.Error("Failed to handle RenegReq", "address", c.address, "error", err)
+				c.saveErrorMetrics(false)
+				return nil, err
+			}
+		} else {
+			c.logger.Warn("RenegReq received but rekey client is not initialized", "address", c.address)
+		}
+		return nil, errReadBufContinue
+
+	case RenegAck:
+		c.logger.Debug("received RenegAck command", "address", c.address)
+
+		if c.rekey != nil {
+			err := c.rekey.handleRenegAck()
+			if err != nil {
+				c.logger.Error("Failed to handle RenegAck", "address", c.address, "error", err)
+				c.saveErrorMetrics(false)
+				return nil, err
+			}
+		} else {
+			c.logger.Warn("RenegAck received but rekey client is not initialized", "address", c.address)
+		}
+		return nil, errReadBufContinue
+
 	default:
 		c.saveErrorMetrics(false)
 		return nil, errors.New("unknown command: " + hex.EncodeToString([]byte{byte(command)}))
