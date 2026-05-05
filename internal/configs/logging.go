@@ -112,7 +112,7 @@ func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
 		}
 	}
 
-	timeStr := r.Time.Format("[15:05:05.000]")
+	timeStr := r.Time.Format("[15:04:05.000]")
 	if h.noColor {
 		h.logOutput.Println(timeStr, level, h.module, r.Message, b)
 		return nil
