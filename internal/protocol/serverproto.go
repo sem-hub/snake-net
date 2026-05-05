@@ -274,6 +274,9 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	c.SetClientState(clients.Ready)
 	c.ProcessNetworkDataLoop("server")
 	c.CreatePinger()
-	c.CreateRekey(true)
+	if t.IsEncrypted() {
+		// For TCP/UDP transports run renegotiation timer
+		c.CreateRekey(true)
+	}
 	network.ProcessTun()
 }

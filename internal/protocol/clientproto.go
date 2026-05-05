@@ -128,7 +128,10 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 
 	c.TransportReadLoop(addr)
 	c.CreatePinger()
-	c.CreateRekey(false)
+	if t.IsEncrypted() {
+		// For TCP/UDP transports set up renegotiation environment w/o timer
+		c.CreateRekey(false)
+	}
 
 	serverIPs, clientIPs, chipherName, signatureName, err := Identification(c)
 	if err != nil {
