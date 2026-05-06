@@ -274,8 +274,9 @@ func ProcessNewClient(t transport.Transport, addr netip.AddrPort) {
 	c.SetClientState(clients.Ready)
 	c.ProcessNetworkDataLoop("server")
 	c.CreatePinger()
-	if t.IsEncrypted() {
-		// For TCP/UDP transports run renegotiation timer
+	if !t.IsEncrypted() {
+		// For non-encrypted transports (TCP/UDP) run renegotiation timer
+		// to periodically refresh application-level ECDH session keys.
 		c.CreateRekey(true)
 	}
 	network.ProcessTun()
