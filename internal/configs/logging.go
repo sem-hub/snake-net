@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/fatih/color"
 )
@@ -17,7 +18,10 @@ const (
 	LevelFatal = slog.Level(12)
 )
 
-var loggers map[string]*ColorLogger
+var (
+	loggers   map[string]*ColorLogger
+	loggersMu sync.Mutex
+)
 
 type ColorLogger struct {
 	slog.Logger
@@ -192,11 +196,15 @@ func getLenvelByModule(module string) slog.Level {
 }
 
 func ReinitLogger(module string) *ColorLogger {
+	loggersMu.Lock()
 	delete(loggers, module)
+	loggersMu.Unlock()
 	return GetLogger(module)
 }
 
 func GetLogger(module string) *ColorLogger {
+	loggersMu.Lock()
+	defer loggersMu.Unlock()
 	if loggers == nil {
 		loggers = make(map[string]*ColorLogger)
 	}
