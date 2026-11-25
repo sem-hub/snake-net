@@ -486,7 +486,7 @@ func main() {
 	// Start processing in a goroutine
 	done := make(chan struct{})
 	go func() {
-		protocol.Process(ctx)
+		protocol.Start(ctx)
 		close(done)
 	}()
 

@@ -45,7 +45,7 @@ func CreateTransport(protocol string, secret string) transport.Transport {
 	return t
 }
 
-func Process(ctx context.Context) {
+func Start(ctx context.Context) {
 	cfg := configs.GetConfig()
 	if cfg.IsServer || !cfg.Reconnect {
 		resolveAndProcess(ctx)
