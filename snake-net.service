@@ -1,0 +1,13 @@
+[Unit]
+Description=Snake net Service
+Documentation=https://github.com/sem-hub/snake-net
+After=network.target nss-lookup.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/snake-net -c /usr/local/etc/net.toml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
