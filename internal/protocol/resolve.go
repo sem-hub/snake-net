@@ -3,6 +3,7 @@ package protocol
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -44,7 +45,33 @@ func CreateTransport(protocol string, secret string) transport.Transport {
 	return t
 }
 
-func ResolveAndProcess(ctx context.Context) {
+func Process(ctx context.Context) {
+	cfg := configs.GetConfig()
+	if cfg.IsServer || !cfg.Reconnect {
+		resolveAndProcess(ctx)
+		return
+	}
+
+	logger := configs.GetLogger("protocol")
+	remoteAddr, protocol := cfg.RemoteAddr, cfg.Protocol
+	tunAddrs, engine, signEngine := cfg.TunAddrs, cfg.Engine, cfg.SignEngine
+	for ctx.Err() == nil {
+		cfg.RemoteAddr, cfg.Protocol = remoteAddr, protocol
+		cfg.TunAddrs, cfg.Engine, cfg.SignEngine = tunAddrs, engine, signEngine
+		resolveAndProcess(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		logger.Info("Reconnecting after delay", "seconds", cfg.RetryDelay)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Duration(cfg.RetryDelay) * time.Second):
+		}
+	}
+}
+
+func resolveAndProcess(ctx context.Context) {
 	logger := configs.GetLogger("protocol")
 	cfg := configs.GetConfig()
 	logger.Debug("Crypto engine: " + cfg.Engine)
@@ -70,6 +97,13 @@ func ResolveAndProcess(ctx context.Context) {
 	}
 
 	t := CreateTransport(cfg.Protocol, cfg.Secret)
+	if !cfg.IsServer {
+		defer func() {
+			if err := t.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				logger.Error("Transport close error", "error", err)
+			}
+		}()
+	}
 
 	if cfg.IsServer && !t.IsEncrypted() && (cfg.Engine == "") {
 		logger.Fatal("Transport is not encrypted and no cipher/signature engine is specified.")
@@ -88,6 +122,10 @@ func ResolveAndProcess(ctx context.Context) {
 		var err error
 		ips, err = net.LookupIP(host)
 		if err != nil {
+			if !cfg.IsServer && cfg.Reconnect {
+				logger.Error("Error resolving host", "error", err)
+				return
+			}
 			logger.Fatal("Error resolving host", "error", err)
 		}
 		logger.Info("Resolved", "host", host, "ips", ips)
@@ -170,6 +208,18 @@ func ResolveAndProcess(ctx context.Context) {
 				var protocol string
 				portNo, protocol = network.GetICMPPort(net.IPAddr{IP: ips[tryNo]}, cfg.Secret)
 				if portNo == 0 {
+					if cfg.Reconnect {
+						logger.Error("Failed to get port from server via ICMP", "peer", ips[tryNo].String())
+						if tryNo == len(ips)-1 {
+							return
+						}
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(time.Duration(cfg.RetryDelay) * time.Second):
+						}
+						continue
+					}
 					logger.Fatal("Failed to get port from server via ICMP, will retry", "peer", ips[tryNo].String())
 				}
 				port = int(portNo)
@@ -177,6 +227,9 @@ func ResolveAndProcess(ctx context.Context) {
 				if protocol != cfg.Protocol {
 					logger.Info("Protocol changed. Recreating transport with a new", "protocol", protocol)
 					cfg.Protocol = protocol
+					if err := t.Close(); err != nil {
+						logger.Error("Transport close error", "error", err)
+					}
 					t = CreateTransport(cfg.Protocol, cfg.Secret)
 				}
 			}
@@ -199,7 +252,10 @@ func ResolveAndProcess(ctx context.Context) {
 				logger.Error("Transport init error", "error", err)
 				attempts++
 				// MaxAttempts == 0 means infinite attempts.
-				if configs.GetConfig().Attempts > 0 && attempts >= configs.GetConfig().Attempts {
+				if cfg.Reconnect && attempts >= len(ips) {
+					return
+				}
+				if !cfg.Reconnect && cfg.Attempts > 0 && attempts >= cfg.Attempts {
 					logger.Info("Max attempts reached, give up")
 					return
 				}
@@ -215,6 +271,10 @@ func ResolveAndProcess(ctx context.Context) {
 					// continue retrying
 				}
 
+				if err := t.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+					logger.Error("Transport close error", "error", err)
+				}
+				t = CreateTransport(cfg.Protocol, cfg.Secret)
 				if tryNo == len(ips)-1 {
 					tryNo = -1
 				}
@@ -224,7 +284,7 @@ func ResolveAndProcess(ctx context.Context) {
 			logger.Debug("Connected to", "server", rAddrPort.String())
 
 			// Run client in a goroutine so we can listen for context cancellation
-			v := make(chan bool)
+			v := make(chan bool, 1)
 			go func() {
 				err := ProcessServer(ctx, t, rAddrPort)
 				if err != nil {
@@ -239,19 +299,34 @@ func ResolveAndProcess(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				logger.Info("Shutting down client due to context cancellation")
+				if err := t.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+					logger.Error("Transport close error", "error", err)
+				}
+				<-v
 			case b := <-v:
 				if !b {
 					logger.Info("ProcessServer exited with error")
 					// Try again after delay
 					attempts++
+					if cfg.Reconnect && tryNo == len(ips)-1 {
+						return
+					}
 					// MaxAttempts == 0 means infinite attempts
-					if configs.GetConfig().Attempts > 0 && attempts >= configs.GetConfig().Attempts {
+					if !cfg.Reconnect && cfg.Attempts > 0 && attempts >= cfg.Attempts {
 						logger.Info("Max attempts reached, give up")
 						return
 					}
 					retryDelay := configs.GetConfig().RetryDelay
 					logger.Info("Retrying in", "seconds", retryDelay)
-					time.Sleep(time.Duration(retryDelay) * time.Second)
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(time.Duration(retryDelay) * time.Second):
+					}
+					if err := t.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+						logger.Error("Transport close error", "error", err)
+					}
+					t = CreateTransport(cfg.Protocol, cfg.Secret)
 					if tryNo == len(ips)-1 {
 						tryNo = -1
 					}
@@ -261,9 +336,6 @@ func ResolveAndProcess(ctx context.Context) {
 				}
 			}
 			// If we are here, it means ProcessServer exited without error, we can exit the client.
-			if t != nil {
-				t.Close()
-			}
 			return
 		}
 	}

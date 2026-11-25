@@ -30,6 +30,7 @@ type Main struct {
 	ClientId   string `toml:"id"`
 	RetryDelay int    `toml:"retry_delay"`
 	Attempts   int    `toml:"attempts"`
+	Reconnect  bool   `toml:"reconnect"`
 	PreferIPv6 bool   `toml:"prefer_ipv6"`
 	PreferIPv4 bool   `toml:"prefer_ipv4"`
 	Discovery  bool   `toml:"discovery"`
@@ -98,6 +99,7 @@ type RuntimeConfig struct {
 	Engine         string
 	Attempts       int
 	RetryDelay     int
+	Reconnect      bool
 	SignEngine     string
 	Socks5Enabled  bool
 	Socks5Port     uint16
@@ -145,6 +147,7 @@ func GetConfig() *RuntimeConfig {
 			Engine:         configFile.Crypt.Engine,
 			Attempts:       configFile.Main.Attempts,
 			RetryDelay:     configFile.Main.RetryDelay,
+			Reconnect:      configFile.Main.Reconnect,
 			SignEngine:     configFile.Crypt.SignEngine,
 			Socks5Enabled:  configFile.Socks5.Enabled,
 			Socks5Port:     uint16(configFile.Socks5.Port),

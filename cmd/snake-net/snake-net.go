@@ -374,6 +374,9 @@ func main() {
 
 	// Reinit logger with a new level
 	logger = configs.ReinitLogger("main")
+	if !cfg.Main.IsServer && cfg.Main.Reconnect && cfg.Main.RetryDelay <= 0 {
+		logger.Fatal("retry_delay must be positive when reconnect is enabled")
+	}
 
 	proto_regex := `([A-Za-z]+)://`
 	ipv4_regex := `(?:[0-9]{1,3}[\.]){3}[0-9]{1,3}`
@@ -483,7 +486,7 @@ func main() {
 	// Start processing in a goroutine
 	done := make(chan struct{})
 	go func() {
-		protocol.ResolveAndProcess(ctx)
+		protocol.Process(ctx)
 		close(done)
 	}()
 
@@ -493,7 +496,9 @@ func main() {
 		logger.Info("Received signal", "signal", sig)
 		// Send shutdown command to all clients
 		clients.SendShutdownRequest()
-		time.Sleep(3 * time.Second) // Give some time for clients to process shutdown
+		if cfg.Main.IsServer || !cfg.Main.Reconnect {
+			time.Sleep(3 * time.Second) // Give some time for clients to process shutdown
+		}
 		cancel()
 		<-done // Wait for processing to finish
 	case <-done:
