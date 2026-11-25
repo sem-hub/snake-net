@@ -113,6 +113,7 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 
 	// Well, really it's server but we call it client here
 	c := clients.NewClient(addr, t)
+	defer c.Close()
 
 	// Bootstrap secrets. They must be the same with client and server.
 	defaultEngine := ""
@@ -126,8 +127,8 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 	}
 	c.AddSecretsToClient(s)
 
-	c.TransportReadLoop(addr)
 	c.CreatePinger()
+	c.TransportReadLoop(addr)
 
 	serverIPs, clientIPs, chipherName, signatureName, err := Identification(c)
 	if err != nil {
@@ -198,15 +199,41 @@ func ProcessServer(ctx context.Context, t transport.Transport, addr netip.AddrPo
 	}
 	clients.SetTunInterface(tunIf)
 
+	sessionCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	if cfg.Socks5Enabled {
+		socksDone := make(chan struct{})
 		go func() {
-			network.RunSOCKS5(ctx, cfg.TunAddrs, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
+			defer close(socksDone)
+			network.RunSOCKS5(sessionCtx, cfg.TunAddrs, int(cfg.Socks5Port), cfg.Socks5Username, cfg.Socks5Password)
+		}()
+		defer func() {
+			cancel()
+			<-socksDone
 		}()
 	}
 
+	tunClosed := make(chan struct{})
+	go func() {
+		select {
+		case <-c.Done():
+		case <-sessionCtx.Done():
+		}
+		tunIf.Close()
+		close(tunClosed)
+	}()
+	defer func() {
+		cancel()
+		<-tunClosed
+	}()
+
 	c.SetClientState(clients.Ready)
 
-	c.ProcessNetworkDataLoop("client")
+	networkDone := c.ProcessNetworkDataLoop("client")
+	defer func() {
+		c.Close()
+		<-networkDone
+	}()
 	logger.Info("client started for", "server", addr.String())
 	network.ProcessTun()
 	logger.Debug("client finished")

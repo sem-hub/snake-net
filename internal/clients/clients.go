@@ -54,8 +54,9 @@ type Client struct {
 	sendQueue      chan sendRequest
 	prioSendQueue  chan sendRequest
 	sendLoopDone   chan struct{}
-	sendLoopOnce   sync.Once
-	closed         bool
+	closeOnce      sync.Once
+	closeErr       error
+	closed         atomic.Bool
 	id             string
 	pinger         *PingerClient
 	metricsLock    *sync.RWMutex
@@ -108,7 +109,11 @@ func (c *Client) GetTunAddrs() []utils.Cidr {
 }
 
 func (c *Client) IsClosed() bool {
-	return c.closed
+	return c.closed.Load()
+}
+
+func (c *Client) Done() <-chan struct{} {
+	return c.sendLoopDone
 }
 
 func NewClient(address netip.AddrPort, t transport.Transport) *Client {
@@ -133,7 +138,6 @@ func NewClient(address netip.AddrPort, t transport.Transport) *Client {
 		sendQueue:      make(chan sendRequest, SENDQUEUESIZE),
 		prioSendQueue:  make(chan sendRequest, SENDQUEUESIZE),
 		sendLoopDone:   make(chan struct{}),
-		closed:         false,
 		id:             "",
 		pinger:         nil,
 		ooopTimer:      nil,
@@ -289,26 +293,22 @@ func (c *Client) removeThePacketFromBuffer(n int) {
 }
 
 func (c *Client) Close() error {
-	// Stop ping timers
-	if c.pinger != nil {
-		c.pinger.pingTimer.Stop()
-		if c.pinger.pongTimeoutTimer != nil {
-			c.pinger.pongTimeoutTimer.Stop()
+	c.closeOnce.Do(func() {
+		if c.pinger != nil {
+			c.pinger.pingTimer.Stop()
 			if c.pinger.pongTimeoutTimer != nil {
 				c.pinger.pongTimeoutTimer.Stop()
 			}
 		}
-	}
-	c.sendQueueLock.Lock()
-	c.closed = true
-	c.sendLoopOnce.Do(func() {
+		c.sendQueueLock.Lock()
+		c.closed.Store(true)
 		close(c.sendLoopDone)
+		c.sendQueueLock.Unlock()
+		c.bufLock.Lock()
+		c.bufSignal.Broadcast()
+		c.bufLock.Unlock()
+		c.closeErr = c.t.CloseClient(c.address)
+		removeClient(c.address)
 	})
-	c.sendQueueLock.Unlock()
-	err := c.t.CloseClient(c.address)
-	if err != nil {
-		return err
-	}
-	removeClient(c.address)
-	return nil
+	return c.closeErr
 }

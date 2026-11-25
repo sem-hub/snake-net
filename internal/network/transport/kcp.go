@@ -169,22 +169,14 @@ func (kcp *KcpTransport) Receive(addr netip.AddrPort) (Message, int, error) {
 
 func (kcp *KcpTransport) CloseClient(addr netip.AddrPort) error {
 	kcp.logger.Debug("KCP CloseClient", "addr", addr)
-	/*
-		kcp.connLock.RLock()
-		conn, ok := kcp.conn[addr]
-		kcp.connLock.RUnlock()
-		if !ok {
-			return errors.New("No such client connection: " + addr.String())
-		}
-
-		err := conn.Close()
-		if err != nil {
-			return err
-		}*/
 	kcp.connLock.Lock()
+	conn, ok := kcp.conn[addr]
 	delete(kcp.conn, addr)
 	delete(kcp.readBuf, addr)
 	kcp.connLock.Unlock()
+	if ok {
+		return conn.Close()
+	}
 	return nil
 }
 
@@ -192,6 +184,15 @@ func (kcp *KcpTransport) Close() error {
 	kcp.logger.Info("KCP Transport Close")
 	if kcp.listenConn != nil {
 		kcp.listenConn.Close()
+	}
+	kcp.connLock.Lock()
+	defer kcp.connLock.Unlock()
+	for addr, conn := range kcp.conn {
+		if err := conn.Close(); err != nil {
+			kcp.logger.Error("KCP Close client conn", "addr", addr, "error", err)
+		}
+		delete(kcp.conn, addr)
+		delete(kcp.readBuf, addr)
 	}
 
 	return nil

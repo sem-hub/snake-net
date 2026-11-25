@@ -86,8 +86,10 @@ func Route(sourceClient netip.AddrPort, data []byte) bool {
 }
 
 // Read from NET, write to TUN
-func (c *Client) ProcessNetworkDataLoop(mode string) {
+func (c *Client) ProcessNetworkDataLoop(mode string) <-chan struct{} {
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for {
 			if c != nil && !c.IsClosed() {
 				buf, err := c.ReadBuf(HEADER)
@@ -123,4 +125,5 @@ func (c *Client) ProcessNetworkDataLoop(mode string) {
 			}
 		}
 	}()
+	return done
 }

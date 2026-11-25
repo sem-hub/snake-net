@@ -7,7 +7,6 @@ import (
 	"net/netip"
 	"strconv"
 
-	"github.com/sem-hub/snake-net/internal/configs"
 	"github.com/sem-hub/snake-net/internal/crypt"
 
 	"github.com/sem-hub/snake-net/internal/network/transport"
@@ -63,13 +62,9 @@ func (c *Client) TransportReadLoop(address netip.AddrPort) {
 			msg, n, err := c.t.Receive(address)
 			if err != nil {
 				c.logger.Error("client ReadLoop Receive error", "err", err)
-				c.bufSignal.Signal()
 				// We got an error. Mostly it will EOF(XXX), so close and remove the client
 				c.SetClientState(NotFound)
 				c.Close()
-				if !configs.GetConfig().IsServer && tunIf != nil {
-					tunIf.Close()
-				}
 				break
 			}
 
@@ -116,7 +111,7 @@ func (c *Client) ReadBuf(reqSize int) (transport.Message, error) {
 		c.bufLock.Lock()
 		lastSize := 0
 		for c.bufSize-c.bufOffset < neededSize {
-			if c.closed {
+			if c.IsClosed() {
 				c.bufLock.Unlock()
 				return nil, errors.New("client is closed")
 			}

@@ -179,27 +179,39 @@ func (quic *QuicTransport) CloseClient(addr netip.AddrPort) error {
 	quic.logger.Debug("QUIC CloseClient", "addr", addr)
 	quic.connLock.RLock()
 	stream, ok := quic.stream[addr]
+	conn := quic.conn[addr]
 	quic.connLock.RUnlock()
 	if !ok {
 		return errors.New("No such client connection: " + addr.String())
 	}
 
 	err := stream.Close()
-	if err != nil {
-		return err
-	}
+	connErr := conn.CloseWithError(0, "")
 	quic.connLock.Lock()
 	delete(quic.conn, addr)
 	delete(quic.stream, addr)
 	delete(quic.readBuf, addr)
 	quic.connLock.Unlock()
-	return nil
+	if err != nil {
+		return err
+	}
+	return connErr
 }
 
 func (quic *QuicTransport) Close() error {
 	quic.logger.Info("QUIC Transport Close")
 	if quic.listenConn != nil {
 		quic.listenConn.Close()
+	}
+	quic.connLock.Lock()
+	defer quic.connLock.Unlock()
+	for addr, conn := range quic.conn {
+		if err := conn.CloseWithError(0, ""); err != nil {
+			quic.logger.Error("QUIC Close client conn", "addr", addr, "error", err)
+		}
+		delete(quic.conn, addr)
+		delete(quic.stream, addr)
+		delete(quic.readBuf, addr)
 	}
 
 	return nil

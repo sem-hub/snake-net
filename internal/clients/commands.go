@@ -81,7 +81,6 @@ func (c *Client) processCommand(command Cmd, data []byte, n uint16) (transport.M
 		_ = c.Write(nil, ShutdownNotify|WithPadding)
 		time.Sleep(100 * time.Millisecond) // Give some time to send the notify
 		c.Close()
-		tunIf.Close()
 
 		return nil, errors.New("connection closed by server")
 

@@ -253,7 +253,8 @@ func GetICMPPort(addr net.IPAddr, secret string) (uint16, string) {
 		icmpConn, err = icmp.ListenPacket("ip6:ipv6-icmp", "::")
 	}
 	if err != nil {
-		logger.Fatal("Error listening for ICMP packets", "error", err)
+		logger.Error("Error listening for ICMP packets", "error", err)
+		return 0, ""
 	}
 	defer icmpConn.Close()
 
@@ -278,7 +279,8 @@ func GetICMPPort(addr net.IPAddr, secret string) (uint16, string) {
 		logger.Fatal("Marshaling error", "error", err)
 	}
 	if _, err := icmpConn.WriteTo(icmpBytes, &addr); err != nil {
-		logger.Fatal("Error sending ICMP Echo", "error", err)
+		logger.Error("Error sending ICMP Echo", "error", err)
+		return 0, ""
 	}
 	logger.Debug("Sent ICMP Echo to", "peer", addr.String())
 	reply := make([]byte, 1500)

@@ -40,6 +40,13 @@ func RunSOCKS5(ctx context.Context, cidrs []utils.Cidr, port int, username, pass
 	}
 
 	listeners := make([]net.Listener, 0)
+	defer func() {
+		for _, listener := range listeners {
+			if err := listener.Close(); err != nil {
+				logger.Error("Failed to close SOCKS5 listener", "error", err)
+			}
+		}
+	}()
 	for _, cidr := range cidrs {
 		var addr *net.TCPAddr
 		family := "tcp4"
@@ -72,8 +79,4 @@ func RunSOCKS5(ctx context.Context, cidrs []utils.Cidr, port int, username, pass
 	<-ctx.Done()
 	logger.Info("Shutting down SOCKS5 server")
 
-	// Close listener to stop accepting connections
-	for _, listener := range listeners {
-		listener.Close()
-	}
 }

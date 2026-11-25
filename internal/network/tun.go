@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/netip"
 	"runtime"
+	"sync/atomic"
 
 	"github.com/sem-hub/snake-net/internal/clients"
 	"github.com/sem-hub/snake-net/internal/configs"
@@ -23,7 +24,7 @@ type TunInterface struct {
 	cidrs     []utils.Cidr
 	mtu       int
 	readBuffs [][]byte
-	closed    bool
+	closed    atomic.Bool
 }
 
 var tunIf *TunInterface = nil
@@ -41,7 +42,6 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 		cidrs:     make([]utils.Cidr, 0),
 		mtu:       mtu,
 		readBuffs: make([][]byte, 0),
-		closed:    false,
 	}
 
 	var err error
@@ -59,6 +59,9 @@ func NewTUN(name string, cidrs []utils.Cidr, mtu int) (interfaces.TunInterface, 
 	logger.Info("Interface", "name", iface.name)
 	if err := iface.setUpInterface(); err != nil {
 		logger.Error("Set up interface", "err", err)
+		if closeErr := iface.tunDev.Close(); closeErr != nil {
+			logger.Error("Close tun device", "error", closeErr)
+		}
 		return nil, err
 	}
 
@@ -76,7 +79,7 @@ func ProcessTun() {
 	for {
 		buf, err := tunIf.ReadTun()
 		if err != nil {
-			if !tunIf.closed {
+			if !tunIf.closed.Load() {
 				logger.Error("ReadTun", "error", err)
 			}
 			break
@@ -143,12 +146,14 @@ func (tunIf *TunInterface) WriteTun(buf []byte) error {
 func (tunIf *TunInterface) Close() {
 	logger := configs.GetLogger("tun")
 	logger.Info("TUN Interface Close")
+	if tunIf.closed.Swap(true) {
+		return
+	}
 	// Try to close underlying tun device to unblock Read
 	if tunIf.tunDev != nil {
 		err := tunIf.tunDev.Close()
 		if err != nil {
 			logger.Error("Close tun device", "error", err)
 		}
-		tunIf.closed = true
 	}
 }
