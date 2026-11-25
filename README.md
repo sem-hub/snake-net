@@ -56,6 +56,7 @@ Features:
 
 ## Config file
 
+```toml
 [main]
 server = false # true for server mode, false for client mode
 secret = "not_simply_password"      # secret key. Mandatory for both client and server modes.
@@ -102,104 +103,117 @@ transport = "info"
 socks5 = "info"
 icmp = "info"
 firewall = "info"
+```
 
 ## Command line arguments
 All command line flags overrides config file.
 
 ### Long flags versions
-  -4    alias to prefer_ipv4
-  -6    alias to prefer_ipv6
-  -api int
+
+```text
+-4
+      alias to prefer_ipv4
+-6
+      alias to prefer_ipv6
+-api int
         Enable REST API on specified port.
-  -attempts int
+-attempts int
         Number of connection attempts before giving up (0 means infinite). (default 1)
-  -cert string
+-cert string
         Path to TLS/DTLS certificate file (overrides config file).
-  -cipher string
+-cipher string
         Cipher to use (overrides config file).
-  -config string
+-config string
         Path to config file.
-  -debug
+-debug
         Enable debug mode (alias to -log=main=Debug,network=Debug,tun=Debug,route=Debug,protocol=Debug,clients=Debug,crypt=Debug,transport=Debug).
-  -discovery
+-discovery
         Enable discovery mode.
-  -fingerprint string
+-fingerprint string
         TLS fingerprint to use.
-  -id string
+-id string
         Client ID.
-  -key string
+-key string
         Secret key.
-  -local string
+-local string
         Local address (overrides config file).
-  -log value
+-log value
         Logging levels may be overridden by this.
-  -mtu int
+-mtu int
         MTU size. (default 1500)
-  -name string
+-name string
         Name of tun interface.
-  -prefer_ipv4
+-prefer_ipv4
         Prefer IPv4 for remote address resolution.
-  -prefer_ipv6
+-prefer_ipv6
         Prefer IPv6 for remote address resolution.
-  -privkey string
+-privkey string
         Path to TLS/DTLS private key file (overrides config file).
-  -proto string
+-proto string
         Protocol to use (tcp or udp). Overrides config file setting.
-  -retry int
+-retry int
         Delay in seconds between connection attempts. (default 5)
-  -server
+-server
         Server mode (otherwise client mode).
-  -sign string
+-sign string
         Signature engine to use (overrides config file).
-  -socks5 int
+-socks5 int
         Enable SOCKS5 proxy on specified port.
-  -socks5pass string
+-socks5pass string
         SOCKS5 proxy password.
-  -socks5user string
+-socks5user string
         SOCKS5 proxy username.
-  -tun value
+-tun value
         Comma separated IPv4 and IPv6 Addresses (CIDR) for Tun interface.
-  -verbose string
+-verbose string
         Default logging level for all modules.
-  
-  ### Short aliases
-  -A int
+```
+
+### Short aliases
+
+```text
+-A int
         alias to api
-  -C string
+-C string
         alias to cert
-  -D value
+-D value
         alias to log
-  -K string
+-K string
         alias to privkey
-  -a int
+-a int
         alias to attempts (default 1)
-  -c string
+-c string
         alias to config
-  -d    alias to debug
-  -e string
+-d
+      alias to debug
+-e string
         alias to cipher
-  -f string
+-f string
         alias to fingerprint
-  -g string
+-g string
         alias to sign
-  -i string
+-i string
         alias to id
-  -k string
+-k string
         alias to key
-  -l string
+-l string
         alias to local
-  -n string
+-n string
         alias to name
-  -p string
+-p string
         alias to proto
-  -r int
+-r int
         alias to retry (default 5)
-  -s    alias to server
-  -t value
+-s
+      alias to server
+-t value
         alias to tun
-  -u int
+-u int
         alias to mtu (default 1500)
-  -v string
+-v string
         alias to verbose
-  -x int   alias to socks5
-  -y    alias to discovery
+-x int
+        alias to socks5
+-y
+      alias to discovery
+```
